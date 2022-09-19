@@ -5,8 +5,10 @@
 #include "pch.h"
 #include "resource.h"
 #include "AboutDlg.h"
-#include "View.h"
+#include "ProvidersView.h"
 #include "MainFrm.h"
+
+const int WindowMenuPosition = 5;
 
 BOOL CMainFrame::PreTranslateMessage(MSG* pMsg) {
 	if (CFrameWindowImpl<CMainFrame>::PreTranslateMessage(pMsg))
@@ -19,11 +21,36 @@ BOOL CMainFrame::OnIdle() {
 	return FALSE;
 }
 
-LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
+void CMainFrame::InitMenu() {
+	struct {
+		UINT id, icon;
+		HICON hIcon = nullptr;
+	} cmds[] = {
+		{ ID_EDIT_COPY, IDI_COPY },
+		{ ID_EDIT_PASTE, IDI_PASTE },
+		{ ID_EDIT_FIND, IDI_FIND },
+		{ ID_FILE_SAVE, IDI_SAVE },
+		{ ID_FILE_OPEN, IDI_OPEN },
+		{ ID_SESSION_RUN, IDI_RUN },
+		{ ID_SESSION_STOP, IDI_STOP },
+		{ ID_VIEW_AUTOSCROLL, IDI_AUTOSCROLL },
+		//{ ID_EDIT_DELETE, IDI_CANCEL },
+		//{ ID_EDIT_CLEAR_ALL, IDI_ERASE },
+		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
+		{ ID_NEW_SESSION, IDI_SESSION },
+	};
+	for (auto& cmd : cmds) {
+		if (cmd.icon)
+			AddCommand(cmd.id, cmd.icon);
+		else
+			AddCommand(cmd.id, cmd.hIcon);
+	}
+}
 
+LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	CreateSimpleStatusBar();
 
-	m_hWndClient = m_view.Create(m_hWnd, rcDefault, nullptr, 
+	m_hWndClient = m_view.Create(m_hWnd, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, WS_EX_CLIENTEDGE);
 	UISetCheck(ID_VIEW_STATUS_BAR, 1);
 
@@ -33,7 +60,21 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	pLoop->AddIdleHandler(this);
 
 	CMenuHandle menuMain = GetMenu();
-	m_view.SetWindowMenu(menuMain.GetSubMenu(WINDOW_MENU_POSITION));
+	m_view.SetWindowMenu(menuMain.GetSubMenu(WindowMenuPosition));
+
+	CImageList images;
+	images.Create(16, 16, ILC_COLOR32, 4, 4);
+	UINT icons[] = {
+		IDI_PROVIDERS,
+	};
+	for (auto icon : icons)
+		images.AddIcon(AtlLoadIconImage(icon, 0, 16, 16));
+
+	m_view.SetImageList(images);
+
+	InitMenu();
+	AddMenu(GetMenu());
+	UIAddMenu(GetMenu());
 
 	return 0;
 }
@@ -54,18 +95,17 @@ LRESULT CMainFrame::OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	return 0;
 }
 
-LRESULT CMainFrame::OnFileNew(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	CView* pView = new CView;
-	pView->Create(m_view, rcDefault, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
-	m_view.AddPage(pView->m_hWnd, _T("Document"));
-
-	// TODO: add code to initialize document
+LRESULT CMainFrame::OnViewProviders(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	auto pView = new CProvidersView;
+	pView->Create(m_view, rcDefault, nullptr,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+	m_view.AddPage(pView->m_hWnd, L"Registered Providers", 0, pView);
 
 	return 0;
 }
 
 LRESULT CMainFrame::OnViewStatusBar(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	BOOL bVisible = !::IsWindowVisible(m_hWndStatusBar);
+	auto bVisible = !::IsWindowVisible(m_hWndStatusBar);
 	::ShowWindow(m_hWndStatusBar, bVisible ? SW_SHOWNOACTIVATE : SW_HIDE);
 	UISetCheck(ID_VIEW_STATUS_BAR, bVisible);
 	UpdateLayout();
