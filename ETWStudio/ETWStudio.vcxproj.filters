@@ -56,6 +56,9 @@
     <ClInclude Include="ProvidersView.h">
       <Filter>Views</Filter>
     </ClInclude>
+    <ClInclude Include="Interfaces.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ETWStudio.rc">
@@ -100,6 +103,15 @@
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\stop.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\provider2.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\provider1.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\computer.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
   </ItemGroup>

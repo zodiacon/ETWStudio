@@ -133,6 +133,12 @@ IDI_RUN                 ICON                    "res\\Play.ico"
 
 IDI_STOP                ICON                    "res\\stop.ico"
 
+IDI_COMPUTER            ICON                    "res\\computer.ico"
+
+IDI_PROVIDER1           ICON                    "res\\provider1.ico"
+
+IDI_PROVIDER2           ICON                    "res\\provider2.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

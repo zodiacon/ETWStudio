@@ -96,7 +96,7 @@ LRESULT CMainFrame::OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 }
 
 LRESULT CMainFrame::OnViewProviders(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	auto pView = new CProvidersView;
+	auto pView = new CProvidersView(this);
 	pView->Create(m_view, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
 	m_view.AddPage(pView->m_hWnd, L"Registered Providers", 0, pView);
@@ -139,4 +139,8 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 	m_view.SetActivePage(nPage);
 
 	return 0;
+}
+
+bool CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
+	return ShowContextMenu(hMenu, flags, x, y);
 }

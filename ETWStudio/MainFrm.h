@@ -5,20 +5,23 @@
 #pragma once
 
 #include <OwnerDrawnMenu.h>
+#include "Interfaces.h"
+#include "CustomTabView.h"
 
 class CMainFrame : 
 	public CFrameWindowImpl<CMainFrame>, 
 	public CAutoUpdateUI<CMainFrame>,
 	public COwnerDrawnMenu<CMainFrame>,
 	public CMessageFilter, 
+	public IMainFrame,
 	public CIdleHandler {
 public:
-	DECLARE_FRAME_WND_CLASS(NULL, IDR_MAINFRAME)
-
-	CTabView m_view;
+	DECLARE_FRAME_WND_CLASS(nullptr, IDR_MAINFRAME)
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual BOOL OnIdle();
+
+	bool DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
 
 	BEGIN_MSG_MAP(CMainFrame)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
@@ -52,4 +55,6 @@ private:
 	LRESULT OnWindowClose(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnWindowCloseAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnWindowActivate(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+
+	CCustomTabView m_view;
 };

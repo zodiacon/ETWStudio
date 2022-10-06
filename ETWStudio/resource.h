@@ -14,8 +14,11 @@
 #define IDI_SAVE                        209
 #define IDI_FIND                        210
 #define IDI_RUN                         211
-#define IDI_ICON3                       212
 #define IDI_STOP                        212
+#define IDI_COMPUTER                    213
+#define IDI_PROVIDER1                   214
+#define IDI_ICON3                       215
+#define IDI_PROVIDER2                   215
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -33,7 +36,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        213
+#define _APS_NEXT_RESOURCE_VALUE        216
 #define _APS_NEXT_COMMAND_VALUE         32785
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           101
