@@ -22,3 +22,12 @@ LRESULT CAboutDlg::OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, 
 	EndDialog(wID);
 	return 0;
 }
+
+LRESULT CAboutDlg::OnClickSyslink(int, LPNMHDR hdr, BOOL&) const {
+	CString text;
+	GetDlgItem((UINT)hdr->idFrom).GetWindowText(text);
+	text.Replace(L"<a>", L"");
+	text.Replace(L"</a>", L"");
+	::ShellExecute(nullptr, L"open", text, nullptr, nullptr, SW_SHOWDEFAULT);
+	return 0;
+}

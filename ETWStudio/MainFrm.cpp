@@ -7,6 +7,7 @@
 #include "AboutDlg.h"
 #include "ProvidersView.h"
 #include "MainFrm.h"
+#include "SessionDlg.h"
 
 const int WindowMenuPosition = 5;
 
@@ -139,6 +140,13 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 	int nPage = wID - ID_WINDOW_TABFIRST;
 	m_view.SetActivePage(nPage);
 
+	return 0;
+}
+
+LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
+	CSessionDlg dlg;
+	if (IDOK == dlg.DoModal()) {
+	}
 	return 0;
 }
 

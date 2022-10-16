@@ -1,23 +1,22 @@
-// aboutdlg.h : interface of the CAboutDlg class
-//
-/////////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
+#include "resource.h"
 #include <DialogHelper.h>
+#include <VirtualListView.h>
 
-class CAboutDlg : 
-	public CDialogImpl<CAboutDlg>,
-	public CDialogHelper<CAboutDlg> {
+class CSessionDlg :
+	public CDialogImpl<CSessionDlg>,
+	public CVirtualListView<CSessionDlg>,
+	public CDialogHelper<CSessionDlg> {
 public:
-	enum { IDD = IDD_ABOUTBOX };
+	enum { IDD = IDD_SESSION };
 
-	BEGIN_MSG_MAP(CAboutDlg)
-		NOTIFY_CODE_HANDLER(NM_CLICK, OnClickSyslink)
-		NOTIFY_CODE_HANDLER(NM_RETURN, OnClickSyslink)
-		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
+	BEGIN_MSG_MAP(CSessionDlg)
+		COMMAND_ID_HANDLER(IDC_BROWSE, OnBrowseFile)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
+		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
+		CHAIN_MSG_MAP(CVirtualListView<CSessionDlg>)
 	END_MSG_MAP()
 
 	// Handler prototypes (uncomment arguments if needed):
@@ -27,5 +26,6 @@ public:
 
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
-	LRESULT OnClickSyslink(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/) const;
+	LRESULT OnBrowseFile(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 };
+
