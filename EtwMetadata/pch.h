@@ -8,5 +8,9 @@
 #define PCH_H
 
 #include <Windows.h>
+#include <memory>
+#include <vector>
+#include <string>
+#include <tdh.h>
 
 #endif //PCH_H

@@ -21,8 +21,12 @@ public:
 	BOOL PreTranslateMessage(MSG* pMsg);
 
 	CString GetColumnText(HWND, int row, int col) const;
+	CString GetPropertyText(int row, int col) const;
 	void DoSort(const SortInfo* si);
+	void DoSortProperties(const SortInfo* si);
 	void OnTreeSelChanged(HWND tree, HTREEITEM hOld, HTREEITEM hNew);
+	int GetRowImage(HWND, int row, int col) const;
+	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
 
 	BEGIN_MSG_MAP(CProvidersView)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
@@ -35,8 +39,9 @@ private:
 	enum class ColumnType {
 		Name,
 		Guid,
-		Type,
-		Count
+		Type, InType, OutType,
+		Count,
+		Keyword, Task, OpCode, Level, Message, Id, Source,
 	};
 
 	enum class TreeIconType {
@@ -49,13 +54,10 @@ private:
 		None,
 		Root,
 		Provider,
-		Events,
-		Event,
-		Keywords,
 		_Count
 	};
 	void InitTree();
-	void RefreshList();
+	void RefreshList(bool changeHeader);
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -65,9 +67,17 @@ private:
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 
 	CCustomSplitterWindow m_Splitter;
+	CCustomHorSplitterWindow m_HSplitter;
 	CListViewCtrl m_List;
+	CListViewCtrl m_PropList;
 	CTreeViewCtrl m_Tree;
-	std::vector<EtwProvider> m_Providers;
+	std::vector<std::unique_ptr<EtwProvider>> m_Providers;
+	std::vector<EVENT_DESCRIPTOR> m_Events;
+	std::vector<EtwEventProperty> m_Properties;
+	std::unordered_map<HTREEITEM, EtwProvider*> m_ProvidersMap;
 	TreeItemType m_CurrentNode{ TreeItemType::None };
+	TreeItemType m_PreviousNode{ TreeItemType::None };
 	ColumnsState m_ListViewState[(int)TreeItemType::_Count]{};
+	ColumnManager m_ProviderCM, m_EventsCM;
+	EtwProvider* m_CurrentProvider{ nullptr };
 };

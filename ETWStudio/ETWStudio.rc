@@ -139,6 +139,18 @@ IDI_PROVIDER1           ICON                    "res\\provider1.ico"
 
 IDI_PROVIDER2           ICON                    "res\\provider2.ico"
 
+IDI_LDEBUG              ICON                    "res\\bug_green.ico"
+
+IDI_LERROR              ICON                    "res\\error.ico"
+
+IDI_LINFO               ICON                    "res\\EventInfo.ico"
+
+IDI_LWARNING            ICON                    "res\\EventWarning.ico"
+
+IDI_CRITICAL            ICON                    "res\\Critical.ico"
+
+IDI_EVENT               ICON                    "res\\event.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -150,9 +162,10 @@ STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About ETW Studio"
 FONT 9, "Segoe UI", 0, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,68,57,50,14
-    CTEXT           "ETW Studio v0.1\n\n(C)2022",IDC_STATIC,44,7,114,32
-    ICON            IDR_MAINFRAME,IDC_STATIC,7,7,18,17
+    DEFPUSHBUTTON   "OK",IDOK,72,57,46,14
+    ICON            IDR_MAINFRAME,IDC_STATIC,7,7,20,20
+    CTEXT           "ETW Studio v0.1",IDC_VERSION,44,7,114,13
+    CTEXT           "ETW Studio v0.1",IDC_COPYRIGHT,44,22,114,13
 END
 
 
@@ -221,6 +234,7 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
+            VALUE "CompanyName", "Scorpio Software"
             VALUE "FileDescription", "ETW Studio"
             VALUE "FileVersion", "0.1.0.0"
             VALUE "InternalName", "ETWStudio"

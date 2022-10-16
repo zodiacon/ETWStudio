@@ -39,6 +39,9 @@
     <ClCompile Include="ProvidersView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
+    <ClCompile Include="StringHelpers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -57,6 +60,9 @@
       <Filter>Views</Filter>
     </ClInclude>
     <ClInclude Include="Interfaces.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StringHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -112,6 +118,24 @@
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\computer.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\bug_green.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\error.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\EventInfo.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\EventWarning.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\Critical.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\event.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
   </ItemGroup>

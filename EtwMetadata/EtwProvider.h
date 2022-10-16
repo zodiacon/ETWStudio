@@ -3,6 +3,7 @@
 #include <tdh.h>
 #include <vector>
 #include <string>
+#include <memory>
 
 enum class EtwSchemaSource {
 	Xml = 0,
@@ -30,7 +31,7 @@ struct EtwEventProperty {
 	std::wstring MapName;
 };
 
-enum class DecodingSource {
+enum class EtwDecodingSource {
 	XMLFile,
 	Wbem,
 	WPP,
@@ -42,7 +43,7 @@ struct EtwEventInfo {
 	GUID ProviderGuid;
 	GUID EventGuid;
 	EVENT_DESCRIPTOR Descriptor;
-	DecodingSource DescodingSource;
+	EtwDecodingSource DescodingSource;
 	std::wstring ProviderName;
 	std::wstring LevelName;
 	std::wstring ChannelName;
@@ -52,6 +53,8 @@ struct EtwEventInfo {
 	std::wstring ProviderMessage;
 	std::wstring EventMessage;
 	std::wstring EventName;
+	std::vector<BYTE> BinaryXML;
+	ULONG Tags;
 	std::vector<EtwEventProperty> Properties;
 };
 
@@ -75,6 +78,7 @@ public:
 	EtwProvider(GUID const& guid, PCWSTR name, EtwSchemaSource source);
 
 	static std::vector<EtwProvider> EnumProviders(bool sort = false);
+	static std::vector<std::unique_ptr<EtwProvider>> EnumProviders2(bool sort = false);
 
 	const std::wstring& Name() const;
 	const std::wstring& GuidAsString() const;
