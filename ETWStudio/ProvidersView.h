@@ -41,7 +41,7 @@ private:
 		Guid,
 		Type, InType, OutType,
 		Count,
-		Keyword, Task, OpCode, Level, Message, Id, Source,
+		Keyword, Task, OpCode, Level, Message, Id, Source, ChannelName,
 	};
 
 	enum class TreeIconType {

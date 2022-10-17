@@ -63,6 +63,7 @@ void CProvidersView::RefreshList(bool changeHeader) {
 				cm.AddColumn(L"Message", 0, 300, ColumnType::Message);
 				cm.AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Count);
 				cm.AddColumn(L"GUID", 0, 250, ColumnType::Guid);
+				cm.AddColumn(L"Channel", 0, 150, ColumnType::ChannelName);
 				cm.AddColumn(L"Name", 0, 150, ColumnType::Name);
 				break;
 
@@ -104,7 +105,9 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_OWNERDATA | LVS_REPORT, 0, 124);
 	m_PropList.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
 	m_Tree.Create(m_Splitter, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS |
-		TVS_HASLINES | TVS_LINESATROOT | TVS_HASLINES | TVS_HASBUTTONS);
+		TVS_HASLINES | TVS_LINESATROOT | TVS_HASLINES | TVS_HASBUTTONS | TVS_SHOWSELALWAYS);
+	m_Tree.SetExtendedStyle(TVS_EX_DOUBLEBUFFER | TVS_EX_DRAWIMAGEASYNC, TVS_EX_DOUBLEBUFFER | TVS_EX_DRAWIMAGEASYNC);
+
 	m_ProviderCM.Attach(m_List);
 	m_EventsCM.Attach(m_List);
 
@@ -179,6 +182,7 @@ CString CProvidersView::GetColumnText(HWND h, int row, int col) const {
 				case ColumnType::Guid: return StringHelpers::GuidToString(event.EventGuid).c_str();
 				case ColumnType::Message: return event.EventMessage.c_str();
 				case ColumnType::Count: return std::to_wstring(event.Properties.size()).c_str();
+				case ColumnType::ChannelName: return event.ChannelName.c_str();
 			}
 			break;
 	}
@@ -202,14 +206,15 @@ void CProvidersView::DoSort(const SortInfo* si) {
 	if (si->hWnd == m_PropList)
 		return DoSortProperties(si);
 
+	auto asc = si->SortAscending;
 	switch (m_CurrentNode) {
 		case TreeItemType::Root:
 			std::sort(m_Providers.begin(), m_Providers.end(), [&](const auto& a1, const auto& a2) {
 				switch (m_ProviderCM.GetColumnTag<ColumnType>(si->SortColumn)) {
-					case ColumnType::Name: return SortHelper::Sort(a1->Name(), a2->Name(), si->SortAscending);
-					case ColumnType::Guid: return SortHelper::Sort(a1->GuidAsString(), a2->GuidAsString(), si->SortAscending);
-					case ColumnType::Source: return SortHelper::Sort(a1->SchemaSource(), a2->SchemaSource(), si->SortAscending);
-					case ColumnType::Count: return SortHelper::Sort(a1->EventCount(), a2->EventCount(), si->SortAscending);
+					case ColumnType::Name: return SortHelper::Sort(a1->Name(), a2->Name(), asc);
+					case ColumnType::Guid: return SortHelper::Sort(a1->GuidAsString(), a2->GuidAsString(), asc);
+					case ColumnType::Source: return SortHelper::Sort(a1->SchemaSource(), a2->SchemaSource(), asc);
+					case ColumnType::Count: return SortHelper::Sort(a1->EventCount(), a2->EventCount(), asc);
 				}
 				return false;
 				});
@@ -219,18 +224,18 @@ void CProvidersView::DoSort(const SortInfo* si) {
 			std::sort(m_Events.begin(), m_Events.end(), [&](const auto& ev1, const auto& ev2) {
 				auto e1 = m_CurrentProvider->EventInfo(ev1);
 				auto e2 = m_CurrentProvider->EventInfo(ev2);
-
 				switch (m_EventsCM.GetColumnTag<ColumnType>(si->SortColumn)) {
-					case ColumnType::Name: return SortHelper::Sort(e1.EventName, e2.EventName, si->SortAscending);
-					case ColumnType::Keyword: return SortHelper::Sort(e1.KeywordName, e2.KeywordName, si->SortAscending);
-					case ColumnType::Id: return SortHelper::Sort(e1.Descriptor.Id, e2.Descriptor.Id, si->SortAscending);
-					case ColumnType::OpCode: return SortHelper::Sort(e1.OpCodeName, e2.OpCodeName, si->SortAscending);
-					case ColumnType::Level: return SortHelper::Sort(e1.LevelName, e2.LevelName, si->SortAscending);
-					case ColumnType::Message: return SortHelper::Sort(e1.EventMessage, e2.EventMessage, si->SortAscending);
-					case ColumnType::Source: return SortHelper::Sort(e1.DescodingSource, e2.DescodingSource, si->SortAscending);
-					case ColumnType::Task: return SortHelper::Sort(e1.TaskName, e2.TaskName, si->SortAscending);
-					case ColumnType::Guid: return SortHelper::Sort(StringHelpers::GuidToString(e1.EventGuid), StringHelpers::GuidToString(e2.EventGuid), si->SortAscending);
-					case ColumnType::Count: return SortHelper::Sort(e1.Properties.size(), e2.Properties.size(), si->SortAscending);
+					case ColumnType::Name: return SortHelper::Sort(e1.EventName, e2.EventName, asc);
+					case ColumnType::Keyword: return SortHelper::Sort(e1.KeywordName, e2.KeywordName, asc);
+					case ColumnType::Id: return SortHelper::Sort(e1.Descriptor.Id, e2.Descriptor.Id, asc);
+					case ColumnType::OpCode: return SortHelper::Sort(e1.OpCodeName, e2.OpCodeName, asc);
+					case ColumnType::Level: return SortHelper::Sort(e1.LevelName, e2.LevelName, asc);
+					case ColumnType::Message: return SortHelper::Sort(e1.EventMessage, e2.EventMessage, asc);
+					case ColumnType::Source: return SortHelper::Sort(e1.DescodingSource, e2.DescodingSource, asc);
+					case ColumnType::Task: return SortHelper::Sort(e1.TaskName, e2.TaskName, asc);
+					case ColumnType::Guid: return SortHelper::Sort(StringHelpers::GuidToString(e1.EventGuid), StringHelpers::GuidToString(e2.EventGuid), asc);
+					case ColumnType::Count: return SortHelper::Sort(e1.Properties.size(), e2.Properties.size(), asc);
+					case ColumnType::ChannelName: return SortHelper::Sort(e1.ChannelName, e2.ChannelName, asc);
 				}
 				return false;
 				});
@@ -265,7 +270,10 @@ void CProvidersView::OnTreeSelChanged(HWND tree, HTREEITEM hOld, HTREEITEM hNew)
 	RefreshList(change);
 }
 
-int CProvidersView::GetRowImage(HWND, int row, int col) const {
+int CProvidersView::GetRowImage(HWND h, int row, int col) const {
+	if (h == m_PropList)
+		return -1;
+
 	switch (m_CurrentNode) {
 		case TreeItemType::Root:
 			return m_Providers[row]->SchemaSource() == EtwSchemaSource::Xml ? 1 : 0;
