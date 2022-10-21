@@ -28,8 +28,8 @@ void CProvidersView::InitTree() {
 	for (auto& p : m_Providers) {
 		if (p->EventCount() == 0)
 			continue;
-		auto hItem = InsertTreeItem(m_Tree, std::format(L"{} ({} Events)", p->Name(), p->EventCount()).c_str(), 
-			p->SchemaSource() == EtwSchemaSource::Xml ? TreeIconType::Provider2 : TreeIconType::Provider1, 
+		auto hItem = InsertTreeItem(m_Tree, p->Name().c_str(),
+			p->SchemaSource() == EtwSchemaSource::Xml ? TreeIconType::Provider2 : TreeIconType::Provider1,
 			TreeItemType::Provider, root, TVI_SORT);
 		m_ProvidersMap.insert({ hItem, p.get() });
 	}
@@ -57,6 +57,7 @@ void CProvidersView::RefreshList(bool changeHeader) {
 			case TreeItemType::Provider:
 				cm.AddColumn(L"Keyword", 0, 150, ColumnType::Keyword);
 				cm.AddColumn(L"ID", LVCFMT_RIGHT, 60, ColumnType::Id);
+				cm.AddColumn(L"Version", LVCFMT_RIGHT, 60, ColumnType::Version);
 				cm.AddColumn(L"Task", 0, 200, ColumnType::Task);
 				cm.AddColumn(L"OpCode", 0, 150, ColumnType::OpCode);
 				cm.AddColumn(L"Level", 0, 150, ColumnType::Level);
@@ -100,7 +101,7 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 	m_HSplitter.Create(m_Splitter, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN);
 	m_List.Create(m_HSplitter, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_OWNERDATA | LVS_REPORT, 0, 123);
-	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
+	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP | LVS_EX_HEADERDRAGDROP | LVS_EX_SUBITEMIMAGES);
 	m_PropList.Create(m_HSplitter, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_OWNERDATA | LVS_REPORT, 0, 124);
 	m_PropList.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
@@ -125,7 +126,7 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 		CImageList images;
 		images.Create(16, 16, ILC_COLOR32, 8, 4);
 		UINT icons[] = {
-			IDI_PROVIDER1, IDI_PROVIDER2, 
+			IDI_PROVIDER1, IDI_PROVIDER2, IDI_EVENT2,
 			IDI_EVENT, IDI_CRITICAL, IDI_LERROR, IDI_LWARNING, IDI_LINFO, IDI_LDEBUG,
 		};
 		for (auto& icon : icons)
@@ -146,6 +147,11 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 
 	InitTree();
 
+	return 0;
+}
+
+LRESULT CProvidersView::OnSetFocus(UINT, WPARAM, LPARAM, BOOL&) {
+	m_Tree.SetFocus();
 	return 0;
 }
 
@@ -177,12 +183,13 @@ CString CProvidersView::GetColumnText(HWND h, int row, int col) const {
 				case ColumnType::Id: return std::to_wstring(event.Descriptor.Id).c_str();
 				case ColumnType::Task: return event.TaskName.c_str();
 				case ColumnType::OpCode: return event.OpCodeName.c_str();
-				case ColumnType::Level: return event.LevelName.c_str();
+				case ColumnType::Level: return std::format(L"{} ({})", event.LevelName, m_Events[row].Level).c_str();
 				case ColumnType::Source: return StringHelpers::DecodingSourceToString(event.DescodingSource);
 				case ColumnType::Guid: return StringHelpers::GuidToString(event.EventGuid).c_str();
 				case ColumnType::Message: return event.EventMessage.c_str();
 				case ColumnType::Count: return std::to_wstring(event.Properties.size()).c_str();
 				case ColumnType::ChannelName: return event.ChannelName.c_str();
+				case ColumnType::Version: return std::to_wstring(m_Events[row].Version).c_str();
 			}
 			break;
 	}
@@ -216,7 +223,7 @@ void CProvidersView::DoSort(const SortInfo* si) {
 					case ColumnType::Source: return SortHelper::Sort(a1->SchemaSource(), a2->SchemaSource(), asc);
 					case ColumnType::Count: return SortHelper::Sort(a1->EventCount(), a2->EventCount(), asc);
 				}
-				return false;
+			return false;
 				});
 			break;
 
@@ -229,13 +236,14 @@ void CProvidersView::DoSort(const SortInfo* si) {
 					case ColumnType::Keyword: return SortHelper::Sort(e1.KeywordName, e2.KeywordName, asc);
 					case ColumnType::Id: return SortHelper::Sort(e1.Descriptor.Id, e2.Descriptor.Id, asc);
 					case ColumnType::OpCode: return SortHelper::Sort(e1.OpCodeName, e2.OpCodeName, asc);
-					case ColumnType::Level: return SortHelper::Sort(e1.LevelName, e2.LevelName, asc);
+					case ColumnType::Level: return SortHelper::Sort(ev1.Level, ev2.Level, asc);
 					case ColumnType::Message: return SortHelper::Sort(e1.EventMessage, e2.EventMessage, asc);
 					case ColumnType::Source: return SortHelper::Sort(e1.DescodingSource, e2.DescodingSource, asc);
 					case ColumnType::Task: return SortHelper::Sort(e1.TaskName, e2.TaskName, asc);
 					case ColumnType::Guid: return SortHelper::Sort(StringHelpers::GuidToString(e1.EventGuid), StringHelpers::GuidToString(e2.EventGuid), asc);
 					case ColumnType::Count: return SortHelper::Sort(e1.Properties.size(), e2.Properties.size(), asc);
 					case ColumnType::ChannelName: return SortHelper::Sort(e1.ChannelName, e2.ChannelName, asc);
+					case ColumnType::Version: return SortHelper::Sort(ev1.Version, ev2.Version, asc);
 				}
 				return false;
 				});
@@ -279,10 +287,11 @@ int CProvidersView::GetRowImage(HWND h, int row, int col) const {
 			return m_Providers[row]->SchemaSource() == EtwSchemaSource::Xml ? 1 : 0;
 
 		case TreeItemType::Provider:
-			return 2 + m_Events[row].Level;
-
+			if (m_EventsCM.GetColumnTag<ColumnType>(col) == ColumnType::Level)
+				return 3 + m_Events[row].Level;
+			break;
 	}
-	return 0;
+	return -1;
 }
 
 void CProvidersView::OnStateChanged(HWND h, int from, int to, UINT oldState, UINT newState) {
@@ -297,4 +306,22 @@ void CProvidersView::OnStateChanged(HWND h, int from, int to, UINT oldState, UIN
 		m_PropList.SetItemCount((int)m_Properties.size());
 		Sort(m_PropList);
 	}
+}
+
+BOOL CProvidersView::OnDoubleClickList(HWND h, int row, int col, POINT const& pt) {
+	if (h == m_List) {
+		if (m_CurrentNode == TreeItemType::Root) {
+			//
+			// find corresponding node in tree
+			//
+			auto hItem = FindChild(m_Tree, m_Tree.GetRootItem(), m_Providers[row]->Name().c_str());
+			if (hItem) {
+				m_Tree.SelectItem(hItem);
+			}
+			else {
+				AtlMessageBox(m_hWnd, L"Provider has zero events", IDS_TITLE, MB_ICONINFORMATION);
+			}
+		}
+	}
+	return 0;
 }

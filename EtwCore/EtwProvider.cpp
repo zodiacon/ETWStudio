@@ -142,6 +142,8 @@ EtwEventInfo EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
 
 	if (data->EventNameOffset)
 		info.EventName = (PCWSTR)(buffer.get() + data->EventNameOffset);
+	if (data->EventAttributesOffset)
+		info.EventAttributes = (PCWSTR)(buffer.get() + data->EventAttributesOffset);
 	if (data->ChannelNameOffset)
 		info.ChannelName = (PCWSTR)(buffer.get() + data->ChannelNameOffset);
 	if (data->KeywordsNameOffset)

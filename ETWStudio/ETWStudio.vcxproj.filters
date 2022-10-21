@@ -144,5 +144,14 @@
     <Image Include="res\event.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
+    <Image Include="res\event2.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\process.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\Cut.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
   </ItemGroup>
 </Project>

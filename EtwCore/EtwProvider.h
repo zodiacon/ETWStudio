@@ -53,6 +53,7 @@ struct EtwEventInfo {
 	std::wstring ProviderMessage;
 	std::wstring EventMessage;
 	std::wstring EventName;
+	std::wstring EventAttributes;
 	std::vector<BYTE> BinaryXML;
 	ULONG Tags;
 	std::vector<EtwEventProperty> Properties;

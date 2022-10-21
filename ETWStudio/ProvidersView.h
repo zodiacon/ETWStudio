@@ -27,8 +27,10 @@ public:
 	void OnTreeSelChanged(HWND tree, HTREEITEM hOld, HTREEITEM hNew);
 	int GetRowImage(HWND, int row, int col) const;
 	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
+	BOOL OnDoubleClickList(HWND h, int row, int col, POINT const& pt);
 
 	BEGIN_MSG_MAP(CProvidersView)
+		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		CHAIN_MSG_MAP(CVirtualListView<CProvidersView>)
 		CHAIN_MSG_MAP(CTreeViewHelper<CProvidersView>)
@@ -41,7 +43,7 @@ private:
 		Guid,
 		Type, InType, OutType,
 		Count,
-		Keyword, Task, OpCode, Level, Message, Id, Source, ChannelName,
+		Keyword, Task, OpCode, Level, Message, Id, Source, ChannelName, Version,
 	};
 
 	enum class TreeIconType {
@@ -65,6 +67,7 @@ private:
 	//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 
 	CCustomSplitterWindow m_Splitter;
 	CCustomHorSplitterWindow m_HSplitter;

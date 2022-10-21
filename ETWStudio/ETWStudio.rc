@@ -151,6 +151,12 @@ IDI_CRITICAL            ICON                    "res\\Critical.ico"
 
 IDI_EVENT               ICON                    "res\\event.ico"
 
+IDI_CUT                 ICON                    "res\\Cut.ico"
+
+IDI_EVENT2              ICON                    "res\\event2.ico"
+
+IDI_PROCESS             ICON                    "res\\process.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -305,6 +311,7 @@ END
 STRINGTABLE
 BEGIN
     IDR_MAINFRAME           "ETW Studio"
+    IDS_TITLE               "ETW Studio"
 END
 
 STRINGTABLE

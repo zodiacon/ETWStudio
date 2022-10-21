@@ -8,6 +8,7 @@
 #include "ProvidersView.h"
 #include "MainFrm.h"
 #include "SessionDlg.h"
+#include <ToolbarHelper.h>
 
 const int WindowMenuPosition = 5;
 
@@ -28,6 +29,7 @@ void CMainFrame::InitMenu() {
 		HICON hIcon = nullptr;
 	} cmds[] = {
 		{ ID_EDIT_COPY, IDI_COPY },
+		{ ID_EDIT_CUT, IDI_CUT },
 		{ ID_EDIT_PASTE, IDI_PASTE },
 		{ ID_EDIT_FIND, IDI_FIND },
 		{ ID_FILE_SAVE, IDI_SAVE },
@@ -50,6 +52,26 @@ void CMainFrame::InitMenu() {
 
 LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	CreateSimpleStatusBar();
+
+	ToolBarButtonInfo const buttons[] = {
+		{ ID_FILE_OPEN, IDI_OPEN },
+		{ 0 },
+		{ ID_EDIT_FIND, IDI_FIND },
+		{ 0 },
+		{ ID_NEW_SESSION, IDI_SESSION },
+		{ ID_SESSION_RUN, IDI_RUN },
+		{ ID_SESSION_STOP, IDI_STOP },
+		{ 0 },
+		{ ID_VIEW_AUTOSCROLL, IDI_AUTOSCROLL },
+		//{ ID_EDIT_DELETE, IDI_CANCEL },
+		//{ ID_EDIT_CLEAR_ALL, IDI_ERASE },
+		{ 0 },
+		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
+	};
+	CreateSimpleReBar(ATL_SIMPLE_REBAR_NOBORDER_STYLE);
+	auto tb = ToolbarHelper::CreateAndInitToolBar(m_hWnd, buttons, _countof(buttons));
+	AddSimpleReBarBand(tb);
+	UIAddToolBar(tb);
 
 	m_view.m_bTabCloseButton = false;
 	m_hWndClient = m_view.Create(m_hWnd, rcDefault, nullptr,

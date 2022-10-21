@@ -4,6 +4,7 @@
 //
 #define IDD_ABOUTBOX                    100
 #define IDR_MAINFRAME                   128
+#define IDS_TITLE                       129
 #define IDI_PROVIDERS                   201
 #define IDI_COPY                        203
 #define IDI_PASTE                       204
@@ -25,10 +26,12 @@
 #define IDI_CRITICAL                    220
 #define IDI_EVENT                       221
 #define IDD_SESSION                     222
+#define IDI_CUT                         224
+#define IDI_EVENT2                      225
+#define IDI_PROCESS                     226
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
-#define IDC_EDIT1                       1003
 #define IDC_NAME                        1003
 #define IDC_LIST                        1004
 #define IDC_REALTIME                    1005
@@ -55,7 +58,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        224
+#define _APS_NEXT_RESOURCE_VALUE        227
 #define _APS_NEXT_COMMAND_VALUE         32785
 #define _APS_NEXT_CONTROL_VALUE         1012
 #define _APS_NEXT_SYMED_VALUE           101
