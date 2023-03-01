@@ -75,6 +75,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "&Autoscroll",                 ID_VIEW_AUTOSCROLL
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
+        MENUITEM "&Quick Find...",              ID_VIEW_QUICKFIND
     END
     POPUP "&Session"
     BEGIN
@@ -98,6 +99,16 @@ BEGIN
         MENUITEM "&About ETW Studio...",        ID_APP_ABOUT
         MENUITEM SEPARATOR
         MENUITEM "About &Windows...",           ID_HELP_ABOUTWINDOWS
+    END
+END
+
+IDR_CONTEXT MENU
+BEGIN
+    POPUP "provider"
+    BEGIN
+        MENUITEM "&Kernel",                     ID_PROVIDER_KERNEL
+        MENUITEM "&GUID",                       ID_PROVIDER_GUID
+        MENUITEM "&Registered",                 ID_PROVIDER_REGISTERED
     END
 END
 
@@ -185,15 +196,15 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,195,213,50,14
     LTEXT           "Session Name:",IDC_STATIC,7,15,48,8
     EDITTEXT        IDC_NAME,60,13,91,14,ES_AUTOHSCROLL
-    CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | WS_BORDER | WS_TABSTOP,7,38,361,76
-    CONTROL         "Real Time Display",IDC_REALTIME,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,144,71,10
-    CONTROL         "Log to file",IDC_FILELOG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,161,47,10
-    EDITTEXT        IDC_PATH,62,159,279,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "...",IDC_BROWSE,348,159,20,14
-    PUSHBUTTON      "&Add Provider",IDC_ADD,7,120,69,14
-    PUSHBUTTON      "Remove Provider",IDC_REMOVE,88,120,69,14
-    LTEXT           "Level:",IDC_STATIC,7,183,20,8
-    COMBOBOX        IDC_LEVEL,36,180,75,75,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | WS_BORDER | WS_TABSTOP,7,35,361,79
+    CONTROL         "Real Time Display",IDC_REALTIME,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,139,71,10
+    CONTROL         "Log to file",IDC_FILELOG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,156,47,10
+    EDITTEXT        IDC_PATH,62,154,279,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "...",IDC_BROWSE,348,154,20,14
+    PUSHBUTTON      "Remove Provider",IDC_REMOVE,92,118,69,14
+    LTEXT           "Level:",IDC_STATIC,7,178,20,8
+    COMBOBOX        IDC_LEVEL,36,175,75,75,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Add Provider",IDC_ADD,"Button",BS_SPLITBUTTON | WS_TABSTOP,7,118,77,14
 END
 
 
@@ -231,20 +242,21 @@ END
 
 IDR_MAINFRAME ACCELERATORS
 BEGIN
-    "N",            ID_FILE_NEW,            VIRTKEY, CONTROL
-    "O",            ID_FILE_OPEN,           VIRTKEY, CONTROL
-    "S",            ID_FILE_SAVE,           VIRTKEY, CONTROL
-    "P",            ID_FILE_PRINT,          VIRTKEY, CONTROL
-    "Z",            ID_EDIT_UNDO,           VIRTKEY, CONTROL
-    "X",            ID_EDIT_CUT,            VIRTKEY, CONTROL
-    "C",            ID_EDIT_COPY,           VIRTKEY, CONTROL
-    "V",            ID_EDIT_PASTE,          VIRTKEY, CONTROL
-    VK_BACK,        ID_EDIT_UNDO,           VIRTKEY, ALT
-    VK_DELETE,      ID_EDIT_CUT,            VIRTKEY, SHIFT
-    VK_INSERT,      ID_EDIT_COPY,           VIRTKEY, CONTROL
-    VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT
-    VK_F6,          ID_NEXT_PANE,           VIRTKEY 
-    VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
+    "C",            ID_EDIT_COPY,           VIRTKEY, CONTROL, NOINVERT
+    VK_INSERT,      ID_EDIT_COPY,           VIRTKEY, CONTROL, NOINVERT
+    VK_DELETE,      ID_EDIT_CUT,            VIRTKEY, SHIFT, NOINVERT
+    "X",            ID_EDIT_CUT,            VIRTKEY, CONTROL, NOINVERT
+    "V",            ID_EDIT_PASTE,          VIRTKEY, CONTROL, NOINVERT
+    VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT, NOINVERT
+    VK_BACK,        ID_EDIT_UNDO,           VIRTKEY, ALT, NOINVERT
+    "Z",            ID_EDIT_UNDO,           VIRTKEY, CONTROL, NOINVERT
+    "N",            ID_FILE_NEW,            VIRTKEY, CONTROL, NOINVERT
+    "O",            ID_FILE_OPEN,           VIRTKEY, CONTROL, NOINVERT
+    "P",            ID_FILE_PRINT,          VIRTKEY, CONTROL, NOINVERT
+    "S",            ID_FILE_SAVE,           VIRTKEY, CONTROL, NOINVERT
+    VK_F6,          ID_NEXT_PANE,           VIRTKEY, NOINVERT
+    VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT, NOINVERT
+    "Q",            ID_VIEW_QUICKFIND,      VIRTKEY, CONTROL, NOINVERT
 END
 
 
@@ -395,6 +407,23 @@ END
 STRINGTABLE
 BEGIN
     ATL_IDS_MRU_FILE        "Open this document"
+END
+
+STRINGTABLE
+BEGIN
+    ID_WINDOW_CLOSE         "\nClose"
+    ID_WINDOW_CLOSE_ALL     "\nClose All"
+    ID_OPTIONS_ALWAYSONTOP  "\nAlways on Top"
+    ID_NEW_SESSION          "\nNew Session"
+    ID_TRACING_REGISTEREDPROVIDERS "\nRegistered Providers"
+    ID_VIEW_AUTOSCROLL      "\nAutoscroll"
+    ID_SESSION_RUN          "\nRun"
+    ID_SESSION_STOP         "\nStop"
+END
+
+STRINGTABLE
+BEGIN
+    ID_SESSION_CLEAR        "\nClear"
 END
 
 #endif    // English (United States) resources

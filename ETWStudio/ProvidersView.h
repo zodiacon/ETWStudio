@@ -10,11 +10,11 @@
 #include <TreeViewHelper.h>
 #include <VirtualListView.h>
 #include "EtwProvider.h"
+#include <QuickFindEdit.h>
 
 class CProvidersView :
 	public CFrameView<CProvidersView, IMainFrame>,
-	public CVirtualListView<CProvidersView>,
-	public CTreeViewHelper<CProvidersView> {
+	public CVirtualListView<CProvidersView> {
 public:
 	using CFrameView::CFrameView;
 
@@ -24,17 +24,20 @@ public:
 	CString GetPropertyText(int row, int col) const;
 	void DoSort(const SortInfo* si);
 	void DoSortProperties(const SortInfo* si);
-	void OnTreeSelChanged(HWND tree, HTREEITEM hOld, HTREEITEM hNew);
 	int GetRowImage(HWND, int row, int col) const;
 	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
-	BOOL OnDoubleClickList(HWND h, int row, int col, POINT const& pt);
+	//BOOL OnDoubleClickList(HWND h, int row, int col, POINT const& pt);
 
 	BEGIN_MSG_MAP(CProvidersView)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		CHAIN_MSG_MAP(CVirtualListView<CProvidersView>)
-		CHAIN_MSG_MAP(CTreeViewHelper<CProvidersView>)
 		CHAIN_MSG_MAP(BaseFrame)
+	ALT_MSG_MAP(1)
+		COMMAND_ID_HANDLER(ID_VIEW_QUICKFIND, OnQuickFind)
+	ALT_MSG_MAP(2)
+		MESSAGE_HANDLER(WM_CHAR, OnQuickEditChar)
 	END_MSG_MAP()
 
 private:
@@ -45,21 +48,8 @@ private:
 		Count,
 		Keyword, Task, OpCode, Level, Message, Id, Source, ChannelName, Version,
 	};
-
-	enum class TreeIconType {
-		Computer,
-		Provider1,
-		Provider2,
-	};
-
-	enum class TreeItemType {
-		None,
-		Root,
-		Provider,
-		_Count
-	};
-	void InitTree();
-	void RefreshList(bool changeHeader);
+	
+	void InitProviderList();
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -68,19 +58,18 @@ private:
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnQuickFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnQuickEditChar(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 
 	CCustomSplitterWindow m_Splitter;
 	CCustomHorSplitterWindow m_HSplitter;
-	CListViewCtrl m_List;
+	CListViewCtrl m_EventList;
 	CListViewCtrl m_PropList;
-	CTreeViewCtrl m_Tree;
+	CListViewCtrl m_ProviderList;
+	CContainedWindowT<CQuickFindEdit> m_QuickFind;
 	std::vector<std::unique_ptr<EtwProvider>> m_Providers;
 	std::vector<EVENT_DESCRIPTOR> m_Events;
 	std::vector<EtwEventProperty> m_Properties;
 	std::unordered_map<HTREEITEM, EtwProvider*> m_ProvidersMap;
-	TreeItemType m_CurrentNode{ TreeItemType::None };
-	TreeItemType m_PreviousNode{ TreeItemType::None };
-	ColumnsState m_ListViewState[(int)TreeItemType::_Count]{};
-	ColumnManager m_ProviderCM, m_EventsCM;
-	EtwProvider* m_CurrentProvider{ nullptr };
 };

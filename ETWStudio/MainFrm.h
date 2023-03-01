@@ -24,6 +24,15 @@ public:
 	bool DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
 
 	BEGIN_MSG_MAP(CMainFrame)
+		if (uMsg == WM_COMMAND) {
+			auto page = m_view.GetActivePage();
+			if (page >= 0) {
+				auto view = (CMessageMap*)m_view.GetPageData(page);
+				LRESULT result;
+				if (view->ProcessWindowMessage(hWnd, uMsg, wParam, lParam, result, 1))
+					return TRUE;
+			}
+		}
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(ID_APP_EXIT, OnFileExit)

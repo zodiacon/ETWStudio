@@ -3,6 +3,9 @@
 // Used by ETWStudio.rc
 //
 #define IDD_ABOUTBOX                    100
+#define IDC_PROVIDERLIST                101
+#define IDC_PROPLIST                    102
+#define IDC_EVENTLIST                   103
 #define IDR_MAINFRAME                   128
 #define IDS_TITLE                       129
 #define IDI_PROVIDERS                   201
@@ -29,6 +32,7 @@
 #define IDI_CUT                         224
 #define IDI_EVENT2                      225
 #define IDI_PROCESS                     226
+#define IDR_CONTEXT                     227
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -38,9 +42,10 @@
 #define IDC_FILELOG                     1006
 #define IDC_PATH                        1007
 #define IDC_BROWSE                      1008
-#define IDC_ADD                         1009
 #define IDC_REMOVE                      1010
 #define IDC_LEVEL                       1011
+#define IDC_SPLIT1                      1012
+#define IDC_ADD                         1012
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -53,14 +58,19 @@
 #define ID_SESSION_RUN                  32782
 #define ID_SESSION_STOP                 32783
 #define ID_SESSION_CLEAR                32784
+#define ID_PROVIDER_KERNEL              32785
+#define ID_PROVIDER_GUID                32786
+#define ID_PROVIDER_REGISTERED          32787
+#define ID_VIEW_QUICKFIN                32788
+#define ID_VIEW_QUICKFIND               32789
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        227
-#define _APS_NEXT_COMMAND_VALUE         32785
-#define _APS_NEXT_CONTROL_VALUE         1012
-#define _APS_NEXT_SYMED_VALUE           101
+#define _APS_NEXT_RESOURCE_VALUE        228
+#define _APS_NEXT_COMMAND_VALUE         32792
+#define _APS_NEXT_CONTROL_VALUE         1013
+#define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

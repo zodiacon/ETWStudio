@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "SessionDlg.h"
 #include <ThemeHelper.h>
+#include "Interfaces.h"
+
+CSessionDlg::CSessionDlg(IMainFrame* frame) : m_pFrame(frame) {
+}
 
 LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	CComboBox cb(GetDlgItem(IDC_LEVEL));
@@ -39,5 +43,15 @@ LRESULT CSessionDlg::OnBrowseFile(WORD, WORD wID, HWND, BOOL&) {
 	if (ok) {
 		SetDlgItemText(IDC_PATH, dlg.m_szFileName);
 	}
+	return 0;
+}
+
+LRESULT CSessionDlg::OnProviderDropdown(int, LPNMHDR, BOOL&) {
+	CMenu menu;
+	menu.LoadMenu(IDR_CONTEXT);
+	CRect rc;
+	GetDlgItem(IDC_ADD).GetWindowRect(&rc);
+	m_pFrame->DisplayContextMenu(menu.GetSubMenu(0), rc.left, rc.bottom);
+
 	return 0;
 }

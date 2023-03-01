@@ -3,13 +3,15 @@
 #include <memory>
 #include <algorithm>
 #include <assert.h>
+#include "WMIHelper.h"
+#include <wil\com.h>
 
 #pragma comment(lib, "tdh")
 
-EtwProvider::EtwProvider(GUID const& guid, PCWSTR name, EtwSchemaSource source) : m_guid(guid), m_name(name), m_source(source) {
+EtwProvider::EtwProvider(GUID const& guid, PCWSTR name, EtwSchemaSource source) : m_Guid(guid), m_name(name), m_Source(source) {
 	WCHAR sguid[64];
 	if (::StringFromGUID2(guid, sguid, _countof(sguid)))
-		m_guidString = sguid;
+		m_GuidString = sguid;
 }
 
 std::vector<EtwProvider> EtwProvider::EnumProviders(bool sort) {
@@ -77,62 +79,68 @@ const std::wstring& EtwProvider::Name() const {
 }
 
 const std::wstring& EtwProvider::GuidAsString() const {
-	return m_guidString;
+	return m_GuidString;
 }
 
 const GUID& EtwProvider::Guid() const {
-	return m_guid;
+	return m_Guid;
 }
 
 EtwSchemaSource EtwProvider::SchemaSource() const {
-	return m_source;
+	return m_Source;
 }
 
 std::vector<EVENT_DESCRIPTOR> const& EtwProvider::GetProviderEvents() const {
 	std::vector<EVENT_DESCRIPTOR> events;
-	if (m_eventCount == 0)
-		return m_events;
+	if (m_EventCount == 0)
+		return m_Events;
 
-	if (m_events.empty()) {
+	if (m_Events.empty()) {
 		ULONG size = 0;
-		auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_guid, nullptr, &size);
+		auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, nullptr, &size);
 		if (error != ERROR_INSUFFICIENT_BUFFER)
-			return m_events;
+			return m_Events;
 
 		auto buffer = std::make_unique<BYTE[]>(size);
 		if (!buffer)
-			return m_events;
+			return m_Events;
 
 		auto data = reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.get());
-		error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_guid, data, &size);
+		error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, data, &size);
 		assert(error == ERROR_SUCCESS);
 		if (error != ERROR_SUCCESS)
-			return m_events;
+			return m_Events;
 
 		events.reserve(data->NumberOfEvents);
 		for (ULONG i = 0; i < data->NumberOfEvents; i++)
 			events.push_back(data->EventDescriptorsArray[i]);
-		m_events = std::move(events);
-		m_eventCount = static_cast<int32_t>(m_events.size());
+		m_Events = std::move(events);
+		m_EventCount = static_cast<int32_t>(m_Events.size());
 	}
-	return m_events;
+	return m_Events;
 }
 
-EtwEventInfo EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
+EtwEventInfo const& EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
+	static EtwEventInfo dummy;
+
+	ULONG id = ((ULONG)desc.Id << 8) | desc.Version;
+	if (auto it = m_EventInfo.find(id); it != m_EventInfo.end())
+		return it->second;
+
 	EtwEventInfo info;
 	info.ProviderGuid = GUID_NULL;
 
 	ULONG size = 0;
-	::TdhGetManifestEventInformation((LPGUID)&m_guid, (PEVENT_DESCRIPTOR)&desc, nullptr, &size);
+	::TdhGetManifestEventInformation((LPGUID)&m_Guid, (PEVENT_DESCRIPTOR)&desc, nullptr, &size);
 	auto buffer = std::make_unique<BYTE[]>(size);
 	if (!buffer)
-		return info;
+		return dummy;
 
 	auto data = reinterpret_cast<TRACE_EVENT_INFO*>(buffer.get());
-	auto error = ::TdhGetManifestEventInformation((LPGUID)&m_guid, (PEVENT_DESCRIPTOR)&desc, data, &size);
+	auto error = ::TdhGetManifestEventInformation((LPGUID)&m_Guid, (PEVENT_DESCRIPTOR)&desc, data, &size);
 	assert(error == ERROR_SUCCESS);
 	if (ERROR_SUCCESS != error)
-		return info;
+		return dummy;
 
 	info.ProviderGuid = data->ProviderGuid;
 	info.EventGuid = data->EventGuid;
@@ -150,6 +158,8 @@ EtwEventInfo EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
 		info.KeywordName = (PCWSTR)(buffer.get() + data->KeywordsNameOffset);
 	if (data->LevelNameOffset)
 		info.LevelName = (PCWSTR)(buffer.get() + data->LevelNameOffset);
+	else
+		info.LevelName = L"Log Always";
 	if (data->OpcodeNameOffset)
 		info.OpCodeName = (PCWSTR)(buffer.get() + data->OpcodeNameOffset);
 	if (data->EventMessageOffset)
@@ -176,15 +186,19 @@ EtwEventInfo EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
 		info.Properties.push_back(prop);
 	}
 
-	return info;
+	m_EventInfo.insert({ id, std::move(info) });
+	return m_EventInfo[id];
 }
 
 int32_t EtwProvider::EventCount() const {
-	if (m_eventCount >= 0)
-		return m_eventCount;
+	if (m_EventCount >= 0)
+		return m_EventCount;
+
+	if (m_Source == EtwSchemaSource::Mof)
+		return MofEventCount();
 
 	ULONG size = 0;
-	auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_guid, nullptr, &size);
+	auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, nullptr, &size);
 	if (error != ERROR_INSUFFICIENT_BUFFER)
 		return 0;
 
@@ -193,10 +207,10 @@ int32_t EtwProvider::EventCount() const {
 		return 0;
 
 	auto data = reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.get());
-	error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_guid, data, &size);
+	error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, data, &size);
 	if (error != ERROR_SUCCESS)
 		return 0;
-	return m_eventCount = data->NumberOfEvents;
+	return m_EventCount = data->NumberOfEvents;
 }
 
 std::vector<EtwFieldInfo> EtwProvider::FieldInfo(EtwFieldType type) const {
@@ -204,12 +218,12 @@ std::vector<EtwFieldInfo> EtwProvider::FieldInfo(EtwFieldType type) const {
 
 	ULONG size = 0;
 	if (ERROR_INSUFFICIENT_BUFFER !=
-		::TdhEnumerateProviderFieldInformation((LPGUID)&m_guid, (EVENT_FIELD_TYPE)type, nullptr, &size))
+		::TdhEnumerateProviderFieldInformation((LPGUID)&m_Guid, (EVENT_FIELD_TYPE)type, nullptr, &size))
 		return fields;
 
 	auto buffer = std::make_unique<BYTE[]>(size);
 	auto info = reinterpret_cast<PPROVIDER_FIELD_INFOARRAY>(buffer.get());
-	if (ERROR_SUCCESS != ::TdhEnumerateProviderFieldInformation((LPGUID)&m_guid, (EVENT_FIELD_TYPE)type, info, &size))
+	if (ERROR_SUCCESS != ::TdhEnumerateProviderFieldInformation((LPGUID)&m_Guid, (EVENT_FIELD_TYPE)type, info, &size))
 		return fields;
 
 	fields.reserve(info->NumberOfElements);
@@ -224,4 +238,47 @@ std::vector<EtwFieldInfo> EtwProvider::FieldInfo(EtwFieldType type) const {
 		fields.push_back(std::move(info));
 	}
 	return fields;
+}
+
+int32_t EtwProvider::MofEventCount() const {
+	wil::com_ptr<IWbemServices> spWmi;
+	WMIHelper::Init(nullptr, L"root\\WMI", spWmi.addressof());
+	if (!spWmi)
+		return 0;
+
+	wil::com_ptr<IEnumWbemClassObject> spEnum;
+	spWmi->ExecQuery(CComBSTR(L"WQL"), CComBSTR(L"SELECT * FROM meta_class WHERE __superclass = 'EventTrace'"),
+		WBEM_FLAG_FORWARD_ONLY, nullptr, spEnum.addressof());
+	if (spEnum) {
+		wil::com_ptr<IWbemClassObject> spClass;
+		ULONG ret;
+		while (S_OK == spEnum->Next(WBEM_INFINITE, 1, spClass.addressof(), &ret)) {
+			wil::com_ptr<IWbemQualifierSet> spQualifiers;
+			spClass->GetQualifierSet(spQualifiers.addressof());
+			if (spQualifiers) {
+				CComVariant value;
+				if (S_OK == spQualifiers->Get(L"guid", 0, &value, nullptr) && _wcsicmp(value.bstrVal, m_GuidString.c_str()) == 0) {
+					auto className = WMIHelper::GetStringProperty(spClass.get(), L"__CLASS");
+					spEnum.reset();
+					spWmi->ExecQuery(CComBSTR(L"WQL"), CComBSTR((L"SELECT * FROM meta_class WHERE __superclass = '" + className + L"'").c_str()),
+						WBEM_FLAG_FORWARD_ONLY, nullptr, spEnum.addressof());
+					if (spEnum) {
+						wil::com_ptr<IWbemClassObject> spObject;
+						while (S_OK == spEnum->Next(WBEM_INFINITE, 1, spObject.addressof(), &ret)) {
+							wil::com_ptr<IWbemQualifierSet> spQualifiers;
+							spObject->GetQualifierSet(spQualifiers.addressof());
+							if (spQualifiers) {
+								CComVariant value;
+								auto names = WMIHelper::GetNames(spQualifiers.get());
+								if (S_OK == spQualifiers->Get(L"displayname", 0, &value, nullptr)) {
+
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return 0;
 }

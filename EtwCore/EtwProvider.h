@@ -86,16 +86,19 @@ public:
 	const GUID& Guid() const;
 	EtwSchemaSource SchemaSource() const;
 	std::vector<EVENT_DESCRIPTOR> const& GetProviderEvents() const;
-	EtwEventInfo EventInfo(const EVENT_DESCRIPTOR& desc) const;
+	EtwEventInfo const& EventInfo(const EVENT_DESCRIPTOR& desc) const;
 	int32_t EventCount() const;
 
 	std::vector<EtwFieldInfo> FieldInfo(EtwFieldType type) const;
 
 private:
-	GUID m_guid;
-	std::wstring m_name, m_guidString;
-	EtwSchemaSource m_source;
-	mutable std::vector<EVENT_DESCRIPTOR> m_events;
-	mutable int32_t m_eventCount{ -1 };
+	int32_t MofEventCount() const;
+
+	GUID m_Guid;
+	std::wstring m_name, m_GuidString;
+	EtwSchemaSource m_Source;
+	mutable std::vector<EVENT_DESCRIPTOR> m_Events;
+	mutable int32_t m_EventCount{ -1 };
+	mutable std::unordered_map<ULONG, EtwEventInfo> m_EventInfo;
 };
 

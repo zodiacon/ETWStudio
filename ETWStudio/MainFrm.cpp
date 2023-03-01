@@ -20,6 +20,7 @@ BOOL CMainFrame::PreTranslateMessage(MSG* pMsg) {
 }
 
 BOOL CMainFrame::OnIdle() {
+	UIUpdateToolBar();
 	return FALSE;
 }
 
@@ -166,7 +167,7 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 }
 
 LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
-	CSessionDlg dlg;
+	CSessionDlg dlg(this);
 	if (IDOK == dlg.DoModal()) {
 	}
 	return 0;
