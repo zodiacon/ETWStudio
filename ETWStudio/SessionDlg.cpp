@@ -1,30 +1,38 @@
 #include "pch.h"
 #include "SessionDlg.h"
 #include <ThemeHelper.h>
+#include "ProvidersDlg.h"
 #include "Interfaces.h"
+#include "StringHelpers.h"
+#include "SimpleDlg.h"
 
-CSessionDlg::CSessionDlg(IMainFrame* frame) : m_pFrame(frame) {
+CSessionDlg::CSessionDlg(IMainFrame* frame, EtwSession& session) : m_pFrame(frame), m_Session(session) {
+}
+
+CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
+	auto& pi = m_Providers[row];
+	switch (col) {
+		case 0: return pi.Name.c_str();
+		case 1: return StringHelpers::GuidToString(pi.Guid).c_str();
+		case 2: return StringHelpers::LevelToString(pi.Level);
+	}
+	return CString();
 }
 
 LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
-	CComboBox cb(GetDlgItem(IDC_LEVEL));
+	InitDynamicLayout();
+	SetDialogIcon(IDI_SESSION);
 
-	PCWSTR levels[] = {
-		L"All Events",
-		L"Critical",
-		L"Error",
-		L"Warning",
-		L"Information",
-		L"Verbose"
-	};
-	for (int i = 0; i < _countof(levels); i++) {
-		auto n = cb.AddString(levels[i]);
-		cb.SetItemData(n, i);
-	}
-	cb.SetCurSel(0);
-
-	SetDlgItemText(IDC_NAME, L"LogSession1");
+	SetDlgItemText(IDC_NAME, m_Session.Name().c_str());
 	CheckDlgButton(IDC_REALTIME, BST_CHECKED);
+
+	m_List.Attach(GetDlgItem(IDC_LIST));
+	m_List.SetExtendedListViewStyle(LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP);
+
+	auto cm = GetColumnManager(m_List);
+	cm->AddColumn(L"Name", 0, 200);
+	cm->AddColumn(L"GUID", 0, 200);
+	cm->AddColumn(L"Level", 0, 60);
 
 	return 0;
 }
@@ -51,7 +59,40 @@ LRESULT CSessionDlg::OnProviderDropdown(int, LPNMHDR, BOOL&) {
 	menu.LoadMenu(IDR_CONTEXT);
 	CRect rc;
 	GetDlgItem(IDC_ADD).GetWindowRect(&rc);
-	m_pFrame->DisplayContextMenu(menu.GetSubMenu(0), rc.left, rc.bottom);
+	auto cmd = m_pFrame->DisplayContextMenu(menu.GetSubMenu(0), rc.left, rc.bottom, TPM_RETURNCMD);
+	if (cmd) {
+		LRESULT result;
+		ProcessWindowMessage(m_hWnd, WM_COMMAND, cmd, 0, result);
+	}
+	return 0;
+}
 
+LRESULT CSessionDlg::OnRegisteredProvider(WORD, WORD wID, HWND, BOOL&) {
+	CProvidersDlg dlg;
+	if (IDOK == dlg.DoModal()) {
+		ProviderInfo pi;
+		auto p = dlg.GetSelectedProvider();
+		ATLASSERT(p);
+		pi.Guid = p->Guid();
+		pi.Name = p->Name();
+		pi.Level = 0;
+		m_Providers.push_back(std::move(pi));
+		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+	}
+	return 0;
+}
+
+LRESULT CSessionDlg::OnGuidProvider(WORD, WORD wID, HWND, BOOL&) {
+	CSimpleDlg dlg;
+	if (IDOK == dlg.DoModal()) {
+		ProviderInfo pi;
+		if (S_OK != ::CLSIDFromString(dlg.GetText(), &pi.Guid)) {
+			AtlMessageBox(m_hWnd, L"Invalid GUID", IDS_TITLE, MB_ICONERROR);
+			return 0;
+		}
+		pi.Level = 0;
+		m_Providers.push_back(std::move(pi));
+		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+	}
 	return 0;
 }

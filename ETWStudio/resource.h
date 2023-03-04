@@ -33,6 +33,8 @@
 #define IDI_EVENT2                      225
 #define IDI_PROCESS                     226
 #define IDR_CONTEXT                     227
+#define IDD_PROVIDERS                   228
+#define IDD_SIMPLE                      230
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -46,6 +48,10 @@
 #define IDC_LEVEL                       1011
 #define IDC_SPLIT1                      1012
 #define IDC_ADD                         1012
+#define IDC_FILTER                      1013
+#define IDC_LIST1                       1014
+#define IDC_EDIT1                       1015
+#define IDC_TEXT                        1015
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -68,9 +74,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        228
+#define _APS_NEXT_RESOURCE_VALUE        232
 #define _APS_NEXT_COMMAND_VALUE         32792
-#define _APS_NEXT_CONTROL_VALUE         1013
+#define _APS_NEXT_CONTROL_VALUE         1016
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

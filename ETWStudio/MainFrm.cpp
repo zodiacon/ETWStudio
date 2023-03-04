@@ -9,6 +9,7 @@
 #include "MainFrm.h"
 #include "SessionDlg.h"
 #include <ToolbarHelper.h>
+#include "LogView.h"
 
 const int WindowMenuPosition = 5;
 
@@ -167,12 +168,22 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 }
 
 LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
-	CSessionDlg dlg(this);
+	auto name = std::format(L"LogSession{}", m_view.GetPageCount() + 1);
+	EtwSession session(name);
+	CSessionDlg dlg(this, session);
 	if (IDOK == dlg.DoModal()) {
+		if (session.GetProviders().empty()) {
+			AtlMessageBox(m_hWnd, L"Session must have at least one provider", IDS_TITLE, MB_ICONERROR);
+			return 0;
+		}
+		auto view = new CLogView(this, std::move(session));
+		view->Create(m_view, rcDefault, nullptr,
+			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+		m_view.AddPage(view->m_hWnd, name.c_str(), 1, view);
 	}
 	return 0;
 }
 
-bool CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
+UINT CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
 	return ShowContextMenu(hMenu, flags, x, y);
 }

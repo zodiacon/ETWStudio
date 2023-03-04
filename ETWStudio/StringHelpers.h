@@ -7,5 +7,6 @@ struct StringHelpers abstract final {
 	static PCWSTR DecodingSourceToString(EtwDecodingSource source);
 	static std::wstring OutTypeToString(USHORT type);
 	static std::wstring InTypeToString(USHORT type);
+	static PCWSTR LevelToString(UCHAR level);
 };
 

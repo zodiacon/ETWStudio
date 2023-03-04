@@ -89,3 +89,16 @@ std::wstring StringHelpers::InTypeToString(USHORT type) {
 
 	return std::format(L"(%u)", type);
 }
+
+PCWSTR StringHelpers::LevelToString(UCHAR level) {
+	switch (level) {
+		case 0: return L"Always";
+		case 1: return L"Critical";
+		case 2: return L"Error";
+		case 3: return L"Warning";
+		case 4: return L"Information";
+		case 5: return L"Verbose";
+	}
+	ATLASSERT(false);
+	return L"(Unknown)";
+}

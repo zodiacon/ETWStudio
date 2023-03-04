@@ -17,7 +17,7 @@ BOOL CProvidersView::PreTranslateMessage(MSG* pMsg) {
 void CProvidersView::InitProviderList() {
 	CWaitCursor wait;
 
-	m_Providers = EtwProvider::EnumProviders2();
+	m_Providers = EtwProvider::EnumProviders();
 	m_ProviderList.SetItemCount((int)m_Providers.size());
 }
 
@@ -145,16 +145,16 @@ CString CProvidersView::GetColumnText(HWND h, int row, int col) const {
 	if (h == m_ProviderList) {
 		auto& item = m_Providers[row];
 		switch (tag) {
-			case ColumnType::Name: return item->Name().c_str();
-			case ColumnType::Guid: return item->GuidAsString().c_str();
-			case ColumnType::Type: return item->SchemaSource() == EtwSchemaSource::Mof ? L"MOF" : L"XML";
-			case ColumnType::Count: return std::to_wstring(item->EventCount()).c_str();
+			case ColumnType::Name: return item.Name().c_str();
+			case ColumnType::Guid: return item.GuidAsString().c_str();
+			case ColumnType::Type: return item.SchemaSource() == EtwSchemaSource::Mof ? L"MOF" : L"XML";
+			case ColumnType::Count: return std::to_wstring(item.EventCount()).c_str();
 		}
 	}
 	else {
 		auto index = m_ProviderList.GetSelectedIndex();
 		if (index >= 0) {
-			auto event = m_Providers[index]->EventInfo(m_Events[row]);
+			auto event = m_Providers[index].EventInfo(m_Events[row]);
 			switch (tag) {
 				case ColumnType::Name: return event.EventName.c_str();
 				case ColumnType::Keyword: return event.KeywordName.c_str();
@@ -197,10 +197,10 @@ void CProvidersView::DoSort(const SortInfo* si) {
 	if (si->hWnd == m_ProviderList) {
 		std::sort(m_Providers.begin(), m_Providers.end(), [&](const auto& a1, const auto& a2) {
 			switch (tag) {
-				case ColumnType::Name: return SortHelper::Sort(a1->Name(), a2->Name(), asc);
-				case ColumnType::Guid: return SortHelper::Sort(a1->GuidAsString(), a2->GuidAsString(), asc);
-				case ColumnType::Source: return SortHelper::Sort(a1->SchemaSource(), a2->SchemaSource(), asc);
-				case ColumnType::Count: return SortHelper::Sort(a1->EventCount(), a2->EventCount(), asc);
+				case ColumnType::Name: return SortHelper::Sort(a1.Name(), a2.Name(), asc);
+				case ColumnType::Guid: return SortHelper::Sort(a1.GuidAsString(), a2.GuidAsString(), asc);
+				case ColumnType::Source: return SortHelper::Sort(a1.SchemaSource(), a2.SchemaSource(), asc);
+				case ColumnType::Count: return SortHelper::Sort(a1.EventCount(), a2.EventCount(), asc);
 			}
 			return false;
 			});
@@ -208,8 +208,8 @@ void CProvidersView::DoSort(const SortInfo* si) {
 	else {
 		auto& provider = m_Providers[m_ProviderList.GetSelectedIndex()];
 		std::sort(m_Events.begin(), m_Events.end(), [&](const auto& ev1, const auto& ev2) {
-			auto e1 = provider->EventInfo(ev1);
-			auto e2 = provider->EventInfo(ev2);
+			auto e1 = provider.EventInfo(ev1);
+			auto e2 = provider.EventInfo(ev2);
 			switch (tag) {
 				case ColumnType::Name: return SortHelper::Sort(e1.EventName, e2.EventName, asc);
 				case ColumnType::Keyword: return SortHelper::Sort(e1.KeywordName, e2.KeywordName, asc);
@@ -249,7 +249,7 @@ int CProvidersView::GetRowImage(HWND h, int row, int col) const {
 		return -1;
 
 	if (h == m_ProviderList) {
-		return m_Providers[row]->SchemaSource() == EtwSchemaSource::Xml ? 1 : 0;
+		return m_Providers[row].SchemaSource() == EtwSchemaSource::Xml ? 1 : 0;
 	}
 	else if (GetColumnManager(h)->GetColumnTag<ColumnType>(col) == ColumnType::Level) {
 		return 3 + m_Events[row].Level;
@@ -267,7 +267,7 @@ void CProvidersView::OnStateChanged(HWND h, int from, int to, UINT oldState, UIN
 			m_HSplitter.SetSinglePaneMode(0);
 		}
 		else {
-			m_Properties = m_Providers[index]->EventInfo(m_Events[from]).Properties;
+			m_Properties = m_Providers[index].EventInfo(m_Events[from]).Properties;
 			m_PropList.SetItemCount((int)m_Properties.size());
 			Sort(m_PropList);
 			m_HSplitter.SetSinglePaneMode(-1);
@@ -280,7 +280,7 @@ void CProvidersView::OnStateChanged(HWND h, int from, int to, UINT oldState, UIN
 			m_EventList.SetItemCount(0);
 		}
 		else {
-			m_Events = m_Providers[index]->GetProviderEvents();
+			m_Events = m_Providers[index].GetProviderEvents();
 			m_EventList.SetItemCount((int)m_Events.size());
 			Sort(m_EventList);
 		}

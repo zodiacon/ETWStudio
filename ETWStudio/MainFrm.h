@@ -21,7 +21,7 @@ public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual BOOL OnIdle();
 
-	bool DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
+	UINT DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
 
 	BEGIN_MSG_MAP(CMainFrame)
 		if (uMsg == WM_COMMAND) {
