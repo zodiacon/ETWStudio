@@ -3,7 +3,7 @@
 #include "resource.h"
 #include <DialogHelper.h>
 #include <VirtualListView.h>
-#include "EtwSession.h"
+#include <TraceSession.h>
 
 struct IMainFrame;
 
@@ -15,7 +15,7 @@ class CSessionDlg :
 public:
 	enum { IDD = IDD_SESSION };
 
-	CSessionDlg(IMainFrame* frame, EtwSession& session);
+	CSessionDlg(IMainFrame* frame, TraceSession& session);
 
 	CString GetColumnText(HWND, int row, int col) const;
 
@@ -51,7 +51,7 @@ private:
 	LRESULT OnGuidProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	IMainFrame* m_pFrame;
-	EtwSession& m_Session;
+	TraceSession& m_Session;
 	std::vector<ProviderInfo> m_Providers;
 	CListViewCtrl m_List;
 };

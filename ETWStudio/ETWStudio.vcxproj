@@ -214,7 +214,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AboutDlg.cpp" />
-    <ClCompile Include="EtwSession.cpp" />
     <ClCompile Include="ETWStudio.cpp" />
     <ClCompile Include="LogView.cpp" />
     <ClCompile Include="MainFrm.cpp" />
@@ -232,7 +231,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AboutDlg.h" />
-    <ClInclude Include="EtwSession.h" />
     <ClInclude Include="Interfaces.h" />
     <ClInclude Include="LogView.h" />
     <ClInclude Include="MainFrm.h" />

@@ -2,7 +2,7 @@
 #include "resource.h"
 #include "LogView.h"
 
-CLogView::CLogView(IMainFrame* frame, EtwSession session) : CFrameView(frame), m_Session(std::move(session)) {
+CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
 
 CString CLogView::GetColumnText(HWND, int row, int col) const {

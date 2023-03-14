@@ -16,3 +16,5 @@
 #include <shared_mutex>
 #include <evntrace.h>
 #include <initguid.h>
+#include <span>
+#include <functional>

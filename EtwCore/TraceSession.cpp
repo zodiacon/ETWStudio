@@ -1,12 +1,10 @@
 #include "pch.h"
 #include <initguid.h>
-#include "TraceManager.h"
+#include "TraceSession.h"
 #include "EventData.h"
 #include <assert.h>
 
 #pragma comment(lib, "tdh")
-
-const WCHAR sessionName[] = L"BrowserGuardETWProducer";
 
 static bool EnablePrivilege(PCWSTR privilege) {
 	HANDLE hToken;
@@ -25,16 +23,29 @@ static bool EnablePrivilege(PCWSTR privilege) {
 	return success && ::GetLastError() == ERROR_SUCCESS;
 }
 
-TraceManager::TraceManager() {
+TraceSession::TraceSession(std::wstring_view name) : m_SessionName(name.data()) {
 	EnablePrivilege(SE_DEBUG_NAME);
 	EnablePrivilege(SE_SYSTEM_PROFILE_NAME);
 }
 
-TraceManager::~TraceManager() {
+
+TraceSession::~TraceSession() {
 	Stop();
 }
 
-GUID const* TraceManager::GetProviderGuid(std::wstring const& name) {
+std::wstring const& TraceSession::SessionName() const {
+	return m_SessionName;
+}
+
+bool TraceSession::SetSessionName(std::wstring name) {
+	if (!m_IsPaused)
+		return false;
+
+	m_SessionName = name;
+	return true;
+}
+
+GUID const* TraceSession::GetProviderGuid(std::wstring const& name) {
 	if (!EnumProviders())
 		return nullptr;
 
@@ -48,27 +59,34 @@ GUID const* TraceManager::GetProviderGuid(std::wstring const& name) {
 	return nullptr;
 }
 
-bool TraceManager::AddKernelEventTypes(std::initializer_list<KernelEventTypes> types) {
+bool TraceSession::AddKernelEventTypes(std::initializer_list<KernelEventTypes> types) {
 	m_KernelEventTypes.insert(types);
 	return true;
 }
 
-bool TraceManager::SetKernelEventTypes(std::initializer_list<KernelEventTypes> types) {
+bool TraceSession::SetKernelEventTypes(std::initializer_list<KernelEventTypes> types) {
 	m_KernelEventTypes = types;
 	return true;
 }
 
-bool TraceManager::SetKernelEventStacks(std::initializer_list<std::wstring> categories) {
+bool TraceSession::SetKernelEventStacks(std::initializer_list<std::wstring> categories) {
 	m_KernelEventStacks = categories;
 	return true;
 }
 
-bool TraceManager::AddProvider(GUID const& guid, int level) {
-	auto error = ::EnableTraceEx(&guid, nullptr, m_hTrace, TRUE, (UCHAR)level, 0, 0, 0, nullptr);
-	return error == ERROR_SUCCESS;
+bool TraceSession::AddProvider(GUID const& guid, int level) {
+	if (m_Providers.contains(guid))
+		return true;
+
+	m_Providers.insert(guid);
+	if (m_hTrace) {
+		auto error = ::EnableTraceEx(&guid, nullptr, m_hTrace, TRUE, (UCHAR)level, 0, 0, 0, nullptr);
+		return error == ERROR_SUCCESS;
+	}
+	return true;
 }
 
-bool TraceManager::AddProvider(std::wstring const& name, int level) {
+bool TraceSession::AddProvider(std::wstring const& name, int level) {
 	if (name[0] == L'{') {
 		GUID guid;
 		if (S_OK != CLSIDFromString(name.c_str(), &guid))
@@ -82,7 +100,7 @@ bool TraceManager::AddProvider(std::wstring const& name, int level) {
 	return false;
 }
 
-bool TraceManager::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids) {
+bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids) {
 	std::unordered_set<USHORT> events;
 	for (auto& id : ids)
 		events.insert(id);
@@ -91,7 +109,11 @@ bool TraceManager::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids)
 	return true;
 }
 
-bool TraceManager::Start(EventCallback cb) {
+std::vector<GUID> TraceSession::GetProviders() const {
+	return std::vector(m_Providers.begin(), m_Providers.end());
+}
+
+bool TraceSession::Start(EventCallback cb) {
 	m_Callback = cb;
 
 	//error = UpdateEventConfig();
@@ -101,10 +123,10 @@ bool TraceManager::Start(EventCallback cb) {
 	//}
 
 	m_TraceLog.Context = this;
-	m_TraceLog.LoggerName = (PWSTR)sessionName;
+	m_TraceLog.LoggerName = m_SessionName.data();
 	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_REAL_TIME;
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
-		((TraceManager*)record->UserContext)->OnEventRecord(record);
+		((TraceSession*)record->UserContext)->OnEventRecord(record);
 	};
 	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
 	if (!m_hOpenTrace)
@@ -112,14 +134,14 @@ bool TraceManager::Start(EventCallback cb) {
 
 	// create a dedicated thread to process the trace
 	m_hProcessThread.reset(::CreateThread(nullptr, 0, [](auto param) {
-		return ((TraceManager*)param)->Run();
+		return ((TraceSession*)param)->Run();
 		}, this, 0, nullptr));
 	::SetThreadPriority(m_hProcessThread.get(), THREAD_PRIORITY_HIGHEST);
 
 	return true;
 }
 
-bool TraceManager::Stop() {
+bool TraceSession::Stop() {
 	if (m_hTrace) {
 		::ControlTrace(m_hTrace, KERNEL_LOGGER_NAME, m_Properties, EVENT_TRACE_CONTROL_STOP);
 		m_hTrace = 0;
@@ -135,18 +157,18 @@ bool TraceManager::Stop() {
 	return true;
 }
 
-bool TraceManager::IsRunning() const {
+bool TraceSession::IsRunning() const {
 	return m_hProcessThread != nullptr;
 }
 
-std::wstring TraceManager::GetProcessImageById(DWORD pid) const {
+std::wstring TraceSession::GetProcessImageById(DWORD pid) const {
 	std::shared_lock locker(m_ProcessesLock);
 	if (auto it = m_Processes.find(pid); it != m_Processes.end())
 		return it->second;
 	return L"";
 }
 
-void TraceManager::EnumProcesses() {
+void TraceSession::EnumProcesses() {
 	wil::unique_handle hSnapshot(::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
 	if (!hSnapshot)
 		return;
@@ -165,7 +187,7 @@ void TraceManager::EnumProcesses() {
 	}
 }
 
-bool TraceManager::ParseProcessStartStop(EventData* data) {
+bool TraceSession::ParseProcessStartStop(EventData* data) {
 	if (data->GetEventName().substr(0, 8) != L"Process/")
 		return false;
 
@@ -195,11 +217,11 @@ bool TraceManager::ParseProcessStartStop(EventData* data) {
 	return true;
 }
 
-void TraceManager::ResetIndex(uint32_t index) {
+void TraceSession::ResetIndex(uint32_t index) {
 	m_Index = index;
 }
 
-int TraceManager::UpdateEventConfig() {
+int TraceSession::UpdateEventConfig() {
 	typedef struct _PERFINFO_GROUPMASK {
 		ULONG Masks[8];
 	} PERFINFO_GROUPMASK;
@@ -230,7 +252,7 @@ int TraceManager::UpdateEventConfig() {
 	return error;
 }
 
-void TraceManager::OnEventRecord(PEVENT_RECORD rec) {
+void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 	if (m_hOpenTrace == 0 || m_IsPaused)
 		return;
 
@@ -244,7 +266,7 @@ void TraceManager::OnEventRecord(PEVENT_RECORD rec) {
 	}
 
 	auto pid = rec->EventHeader.ProcessId;
-	auto& eventName = GetkernelEventName(rec);
+	auto& eventName = GetEventName(rec);
 	if (eventName.empty() && m_DumpUnnamedEvents)
 		return;
 
@@ -266,7 +288,7 @@ void TraceManager::OnEventRecord(PEVENT_RECORD rec) {
 		m_Callback(data);
 }
 
-DWORD TraceManager::Run() {
+DWORD TraceSession::Run() {
 	EnumProcesses();
 	FILETIME now;
 	::GetSystemTimeAsFileTime(&now);
@@ -274,7 +296,7 @@ DWORD TraceManager::Run() {
 	return error;
 }
 
-void TraceManager::HandleNoProcessId(EventData* data) {
+void TraceSession::HandleNoProcessId(EventData* data) {
 	DWORD tid = 0;
 	if (data->GetThreadId() == 0 || data->GetThreadId() == (DWORD)-1) {
 		auto prop = data->GetProperty(L"ThreadId");
@@ -307,7 +329,7 @@ void TraceManager::HandleNoProcessId(EventData* data) {
 	}
 }
 
-bool TraceManager::EnumProviders() {
+bool TraceSession::EnumProviders() {
 	if (!s_Providers.empty())
 		return true;
 
@@ -326,39 +348,47 @@ bool TraceManager::EnumProviders() {
 	return true;
 }
 
-const std::wstring& TraceManager::GetkernelEventName(EVENT_RECORD* rec) const {
+const std::wstring& TraceSession::GetEventName(EVENT_RECORD* rec) const {
 	static const std::wstring empty;
 	auto& desc = rec->EventHeader.EventDescriptor;
-	auto key = rec->EventHeader.ProviderId.Data1 ^ desc.Opcode;
+	auto key = (ULONGLONG)rec->EventHeader.ProviderId.Data1 | ((ULONGLONG)desc.Id << 32) | ((ULONGLONG)desc.Version << 48);
 	if (auto it = m_KernelEventNames.find(key); it != m_KernelEventNames.end())
 		return it->second;
 
 	static BYTE buffer[1 << 11];
 	ULONG size = sizeof(buffer);
 	auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
+	std::wstring name;
 	if (::TdhGetEventInformation(rec, 0, nullptr, info, &size) == STATUS_SUCCESS) {
-		const auto name = std::wstring((PCWSTR)((PBYTE)info + info->TaskNameOffset)) + L"/" + std::wstring((PCWSTR)((PBYTE)info + info->OpcodeNameOffset));
+		if (info->EventNameOffset) {
+			name = std::wstring((PCWSTR)((PBYTE)info + info->EventNameOffset)) + L"/" + std::wstring((PCWSTR)((PBYTE)info + info->EventNameOffset));
+		}
+		else if (info->TaskNameOffset) {
+			name = std::wstring((PCWSTR)((PBYTE)info + info->TaskNameOffset)) + L"/" + std::wstring((PCWSTR)((PBYTE)info + info->TaskNameOffset));
+		}
+	}
+	if (!name.empty()) {
 		m_KernelEventNames.insert({ key, name });
 		return m_KernelEventNames[key];
 	}
 	return empty;
 }
 
-void TraceManager::AddProcessName(DWORD pid, std::wstring name) {
+void TraceSession::AddProcessName(DWORD pid, std::wstring name) {
 	std::lock_guard locker(m_ProcessesLock);
 	m_Processes.insert({ pid, std::move(name) });
 }
 
-bool TraceManager::RemoveProcessName(DWORD pid) {
+bool TraceSession::RemoveProcessName(DWORD pid) {
 	std::lock_guard locker(m_ProcessesLock);
 	return m_Processes.erase(pid);
 }
 
-bool TraceManager::IsPaused() const {
+bool TraceSession::IsPaused() const {
 	return m_IsPaused;
 }
 
-std::wstring TraceManager::GetDosNameFromNtName(PCWSTR name) {
+std::wstring TraceSession::GetDosNameFromNtName(PCWSTR name) {
 	static std::vector<std::pair<std::wstring, std::wstring>> deviceNames;
 	static bool first = true;
 	if (first) {
@@ -387,7 +417,7 @@ std::wstring TraceManager::GetDosNameFromNtName(PCWSTR name) {
 	return L"";
 }
 
-bool TraceManager::SetBackupFile(PCWSTR path) {
+bool TraceSession::SetBackupFile(PCWSTR path) {
 	if (path) {
 		wil::unique_hfile hFile(::CreateFile(path, GENERIC_WRITE | GENERIC_READ, 0, nullptr, TRUNCATE_EXISTING, 0, nullptr));
 		if (!hFile)
@@ -399,11 +429,11 @@ bool TraceManager::SetBackupFile(PCWSTR path) {
 	return true;
 }
 
-void TraceManager::Pause(bool pause) {
+void TraceSession::Pause(bool pause) {
 	m_IsPaused = pause;
 }
 
-bool TraceManager::Init() {
+bool TraceSession::Init() {
 	if (m_hTrace)
 		return true;
 
@@ -411,7 +441,7 @@ bool TraceManager::Init() {
 	static const GUID sessionGuid =
 	{ 0x6990501b, 0x4484, 0x4ef0, { 0x87, 0x93, 0x84, 0x15, 0x9b, 0x8d, 0x47, 0x28 } };
 
-	auto size = sizeof(EVENT_TRACE_PROPERTIES) + sizeof(sessionName);
+	auto size = sizeof(EVENT_TRACE_PROPERTIES) + (m_SessionName.length() + 1) * sizeof(WCHAR);
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);
 	ULONG error;
 
@@ -429,11 +459,11 @@ bool TraceManager::Init() {
 		m_Properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 
 		// copy session name
-		::wcscpy_s((PWSTR)(m_Properties + 1), ::wcslen(sessionName) + 1, sessionName);
+		::wcscpy_s((PWSTR)(m_Properties + 1), m_SessionName.length() + 1, m_SessionName.c_str());
 
-		error = ::StartTrace(&m_hTrace, sessionName, m_Properties);
+		error = ::StartTrace(&m_hTrace, m_SessionName.c_str(), m_Properties);
 		if (error == ERROR_ALREADY_EXISTS) {
-			error = ::ControlTrace(m_hTrace, sessionName, m_Properties, EVENT_TRACE_CONTROL_STOP);
+			error = ::ControlTrace(m_hTrace, m_SessionName.c_str(), m_Properties, EVENT_TRACE_CONTROL_STOP);
 			if (error != ERROR_SUCCESS)
 				return false;
 			continue;

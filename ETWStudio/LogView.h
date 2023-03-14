@@ -9,13 +9,13 @@
 #include <VirtualListView.h>
 #include "EtwProvider.h"
 #include <QuickFindEdit.h>
-#include "EtwSession.h"
+#include <TraceSession.h>
 
 class CLogView :
 	public CFrameView<CLogView, IMainFrame>,
 	public CVirtualListView<CLogView> {
 public:
-	CLogView(IMainFrame* frame, EtwSession session);
+	CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session);
 
 	CString GetColumnText(HWND, int row, int col) const;
 	void DoSort(const SortInfo* si);
@@ -53,5 +53,5 @@ private:
 
 	CListViewCtrl m_List;
 	CContainedWindowT<CQuickFindEdit> m_QuickFind;
-	EtwSession m_Session;
+	std::unique_ptr<TraceSession> m_Session;
 };

@@ -39,7 +39,7 @@ private:
 };
 
 class EventData {
-	friend class TraceManager;
+	friend class TraceSession;
 public:
 	EventData(PEVENT_RECORD rec, std::wstring processName, const std::wstring& eventName, uint32_t index);
 

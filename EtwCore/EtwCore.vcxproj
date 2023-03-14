@@ -166,7 +166,7 @@
     <ClInclude Include="EventData.h" />
     <ClInclude Include="KernelEvents.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="TraceManager.h" />
+    <ClInclude Include="TraceSession.h" />
     <ClInclude Include="WMIHelper.h" />
   </ItemGroup>
   <ItemGroup>
@@ -179,7 +179,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="TraceManager.cpp" />
+    <ClCompile Include="TraceSession.cpp" />
     <ClCompile Include="WMIHelper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

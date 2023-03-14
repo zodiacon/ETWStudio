@@ -1,7 +1,6 @@
 #pragma once
 
 #include "KernelEvents.h"
-#include <span>
 
 class EventData;
 
@@ -16,12 +15,17 @@ namespace std {
 	};
 }
 
-class TraceManager final {
+class TraceSession final {
 public:
-	TraceManager();
-	~TraceManager();
-	TraceManager(const TraceManager&) = delete;
-	TraceManager& operator=(const TraceManager&) = delete;
+	explicit TraceSession(std::wstring_view name = nullptr);
+	~TraceSession();
+	TraceSession(const TraceSession&) = delete;
+	TraceSession& operator=(const TraceSession&) = delete;
+	TraceSession(TraceSession&& other) = default;
+	TraceSession& operator=(TraceSession&&) = default;
+
+	bool SetSessionName(std::wstring name);
+	std::wstring const& SessionName() const;
 
 	static GUID const* GetProviderGuid(std::wstring const& name);
 
@@ -31,6 +35,8 @@ public:
 	bool AddProvider(GUID const& guid, int level = TRACE_LEVEL_INFORMATION);
 	bool AddProvider(std::wstring const& name, int level = TRACE_LEVEL_INFORMATION);
 	bool AddEventsForProvider(GUID const& guid, std::span<USHORT> ids);
+
+	std::vector<GUID> GetProviders() const;
 
 	bool SetBackupFile(PCWSTR path);
 	void Pause(bool pause);
@@ -47,7 +53,7 @@ public:
 	static std::wstring GetDosNameFromNtName(PCWSTR name);
 
 private:
-	const std::wstring& GetkernelEventName(EVENT_RECORD* rec) const;
+	const std::wstring& GetEventName(EVENT_RECORD* rec) const;
 	void AddProcessName(DWORD pid, std::wstring name);
 	bool RemoveProcessName(DWORD pid);
 	void EnumProcesses();
@@ -83,9 +89,11 @@ private:
 	uint32_t m_Index{ 0 };
 	wil::unique_handle m_hMemMap;
 	bool m_IsTraceProcesses{ true };
-	bool m_DumpUnnamedEvents{ true };
+	bool m_DumpUnnamedEvents{ false };
 	std::atomic<bool> m_IsPaused{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
+	std::unordered_set<GUID> m_Providers;
+	std::wstring m_SessionName;
 };
 

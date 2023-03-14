@@ -48,9 +48,6 @@
     <ClCompile Include="ProvidersDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
-    <ClCompile Include="EtwSession.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SimpleDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
@@ -85,9 +82,6 @@
     </ClInclude>
     <ClInclude Include="ProvidersDlg.h">
       <Filter>Dialogs</Filter>
-    </ClInclude>
-    <ClInclude Include="EtwSession.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SimpleDlg.h">
       <Filter>Dialogs</Filter>

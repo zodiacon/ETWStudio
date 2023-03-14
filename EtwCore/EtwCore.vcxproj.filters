@@ -30,7 +30,7 @@
     <ClInclude Include="KernelEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraceManager.h">
+    <ClInclude Include="TraceSession.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -50,7 +50,7 @@
     <ClCompile Include="KernelEvents.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraceManager.cpp">
+    <ClCompile Include="TraceSession.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

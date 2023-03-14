@@ -6,7 +6,7 @@
 #include "StringHelpers.h"
 #include "SimpleDlg.h"
 
-CSessionDlg::CSessionDlg(IMainFrame* frame, EtwSession& session) : m_pFrame(frame), m_Session(session) {
+CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session) : m_pFrame(frame), m_Session(session) {
 }
 
 CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
@@ -23,7 +23,7 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	InitDynamicLayout();
 	SetDialogIcon(IDI_SESSION);
 
-	SetDlgItemText(IDC_NAME, m_Session.Name().c_str());
+	SetDlgItemText(IDC_NAME, m_Session.SessionName().c_str());
 	CheckDlgButton(IDC_REALTIME, BST_CHECKED);
 
 	m_List.Attach(GetDlgItem(IDC_LIST));

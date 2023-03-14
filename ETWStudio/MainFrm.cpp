@@ -9,6 +9,7 @@
 #include "MainFrm.h"
 #include "SessionDlg.h"
 #include <ToolbarHelper.h>
+#include <TraceSession.h>
 #include "LogView.h"
 
 const int WindowMenuPosition = 5;
@@ -169,10 +170,10 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 
 LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 	auto name = std::format(L"LogSession{}", m_view.GetPageCount() + 1);
-	EtwSession session(name);
-	CSessionDlg dlg(this, session);
+	auto session = std::make_unique<TraceSession>(name);
+	CSessionDlg dlg(this, *session);
 	if (IDOK == dlg.DoModal()) {
-		if (session.GetProviders().empty()) {
+		if (session->GetProviders().empty()) {
 			AtlMessageBox(m_hWnd, L"Session must have at least one provider", IDS_TITLE, MB_ICONERROR);
 			return 0;
 		}
