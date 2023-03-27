@@ -76,6 +76,8 @@ BEGIN
         MENUITEM "&Autoscroll",                 ID_VIEW_AUTOSCROLL
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
         MENUITEM "&Quick Find...",              ID_VIEW_QUICKFIND
+        MENUITEM SEPARATOR
+        MENUITEM "Find in &Providers...",       ID_VIEW_FINDINPROVIDERS
     END
     POPUP "&Session"
     BEGIN
@@ -227,6 +229,21 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,172,34,50,14
 END
 
+IDD_FULLFIND DIALOGEX 0, 0, 425, 277
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Find in Providers"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Search:",IDC_STATIC,7,9,26,8
+    EDITTEXT        IDC_TEXT,40,7,165,14,ES_AUTOHSCROLL
+    CONTROL         "Providers",IDC_PROVIDER,"Button",BS_AUTOCHECKBOX | BS_FLAT | WS_TABSTOP,7,30,46,10
+    CONTROL         "Events",IDC_EVENTS,"Button",BS_AUTOCHECKBOX | BS_FLAT | WS_TABSTOP,60,30,38,10
+    CONTROL         "Properties",IDC_PROPS,"Button",BS_AUTOCHECKBOX | BS_FLAT | WS_TABSTOP,109,30,49,10
+    CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | WS_BORDER | WS_TABSTOP,7,52,411,218
+    PUSHBUTTON      "Find",IDC_FIND,221,7,50,14
+    LTEXT           "Items found:",IDC_STATS,281,10,68,8
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -266,6 +283,14 @@ BEGIN
         RIGHTMARGIN, 322
         TOPMARGIN, 7
         BOTTOMMARGIN, 48
+    END
+
+    IDD_FULLFIND, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 418
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 270
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -374,6 +399,19 @@ END
 IDD_SIMPLE AFX_DIALOG_LAYOUT
 BEGIN
     0
+END
+
+IDD_FULLFIND AFX_DIALOG_LAYOUT
+BEGIN
+    0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 100, 100,
+    0, 0, 0, 0,
+    0, 0, 0, 0
 END
 
 

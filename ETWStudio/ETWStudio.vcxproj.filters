@@ -54,6 +54,12 @@
     <ClCompile Include="LogView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
+    <ClCompile Include="SecurityHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FullFindDlg.cpp">
+      <Filter>Dialogs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -88,6 +94,12 @@
     </ClInclude>
     <ClInclude Include="LogView.h">
       <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="SecurityHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FullFindDlg.h">
+      <Filter>Dialogs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

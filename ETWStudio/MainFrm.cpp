@@ -11,6 +11,7 @@
 #include <ToolbarHelper.h>
 #include <TraceSession.h>
 #include "LogView.h"
+#include "FullFindDlg.h"
 
 const int WindowMenuPosition = 5;
 
@@ -187,4 +188,11 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 
 UINT CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
 	return ShowContextMenu(hMenu, flags, x, y);
+}
+
+LRESULT CMainFrame::OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	CFullFindDlg dlg;
+	dlg.DoModal();
+
+	return 0;
 }

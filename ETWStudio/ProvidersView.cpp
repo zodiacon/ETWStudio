@@ -48,10 +48,10 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 	cm->AddColumn(L"Task", 0, 200, ColumnType::Task);
 	cm->AddColumn(L"OpCode", 0, 150, ColumnType::OpCode);
 	cm->AddColumn(L"Message", 0, 300, ColumnType::Message);
-	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Count);
-	cm->AddColumn(L"GUID", 0, 250, ColumnType::Guid);
-	cm->AddColumn(L"Channel", 0, 150, ColumnType::ChannelName);
 	cm->AddColumn(L"Name", 0, 150, ColumnType::Name);
+	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Count);
+	cm->AddColumn(L"Channel", 0, 150, ColumnType::ChannelName);
+	cm->AddColumn(L"GUID", 0, 250, ColumnType::Guid);
 
 	m_QuickFind.Create(this, 2, m_EventList, rcDefault, L"", WS_CHILD | WS_BORDER, 0, 123);
 	m_QuickFind.SetLimitText(20);

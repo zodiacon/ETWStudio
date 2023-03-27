@@ -1,38 +1,32 @@
 #pragma once
 
 #include <DialogHelper.h>
-#include <QuickFindEdit.h>
 #include <VirtualListView.h>
-#include <EtwProvider.h>
-#include <SortedFilteredVector.h>
 
-class CProvidersDlg :
-	public CDialogImpl<CProvidersDlg>,
-	public CVirtualListView<CProvidersDlg>,
-	public CDynamicDialogLayout<CProvidersDlg>,
-	public CDialogHelper<CProvidersDlg> {
+class CFullFindDlg :
+	public CDialogImpl<CFullFindDlg>,
+	public CVirtualListView<CFullFindDlg>,
+	public CDynamicDialogLayout<CFullFindDlg>,
+	public CDialogHelper<CFullFindDlg> {
 public:
-	enum { IDD = IDD_PROVIDERS };
+	enum { IDD = IDD_FULLFIND };
 
 	void DoSort(SortInfo const* si);
 	CString GetColumnText(HWND h, int row, int col) const;
 	int GetRowImage(HWND, int row, int col) const;
 	bool OnDoubleClickList(HWND, int row, int col, POINT const&);
-	EtwProvider const* GetSelectedProvider() const;
 
-	BEGIN_MSG_MAP(CProvidersDlg)
+	BEGIN_MSG_MAP(CFullFindDlg)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
+		COMMAND_ID_HANDLER(IDC_FIND, OnFind)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
-		COMMAND_HANDLER(IDC_FILTER, EN_DELAYCHANGE, OnChangeFilter)
-		CHAIN_MSG_MAP(CVirtualListView<CProvidersDlg>)
-		CHAIN_MSG_MAP(CDynamicDialogLayout<CProvidersDlg>)
+		CHAIN_MSG_MAP(CVirtualListView<CFullFindDlg>)
+		CHAIN_MSG_MAP(CDynamicDialogLayout<CFullFindDlg>)
 	END_MSG_MAP()
 
 protected:
-	enum class ColumnType {
-		Name, Guid, Source, Count
-	};
+	static bool Find(std::wstring const& name, PCWSTR text);
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -41,13 +35,18 @@ protected:
 
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
-	LRESULT OnChangeFilter(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnFind(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 private:
+	struct FindItem {
+		std::wstring Provider;
+		std::wstring Event;
+		std::wstring Property;
+	};
+
 	CListViewCtrl m_List;
-	CQuickFindEdit m_Edit;
-	SortedFilteredVector<EtwProvider> m_Providers;
-	EtwProvider* m_SelectedProvider{ nullptr };
-	int m_OldSelected{ -1 };
+	std::vector<FindItem> m_Items;
 	CString m_FilterText;
+	inline static BOOL m_SearchProviders { true}, m_SearchEvents{ true }, m_SearchProperties{ true };
+	inline static CString m_SearchText;
 };

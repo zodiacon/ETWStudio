@@ -215,6 +215,7 @@
   <ItemGroup>
     <ClCompile Include="AboutDlg.cpp" />
     <ClCompile Include="ETWStudio.cpp" />
+    <ClCompile Include="FullFindDlg.cpp" />
     <ClCompile Include="LogView.cpp" />
     <ClCompile Include="MainFrm.cpp" />
     <ClCompile Include="pch.cpp">
@@ -225,12 +226,14 @@
     </ClCompile>
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
+    <ClCompile Include="SecurityHelper.cpp" />
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
     <ClCompile Include="StringHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AboutDlg.h" />
+    <ClInclude Include="FullFindDlg.h" />
     <ClInclude Include="Interfaces.h" />
     <ClInclude Include="LogView.h" />
     <ClInclude Include="MainFrm.h" />
@@ -238,6 +241,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ProvidersView.h" />
+    <ClInclude Include="SecurityHelper.h" />
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />
     <ClInclude Include="StringHelpers.h" />

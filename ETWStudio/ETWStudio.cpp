@@ -5,16 +5,17 @@
 #include "resource.h"
 #include "MainFrm.h"
 #include <ThemeHelper.h>
+#include "SecurityHelper.h"
 
 CAppModule _Module;
 
-int Run(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT) {
+int Run(LPCTSTR /*lpstrCmdLine*/ = nullptr, int nCmdShow = SW_SHOWDEFAULT) {
 	CMessageLoop theLoop;
 	_Module.AddMessageLoop(&theLoop);
 
 	CMainFrame wndMain;
 
-	if (wndMain.CreateEx() == NULL) {
+	if (wndMain.CreateEx() == nullptr) {
 		ATLTRACE(_T("Main window creation failed!\n"));
 		return 0;
 	}
@@ -30,6 +31,9 @@ int Run(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT) {
 int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lpstrCmdLine, int nCmdShow) {
 	HRESULT hRes = ::CoInitialize(NULL);
 	ATLASSERT(SUCCEEDED(hRes));
+
+	SecurityHelper::EnablePrivilege(SE_DEBUG_NAME);
+	SecurityHelper::EnablePrivilege(SE_SYSTEM_PROFILE_NAME);
 
 	AtlInitCommonControls(ICC_BAR_CLASSES | ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES);
 

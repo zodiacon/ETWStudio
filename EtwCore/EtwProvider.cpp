@@ -183,7 +183,7 @@ EtwEventInfo const& EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
 			if (p.nonStructType.MapNameOffset)
 				prop.MapName = (PCWSTR)(buffer.get() + p.nonStructType.MapNameOffset);
 		}
-		info.Properties.push_back(prop);
+		info.Properties.push_back(std::move(prop));
 	}
 
 	m_EventInfo.insert({ id, std::move(info) });
