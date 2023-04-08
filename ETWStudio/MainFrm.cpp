@@ -205,7 +205,7 @@ LRESULT CMainFrame::OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl
 }
 
 LRESULT CMainFrame::OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/) {
-	if (m_ActivePage >= 0)
+	if (m_ActivePage >= 0 && m_ActivePage < m_view.GetPageCount())
 		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 0, 0);
 	m_ActivePage = m_view.GetActivePage();
 	::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 1, 0);
@@ -218,6 +218,8 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_SESSION_RUN, false);
 	UIEnable(ID_SESSION_STOP, false);
 	UIEnable(ID_SESSION_CLEAR, false);
+	UIEnable(ID_VIEW_AUTOSCROLL, false);
+	UIEnable(ID_EDIT_FIND, false);
 	UISetCheck(ID_SESSION_RUN, false);
 	UISetCheck(ID_SESSION_STOP, false);
 }

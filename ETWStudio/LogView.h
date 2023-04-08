@@ -39,6 +39,7 @@ public:
 	ALT_MSG_MAP(1)
 		COMMAND_ID_HANDLER(ID_SESSION_RUN, OnRun)
 		COMMAND_ID_HANDLER(ID_SESSION_STOP, OnStop)
+		COMMAND_ID_HANDLER(ID_VIEW_AUTOSCROLL, OnAutoScroll)
 	END_MSG_MAP()
 
 private:
@@ -64,6 +65,7 @@ private:
 	LRESULT OnQuickFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnRun(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnStop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnAutoScroll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	CQuickFindEdit m_QuickFind;
@@ -72,4 +74,5 @@ private:
 	std::vector<std::shared_ptr<EventData>> m_TempEvents;
 	std::mutex m_EventsLock;
 	bool m_AutoScroll{ false };
+	bool m_Running{ false };
 };

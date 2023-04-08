@@ -46,11 +46,7 @@ void CLogView::DoSort(const SortInfo* si) {
 }
 
 int CLogView::GetRowImage(HWND h, int row, int col) const {
-	switch (GetColumnManager(h)->GetColumnTag<ColumnType>(col)) {
-		case ColumnType::Level:
-			return m_Events[row]->GetEventDescriptor().Level;
-	}
-	return -1;
+	return m_Events[row]->GetEventDescriptor().Level;
 }
 
 void CLogView::OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState) {
@@ -65,13 +61,15 @@ void CLogView::UpdateUI() {
 	ui.UIEnable(ID_SESSION_RUN, true);
 	ui.UIEnable(ID_SESSION_STOP, true);
 	ui.UIEnable(ID_SESSION_CLEAR, true);
-	ui.UISetCheck(ID_SESSION_RUN, !m_Session->IsPaused());
-	ui.UISetCheck(ID_SESSION_STOP, m_Session->IsPaused());
+	ui.UIEnable(ID_VIEW_AUTOSCROLL, true);
+	ui.UISetCheck(ID_SESSION_RUN, m_Running);
+	ui.UISetCheck(ID_SESSION_STOP, !m_Running);
+	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA);
-	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP | LVS_EX_SUBITEMIMAGES);
+	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP);
 
 	CImageList images;
 	images.Create(16, 16, ILC_COLOR32, 8, 4);
@@ -89,7 +87,7 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
 	cm->AddColumn(L"Time", LVCFMT_RIGHT, 90, ColumnType::Time);
 	cm->AddColumn(L"TID", LVCFMT_RIGHT, 60, ColumnType::TID);
-	cm->AddColumn(L"Level", 0, 100, ColumnType::Level);
+	cm->AddColumn(L"Level", 0, 80, ColumnType::Level);
 	cm->AddColumn(L"Task", 0, 160, ColumnType::Task);
 	cm->AddColumn(L"Keyword", 0, 160, ColumnType::Keyword);
 	cm->AddColumn(L"Opcode", 0, 100, ColumnType::OpCode);
@@ -111,6 +109,8 @@ LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 		m_Events.append(m_TempEvents.begin(), m_TempEvents.end());
 		m_TempEvents.clear();
 		m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+		if (m_AutoScroll)
+			m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
 	}
 	return 0;
 }
@@ -136,7 +136,7 @@ LRESULT CLogView::OnQuickFind(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
-	if (m_Session->IsRunning())
+	if (m_Running)
 		return 0;
 
 	m_Session->Start([&](auto evt) {
@@ -146,13 +146,25 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 	SetTimer(1, 1000);
 	Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
 	Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
+	m_Running = true;
 	return 0;
 }
 
 LRESULT CLogView::OnStop(WORD, WORD, HWND, BOOL&) {
+	if (!m_Running)
+		return 0;
+
 	m_Session->Pause(true);
 	Frame()->UI().UISetCheck(ID_SESSION_RUN, false);
 	Frame()->UI().UISetCheck(ID_SESSION_STOP, true);
+	m_Running = false;
+
+	return 0;
+}
+
+LRESULT CLogView::OnAutoScroll(WORD, WORD, HWND, BOOL&) {
+	m_AutoScroll = !m_AutoScroll;
+	Frame()->UI().UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 
 	return 0;
 }
