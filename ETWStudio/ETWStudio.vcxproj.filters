@@ -39,7 +39,7 @@
     <ClCompile Include="ProvidersView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
-    <ClCompile Include="StringHelpers.cpp">
+    <ClCompile Include="StringHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SessionDlg.cpp">
@@ -77,7 +77,7 @@
     <ClInclude Include="Interfaces.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="StringHelpers.h">
+    <ClInclude Include="StringHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SessionDlg.h">

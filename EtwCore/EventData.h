@@ -4,6 +4,20 @@
 #include <evntcons.h>
 #include <assert.h>
 
+struct EventStrings {
+	std::wstring Name;
+	std::wstring Keyword;
+	std::wstring Channel;
+	std::wstring Message;
+	std::wstring Task;
+	std::wstring Opcode;
+	std::wstring Level;
+	std::wstring ProviderMessage;
+	std::wstring EventAttributes;
+	std::wstring RelatedActivity;
+	bool _HasValue{ false };
+};
+
 struct EventProperty {
 	friend class EventData;
 
@@ -38,27 +52,28 @@ private:
 	void* Allocate(ULONG size);
 };
 
-class EventData {
+class EventData final {
 	friend class TraceSession;
 public:
-	EventData(PEVENT_RECORD rec, std::wstring processName, const std::wstring& eventName, uint32_t index);
+	EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index);
+	~EventData();
 
 	void* operator new(size_t size);
 	void operator delete(void* p);
 
 	DWORD GetProcessId() const;
 	DWORD GetThreadId() const;
+	EVENT_HEADER const& GetEventHeader() const;
 	ULONGLONG GetTimeStamp() const;
 	const GUID& GetProviderId() const;
 	const EVENT_DESCRIPTOR& GetEventDescriptor() const;
 	const std::wstring& GetProcessName() const;
-	const std::wstring& GetEventName() const;
 	uint32_t GetIndex() const;
+	EventStrings const& GetEventStrings() const;
 
 	const std::vector<EventProperty>& GetProperties() const;
 	const EventProperty* GetProperty(PCWSTR name) const;
 	std::wstring FormatProperty(const EventProperty& prop) const;
-	uint64_t GetEventKey() const;
 
 protected:
 	void SetProcessName(std::wstring name);
@@ -68,17 +83,13 @@ private:
 	inline static CRITICAL_SECTION s_HeapLock = {0};
 	inline static volatile uint32_t s_Count = 0;
 
-	ULONG m_ThreadId, m_ProcessId;
-	EVENT_DESCRIPTOR m_EventDescriptor;
-	ULONGLONG _timeStamp;
-	ULONG m_KernelTime, m_UserTime;
-	GUID m_ProviderId;
+	EVENT_HEADER m_Header;
 	std::wstring m_ProcessName;
-	USHORT m_HeaderFlags;
-	const std::wstring& m_EventName;
-	mutable std::unique_ptr<BYTE[]> m_Buffer;
-	PEVENT_RECORD m_Record;
+	DWORD m_ThreadId{ 0 }, m_ProcessId{ 0 };
 	mutable std::vector<EventProperty> m_Properties;
 	uint32_t m_Index;
+	mutable EventStrings m_Strings;
+	PTRACE_EVENT_INFO m_EventInfo;
+	EVENT_RECORD m_Record;
 };
 

@@ -85,8 +85,8 @@ LRESULT CFullFindDlg::OnFind(WORD, WORD wID, HWND, BOOL&) {
 			}
 		}
 		if (m_SearchEvents || m_SearchProperties) {
-			for (auto& desc : provider.GetProviderEvents()) {
-				auto evt = provider.EventInfo(desc);
+			for (auto const& desc : provider.GetProviderEvents()) {
+				auto const& evt = provider.EventInfo(desc);
 				if (m_SearchEvents) {
 					if (Find(evt.EventName, text)) {
 						FindItem item;

@@ -49,11 +49,11 @@ public:
 	void ResetIndex(uint32_t index = 0);
 	int UpdateEventConfig();
 
-	std::wstring GetProcessImageById(DWORD pid) const;
+	std::wstring const& GetProcessImageById(DWORD pid) const;
 	static std::wstring GetDosNameFromNtName(PCWSTR name);
 
 private:
-	const std::wstring& GetEventName(EVENT_RECORD* rec) const;
+	static std::wstring GetProcessFullPath(DWORD pid);
 	void AddProcessName(DWORD pid, std::wstring name);
 	bool RemoveProcessName(DWORD pid);
 	void EnumProcesses();
@@ -68,7 +68,7 @@ private:
 	struct ProcessInfo {
 		DWORD Id;
 		std::wstring ImageName;
-		LONGLONG CreateTime;
+		std::wstring FullPath;
 	};
 
 	TRACEHANDLE m_hOpenTrace{ 0 };
@@ -81,7 +81,7 @@ private:
 	std::unordered_set<KernelEventTypes> m_KernelEventTypes;
 	std::unordered_set<std::wstring> m_KernelEventStacks;
 	mutable std::shared_mutex m_ProcessesLock;
-	std::unordered_map<DWORD, std::wstring> m_Processes;
+	std::unordered_map<DWORD, ProcessInfo> m_Processes;
 	mutable std::unordered_map<ULONGLONG, std::wstring> m_KernelEventNames;
 	std::vector<DWORD> m_CleanupPids;
 	std::shared_ptr<EventData> m_LastEvent;

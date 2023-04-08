@@ -1,7 +1,3 @@
-// MainFrm.cpp : implmentation of the CMainFrame class
-//
-/////////////////////////////////////////////////////////////////////////////
-
 #include "pch.h"
 #include "resource.h"
 #include "AboutDlg.h"
@@ -93,7 +89,7 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	CImageList images;
 	images.Create(16, 16, ILC_COLOR32, 4, 4);
 	UINT icons[] = {
-		IDI_PROVIDERS,
+		IDI_PROVIDERS, IDI_SESSION,
 	};
 	for (auto icon : icons)
 		images.AddIcon(AtlLoadIconImage(icon, 0, 16, 16));
@@ -103,8 +99,13 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	InitMenu();
 	AddMenu(GetMenu());
 	UIAddMenu(GetMenu());
+	UpdateUI();
 
 	return 0;
+}
+
+CUpdateUIBase& CMainFrame::UI() {
+	return *this;
 }
 
 LRESULT CMainFrame::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled) {
@@ -153,11 +154,15 @@ LRESULT CMainFrame::OnWindowClose(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWn
 	else
 		::MessageBeep((UINT)-1);
 
+	if (m_view.GetPageCount() == 0)
+		UpdateUI();
+
 	return 0;
 }
 
 LRESULT CMainFrame::OnWindowCloseAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	m_view.RemoveAllPages();
+	UpdateUI();
 
 	return 0;
 }
@@ -175,9 +180,11 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 	CSessionDlg dlg(this, *session);
 	if (IDOK == dlg.DoModal()) {
 		if (session->GetProviders().empty()) {
-			AtlMessageBox(m_hWnd, L"Session must have at least one provider", IDS_TITLE, MB_ICONERROR);
+			AtlMessageBox(m_hWnd, L"Session must have at least one provider", 
+				IDS_TITLE, MB_ICONERROR);
 			return 0;
 		}
+		CWaitCursor wait;
 		auto view = new CLogView(this, std::move(session));
 		view->Create(m_view, rcDefault, nullptr,
 			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
@@ -195,4 +202,22 @@ LRESULT CMainFrame::OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl
 	dlg.DoModal();
 
 	return 0;
+}
+
+LRESULT CMainFrame::OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/) {
+	if (m_ActivePage >= 0)
+		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 0, 0);
+	m_ActivePage = m_view.GetActivePage();
+	::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 1, 0);
+
+	return 0;
+}
+
+void CMainFrame::UpdateUI() {
+	UIEnable(ID_EDIT_COPY, false);
+	UIEnable(ID_SESSION_RUN, false);
+	UIEnable(ID_SESSION_STOP, false);
+	UIEnable(ID_SESSION_CLEAR, false);
+	UISetCheck(ID_SESSION_RUN, false);
+	UISetCheck(ID_SESSION_STOP, false);
 }

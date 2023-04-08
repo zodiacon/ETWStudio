@@ -7,7 +7,7 @@
 #include "ProvidersView.h"
 #include <ListViewhelper.h>
 #include <SortHelper.h>
-#include "StringHelpers.h"
+#include "StringHelper.h"
 
 BOOL CProvidersView::PreTranslateMessage(MSG* pMsg) {
 	pMsg;
@@ -38,7 +38,7 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 	cm->AddColumn(L"Provider Name", 0, 240, ColumnType::Name);
 	cm->AddColumn(L"Provider GUID", 0, 280, ColumnType::Guid);
 	cm->AddColumn(L"Source", 0, 60, ColumnType::Type);
-	cm->AddColumn(L"Events", LVCFMT_RIGHT, 80, ColumnType::Count);
+	cm->AddColumn(L"Events", LVCFMT_RIGHT, 60, ColumnType::Count);
 
 	cm = GetColumnManager(m_EventList);
 	cm->AddColumn(L"Level", 0, 150, ColumnType::Level);
@@ -162,8 +162,8 @@ CString CProvidersView::GetColumnText(HWND h, int row, int col) const {
 				case ColumnType::Task: return event.TaskName.c_str();
 				case ColumnType::OpCode: return event.OpCodeName.c_str();
 				case ColumnType::Level: return std::format(L"{} ({})", event.LevelName, m_Events[row].Level).c_str();
-				case ColumnType::Source: return StringHelpers::DecodingSourceToString(event.DescodingSource);
-				case ColumnType::Guid: return StringHelpers::GuidToString(event.EventGuid).c_str();
+				case ColumnType::Source: return StringHelper::DecodingSourceToString(event.DescodingSource);
+				case ColumnType::Guid: return StringHelper::GuidToString(event.EventGuid).c_str();
 				case ColumnType::Message: return event.EventMessage.c_str();
 				case ColumnType::Count: return std::to_wstring(event.Properties.size()).c_str();
 				case ColumnType::ChannelName: return event.ChannelName.c_str();
@@ -178,8 +178,8 @@ CString CProvidersView::GetPropertyText(int row, int col) const {
 	auto& pi = m_Properties[row];
 	switch (GetColumnManager(m_PropList)->GetColumnTag<ColumnType>(col)) {
 		case ColumnType::Name: return pi.Name.c_str();
-		case ColumnType::InType: return StringHelpers::InTypeToString(pi.InType).c_str();
-		case ColumnType::OutType: return StringHelpers::OutTypeToString(pi.OutType).c_str();
+		case ColumnType::InType: return StringHelper::InTypeToString(pi.InType).c_str();
+		case ColumnType::OutType: return StringHelper::OutTypeToString(pi.OutType).c_str();
 	}
 	return CString();
 }
@@ -219,7 +219,7 @@ void CProvidersView::DoSort(const SortInfo* si) {
 				case ColumnType::Message: return SortHelper::Sort(e1.EventMessage, e2.EventMessage, asc);
 				case ColumnType::Source: return SortHelper::Sort(e1.DescodingSource, e2.DescodingSource, asc);
 				case ColumnType::Task: return SortHelper::Sort(e1.TaskName, e2.TaskName, asc);
-				case ColumnType::Guid: return SortHelper::Sort(StringHelpers::GuidToString(e1.EventGuid), StringHelpers::GuidToString(e2.EventGuid), asc);
+				case ColumnType::Guid: return SortHelper::Sort(StringHelper::GuidToString(e1.EventGuid), StringHelper::GuidToString(e2.EventGuid), asc);
 				case ColumnType::Count: return SortHelper::Sort(e1.Properties.size(), e2.Properties.size(), asc);
 				case ColumnType::ChannelName: return SortHelper::Sort(e1.ChannelName, e2.ChannelName, asc);
 				case ColumnType::Version: return SortHelper::Sort(ev1.Version, ev2.Version, asc);

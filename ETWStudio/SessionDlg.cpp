@@ -3,7 +3,7 @@
 #include <ThemeHelper.h>
 #include "ProvidersDlg.h"
 #include "Interfaces.h"
-#include "StringHelpers.h"
+#include "StringHelper.h"
 #include "SimpleDlg.h"
 
 CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session) : m_pFrame(frame), m_Session(session) {
@@ -13,10 +13,10 @@ CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
 	auto& pi = m_Providers[row];
 	switch (col) {
 		case 0: return pi.Name.c_str();
-		case 1: return StringHelpers::GuidToString(pi.Guid).c_str();
-		case 2: return StringHelpers::LevelToString(pi.Level);
+		case 1: return StringHelper::GuidToString(pi.Guid).c_str();
+		case 2: return StringHelper::LevelToString(pi.Level);
 	}
-	return CString();
+	return L"";
 }
 
 LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
@@ -38,6 +38,12 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 }
 
 LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
+	if (wID == IDOK) {
+		CWaitCursor wait;
+		m_Session.Init();
+		for (auto& p : m_Providers)
+			m_Session.AddProvider(p.Guid);
+	}
 	EndDialog(wID);
 	return 0;
 }

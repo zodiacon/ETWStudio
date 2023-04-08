@@ -10,6 +10,8 @@
 #include "EtwProvider.h"
 #include <QuickFindEdit.h>
 #include <TraceSession.h>
+#include <SortedFilteredVector.h>
+#include <EventData.h>
 
 class CLogView :
 	public CFrameView<CLogView, IMainFrame>,
@@ -22,22 +24,31 @@ public:
 	int GetRowImage(HWND, int row, int col) const;
 	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
 	BOOL OnDoubleClickList(HWND h, int row, int col, POINT const& pt);
+	int GetSaveColumnRange(HWND, int&) const {
+		return 1;
+	}
 
 	BEGIN_MSG_MAP(CLogView)
+		MESSAGE_HANDLER(WM_TIMER, OnTimer)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
+		MESSAGE_HANDLER(WM_ACTIVATE, OnActivate)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
+		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		CHAIN_MSG_MAP(CVirtualListView<CLogView>)
 		CHAIN_MSG_MAP(BaseFrame)
 	ALT_MSG_MAP(1)
-		COMMAND_ID_HANDLER(ID_VIEW_QUICKFIND, OnQuickFind)
-	ALT_MSG_MAP(2)
-		MESSAGE_HANDLER(WM_CHAR, OnQuickEditChar)
+		COMMAND_ID_HANDLER(ID_SESSION_RUN, OnRun)
+		COMMAND_ID_HANDLER(ID_SESSION_STOP, OnStop)
 	END_MSG_MAP()
 
 private:
+	void UpdateUI();
+
 	enum class ColumnType {
-		Name, Guid,	Type, Count,
-		Keyword, Task, OpCode, Level, Message, Id, Source, ChannelName, Version,
+		ProcessName, Guid, Index,
+		PID, TID, Time, Attributes,
+		Keyword, Task, OpCode, Level, Message, Id, 
+		Source, Channel, Version, EventName,
 	};
 
 	// Handler prototypes (uncomment arguments if needed):
@@ -46,12 +57,19 @@ private:
 	//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnTimer(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnActivate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnQuickFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
-	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
-	LRESULT OnQuickEditChar(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnRun(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnStop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
-	CContainedWindowT<CQuickFindEdit> m_QuickFind;
+	CQuickFindEdit m_QuickFind;
 	std::unique_ptr<TraceSession> m_Session;
+	SortedFilteredVector<std::shared_ptr<EventData>> m_Events;
+	std::vector<std::shared_ptr<EventData>> m_TempEvents;
+	std::mutex m_EventsLock;
+	bool m_AutoScroll{ false };
 };

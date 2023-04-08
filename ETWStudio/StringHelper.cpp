@@ -1,13 +1,13 @@
 #include "pch.h"
-#include "StringHelpers.h"
 #include <EtwProvider.h>
+#include "StringHelper.h"
 
-std::wstring StringHelpers::GuidToString(GUID const& guid) {
+std::wstring StringHelper::GuidToString(GUID const& guid) {
     WCHAR sguid[64];
     return ::StringFromGUID2(guid, sguid, _countof(sguid)) ? sguid : L"";
 }
 
-PCWSTR StringHelpers::DecodingSourceToString(EtwDecodingSource source) {
+PCWSTR StringHelper::DecodingSourceToString(EtwDecodingSource source) {
 	switch (source) {
 		case EtwDecodingSource::XMLFile: return L"XML";
 		case EtwDecodingSource::Wbem: return L"WBEM";
@@ -17,7 +17,7 @@ PCWSTR StringHelpers::DecodingSourceToString(EtwDecodingSource source) {
 	return L"";
 }
 
-std::wstring StringHelpers::OutTypeToString(USHORT type) {
+std::wstring StringHelper::OutTypeToString(USHORT type) {
 	switch (type) {
 		case TDH_OUTTYPE_BOOLEAN: return L"Boolean";
 		case TDH_OUTTYPE_DOUBLE: return L"Double";
@@ -57,7 +57,7 @@ std::wstring StringHelpers::OutTypeToString(USHORT type) {
 	return std::format(L"(%u)", type);
 }
 
-std::wstring StringHelpers::InTypeToString(USHORT type) {
+std::wstring StringHelper::InTypeToString(USHORT type) {
 	switch (type) {
 		case TDH_INTYPE_BOOLEAN: return L"Boolean";
 		case TDH_INTYPE_DOUBLE: return L"Double";
@@ -90,7 +90,7 @@ std::wstring StringHelpers::InTypeToString(USHORT type) {
 	return std::format(L"(%u)", type);
 }
 
-PCWSTR StringHelpers::LevelToString(UCHAR level) {
+PCWSTR StringHelper::LevelToString(UCHAR level) {
 	switch (level) {
 		case 0: return L"Always";
 		case 1: return L"Critical";
@@ -101,4 +101,15 @@ PCWSTR StringHelpers::LevelToString(UCHAR level) {
 	}
 	ATLASSERT(false);
 	return L"(Unknown)";
+}
+
+std::wstring StringHelper::TimeStampToString(ULONGLONG ts) {
+	if (ts == (ULONGLONG)-1 || ts == 0)
+		return L"";
+
+	SYSTEMTIME st;
+	FILETIME ft;
+	::FileTimeToLocalFileTime((FILETIME const*)&ts, &ft);
+	::FileTimeToSystemTime(&ft, &st);
+	return std::format(L"{:02}:{:02}:{:02}.{:03}", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 }

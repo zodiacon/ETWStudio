@@ -229,7 +229,7 @@
     <ClCompile Include="SecurityHelper.cpp" />
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
-    <ClCompile Include="StringHelpers.cpp" />
+    <ClCompile Include="StringHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AboutDlg.h" />
@@ -244,7 +244,7 @@
     <ClInclude Include="SecurityHelper.h" />
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />
-    <ClInclude Include="StringHelpers.h" />
+    <ClInclude Include="StringHelper.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ETWStudio.rc" />

@@ -142,11 +142,12 @@ bool TraceSession::IsRunning() const {
 	return m_hProcessThread != nullptr;
 }
 
-std::wstring TraceSession::GetProcessImageById(DWORD pid) const {
+std::wstring const& TraceSession::GetProcessImageById(DWORD pid) const {
 	std::shared_lock locker(m_ProcessesLock);
 	if (auto it = m_Processes.find(pid); it != m_Processes.end())
-		return it->second;
-	return L"";
+		return it->second.ImageName;
+	static std::wstring empty;
+	return empty;
 }
 
 void TraceSession::EnumProcesses() {
@@ -164,12 +165,16 @@ void TraceSession::EnumProcesses() {
 	m_Processes.reserve(512);
 
 	while (::Process32Next(hSnapshot.get(), &pe)) {
-		m_Processes.insert({ pe.th32ProcessID, pe.szExeFile });
+		ProcessInfo pi;
+		pi.Id = pe.th32ProcessID;
+		pi.ImageName = pe.szExeFile;
+		pi.FullPath = GetProcessFullPath(pi.Id);
+		m_Processes.insert({ pe.th32ProcessID, std::move(pi) });
 	}
 }
 
 bool TraceSession::ParseProcessStartStop(EventData* data) {
-	if (data->GetEventName().substr(0, 8) != L"Process/")
+	if (data->GetEventStrings().Task != L"Process")
 		return false;
 
 	switch (data->GetEventDescriptor().Opcode) {
@@ -189,7 +194,7 @@ bool TraceSession::ParseProcessStartStop(EventData* data) {
 			break;
 		}
 
-		case 2:		// process end
+		case 12:		// process end
 			RemoveProcessName(data->GetProcessId());
 			break;
 
@@ -247,24 +252,18 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 	}
 
 	auto pid = rec->EventHeader.ProcessId;
-	auto& eventName = GetEventName(rec);
-	if (eventName.empty() && m_DumpUnnamedEvents)
-		return;
 
-	// use the separate heap
-	std::shared_ptr<EventData> data(new EventData(rec, GetProcessImageById(pid), eventName, ++m_Index));
+	std::shared_ptr<EventData> data(new EventData(rec, GetProcessImageById(pid), ++m_Index));
+	bool processEvent = true;
+	if (::GetLastError() == ERROR_SUCCESS) {
+		processEvent = ParseProcessStartStop(data.get());
 
-	// force copying properties
-	data->GetProperties();
+		if (!processEvent && data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1) {
+			HandleNoProcessId(data.get());
+		}
 
-	bool processEvent = ParseProcessStartStop(data.get());
-
-	if (!processEvent && data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1) {
-		HandleNoProcessId(data.get());
+		m_LastEvent = data;
 	}
-
-	m_LastEvent = data;
-
 	if (m_Callback && (!processEvent || m_IsTraceProcesses))
 		m_Callback(data);
 }
@@ -329,35 +328,24 @@ bool TraceSession::EnumProviders() {
 	return true;
 }
 
-const std::wstring& TraceSession::GetEventName(EVENT_RECORD* rec) const {
-	static const std::wstring empty;
-	auto& desc = rec->EventHeader.EventDescriptor;
-	auto key = (ULONGLONG)rec->EventHeader.ProviderId.Data1 | ((ULONGLONG)desc.Id << 32) | ((ULONGLONG)desc.Version << 48);
-	if (auto it = m_KernelEventNames.find(key); it != m_KernelEventNames.end())
-		return it->second;
-
-	static BYTE buffer[1 << 11];
-	ULONG size = sizeof(buffer);
-	auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
-	std::wstring name;
-	if (::TdhGetEventInformation(rec, 0, nullptr, info, &size) == STATUS_SUCCESS) {
-		if (info->EventNameOffset) {
-			name = std::wstring((PCWSTR)((PBYTE)info + info->EventNameOffset)) + L"/" + std::wstring((PCWSTR)((PBYTE)info + info->EventNameOffset));
-		}
-		else if (info->TaskNameOffset) {
-			name = std::wstring((PCWSTR)((PBYTE)info + info->TaskNameOffset)) + L"/" + std::wstring((PCWSTR)((PBYTE)info + info->TaskNameOffset));
-		}
+std::wstring TraceSession::GetProcessFullPath(DWORD pid) {
+	WCHAR path[MAX_PATH];
+	BOOL ok = FALSE;
+	if (auto hProcess = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid); hProcess) {
+		DWORD size = _countof(path);
+		ok = ::QueryFullProcessImageName(hProcess, 0, path, &size);
+		::CloseHandle(hProcess);
 	}
-	if (!name.empty()) {
-		m_KernelEventNames.insert({ key, name });
-		return m_KernelEventNames[key];
-	}
-	return empty;
+	return ok ? path : L"";
 }
 
 void TraceSession::AddProcessName(DWORD pid, std::wstring name) {
 	std::lock_guard locker(m_ProcessesLock);
-	m_Processes.insert({ pid, std::move(name) });
+	ProcessInfo pi;
+	pi.Id = pid;
+	pi.ImageName = std::move(name);
+	pi.FullPath = GetProcessFullPath(pid);
+	m_Processes.insert({ pid, std::move(pi) });
 }
 
 bool TraceSession::RemoveProcessName(DWORD pid) {

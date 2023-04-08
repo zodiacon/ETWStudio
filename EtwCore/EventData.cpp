@@ -22,95 +22,92 @@ PCSTR EventProperty::GetAnsiString() const {
 
 // EventData
 
-EventData::EventData(PEVENT_RECORD rec, std::wstring processName, const std::wstring& eventName, uint32_t index) : m_Record(rec),
-	m_ProcessName(std::move(processName)), m_EventName(std::move(eventName)), m_Index(index) {
-	auto& header = rec->EventHeader;
-	m_HeaderFlags = header.Flags;
-	m_ProcessId = header.ProcessId;
-	m_ThreadId = header.ThreadId;
-	m_ProviderId = header.ProviderId;
-	_timeStamp = header.TimeStamp.QuadPart;
-	m_EventDescriptor = header.EventDescriptor;
-
+EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index) : 
+	m_Record(*rec), m_Header(rec->EventHeader), m_ProcessName(std::move(processName)), m_Index(index) {
+	//
 	// parse event specific data
-
+	//
 	ULONG size = 0;
 	auto error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
 	if (error == ERROR_INSUFFICIENT_BUFFER) {
-		m_Buffer = std::make_unique<BYTE[]>(size);
-		auto info = reinterpret_cast<PTRACE_EVENT_INFO>(m_Buffer.get());
+		auto buffer = ::HeapAlloc(s_hHeap, 0, size);
+		auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
 		error = ::TdhGetEventInformation(rec, 0, nullptr, info, &size);
+		m_EventInfo = info;
 	}
+	if (error == ERROR_SUCCESS)
+		GetProperties();
 	::SetLastError(error);
+}
+
+EventData::~EventData() {
+	if (m_EventInfo)
+		::HeapFree(s_hHeap, HEAP_NO_SERIALIZE, m_EventInfo);
 }
 
 void* EventData::operator new(size_t size) {
 	if (InterlockedIncrement(&s_Count) == 1) {
 		InitializeCriticalSection(&s_HeapLock);
-		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
+		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 26, 0);
 		assert(s_hHeap);
 	}
 
 	EnterCriticalSection(&s_HeapLock);
-
-	const LPVOID p = ::HeapAlloc(s_hHeap, 0, size);
-
+	void* p = ::HeapAlloc(s_hHeap, 0, size);
 	LeaveCriticalSection(&s_HeapLock);
 
 	return p;
 }
 
 void EventData::operator delete(void* p) {
-
 	EnterCriticalSection(&s_HeapLock);
-
 	::HeapFree(s_hHeap, 0, p);
-
 	LeaveCriticalSection(&s_HeapLock);
 
 	if (InterlockedDecrement(&s_Count) == 0) {
 		if (s_hHeap) {
 			::HeapDestroy(s_hHeap);
+			s_hHeap = nullptr;
 		}
 	}
 }
 
 DWORD EventData::GetProcessId() const {
-	return m_ProcessId;
+	return m_ProcessId ? m_ProcessId : m_Header.ProcessId;
 }
 
 const std::wstring& EventData::GetProcessName() const {
 	return m_ProcessName;
 }
 
-const std::wstring& EventData::GetEventName() const {
-	return m_EventName;
+DWORD EventData::GetThreadId() const {
+	return m_ThreadId ? m_ThreadId : m_Header.ThreadId;
 }
 
-DWORD EventData::GetThreadId() const {
-	return m_ThreadId;
+EVENT_HEADER const& EventData::GetEventHeader() const {
+	return m_Header;
 }
 
 ULONGLONG EventData::GetTimeStamp() const {
-	return _timeStamp;
+	return m_Header.TimeStamp.QuadPart;
 }
 
 const GUID& EventData::GetProviderId() const {
-	return m_ProviderId;
+	return m_Header.ProviderId;
 }
 
 const EVENT_DESCRIPTOR& EventData::GetEventDescriptor() const {
-	return m_EventDescriptor;
+	return m_Header.EventDescriptor;
 }
 
 const std::vector<EventProperty>& EventData::GetProperties() const {
-	if (!m_Properties.empty() || m_Buffer == nullptr)
+	if (!m_Properties.empty() || m_EventInfo == nullptr)
 		return m_Properties;
 
-	auto info = reinterpret_cast<PTRACE_EVENT_INFO>(m_Buffer.get());
+	auto info = m_EventInfo;
 	m_Properties.reserve(info->TopLevelPropertyCount);
-	auto userDataLength = m_Record->UserDataLength;
-	auto data = (BYTE*)m_Record->UserData;
+	auto userDataLength = m_Record.UserDataLength;
+	auto data = (BYTE*)m_Record.UserData;
 
 	for (ULONG i = 0; i < info->TopLevelPropertyCount && userDataLength > 0; i++) {
 		auto& prop = info->EventPropertyInfoArray[i];
@@ -121,7 +118,7 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 			PROPERTY_DATA_DESCRIPTOR desc;
 			desc.PropertyName = (ULONGLONG)property.Name.c_str();
 			desc.ArrayIndex = ULONG_MAX;
-			::TdhGetPropertySize(m_Record, 0, nullptr, 1, &desc, &len);
+			::TdhGetPropertySize((PEVENT_RECORD)&m_Record, 0, nullptr, 1, &desc, &len);
 		}
 		if (len) {
 			auto d = property.Allocate(len);
@@ -135,9 +132,7 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 		}
 		m_Properties.push_back(std::move(property));
 	}
-	if (m_Properties.empty()) {
-		m_Buffer.release();
-	}
+
 	return m_Properties;
 }
 
@@ -158,13 +153,13 @@ std::wstring EventData::FormatProperty(const EventProperty& property) const {
 	std::unique_ptr<BYTE[]> mapBuffer;
 	auto& prop = property.Info;
 	WCHAR buffer[1024];
-	auto info = reinterpret_cast<PTRACE_EVENT_INFO>(m_Buffer.get());
+	auto info = m_EventInfo;
 	if (prop.nonStructType.MapNameOffset) {
 		auto mapName = (PWSTR)((PBYTE)info + prop.nonStructType.MapNameOffset);
-		if(ERROR_INSUFFICIENT_BUFFER == ::TdhGetEventMapInformation(m_Record, mapName, nullptr, &size)) {
+		if (ERROR_INSUFFICIENT_BUFFER == ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, nullptr, &size)) {
 			mapBuffer = std::make_unique<BYTE[]>(size);
 			eventMap = reinterpret_cast<PEVENT_MAP_INFO>(mapBuffer.get());
-			if(ERROR_SUCCESS != ::TdhGetEventMapInformation(m_Record, mapName, eventMap, &size))
+			if (ERROR_SUCCESS != ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, eventMap, &size))
 				eventMap = nullptr;
 		}
 	}
@@ -176,7 +171,7 @@ std::wstring EventData::FormatProperty(const EventProperty& property) const {
 		len = sizeof(IN6_ADDR);
 
 	USHORT consumed;
-	auto status = ::TdhFormatProperty(info, eventMap, (m_HeaderFlags & EVENT_HEADER_FLAG_32_BIT_HEADER) ? 4 : 8,
+	auto status = ::TdhFormatProperty(info, eventMap, (m_Header.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) ? 4 : 8,
 		prop.nonStructType.InType, prop.nonStructType.OutType, len, (USHORT)property.GetLength(), (PBYTE)property.GetData(),
 		&size, buffer, &consumed);
 	if (status == ERROR_SUCCESS)
@@ -185,11 +180,47 @@ std::wstring EventData::FormatProperty(const EventProperty& property) const {
 	return L"";
 }
 
-uint64_t EventData::GetEventKey() const {
-	return m_ProviderId.Data1 ^ m_EventDescriptor.Opcode;
-}
-
 void EventData::SetProcessName(std::wstring name) {
 	m_ProcessName = std::move(name);
 }
 
+EventStrings const& EventData::GetEventStrings() const {
+	if (!m_Strings._HasValue) {
+		auto info = m_EventInfo;
+		if (info) {
+			EventStrings str;
+			if (info->EventNameOffset) {
+				m_Strings.Name = (PCWSTR)((PBYTE)info + info->EventNameOffset);
+			}
+			if (info->TaskNameOffset) {
+				m_Strings.Task = (PCWSTR)((PBYTE)info + info->TaskNameOffset);
+			}
+			if (info->ChannelNameOffset) {
+				m_Strings.Channel = (PCWSTR)((PBYTE)info + info->ChannelNameOffset);
+			}
+			if (info->KeywordsNameOffset) {
+				m_Strings.Keyword = (PCWSTR)((PBYTE)info + info->KeywordsNameOffset);
+			}
+			if (info->OpcodeNameOffset) {
+				m_Strings.Opcode = (PCWSTR)((PBYTE)info + info->OpcodeNameOffset);
+			}
+			if (info->LevelNameOffset) {
+				m_Strings.Level = (PCWSTR)((PBYTE)info + info->LevelNameOffset);
+			}
+			if (info->EventMessageOffset) {
+				m_Strings.Message = (PCWSTR)((PBYTE)info + info->EventMessageOffset);
+			}
+			if (info->ProviderMessageOffset) {
+				m_Strings.ProviderMessage = (PCWSTR)((PBYTE)info + info->ProviderMessageOffset);
+			}
+			if (info->EventAttributesOffset) {
+				m_Strings.EventAttributes = (PCWSTR)((PBYTE)info + info->EventAttributesOffset);
+			}
+			if (info->RelatedActivityIDNameOffset) {
+				m_Strings.RelatedActivity = (PCWSTR)((PBYTE)info + info->RelatedActivityIDNameOffset);
+			}
+		}
+		m_Strings._HasValue = true;
+	}
+	return m_Strings;
+}

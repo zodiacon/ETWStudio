@@ -22,6 +22,7 @@ public:
 	virtual BOOL OnIdle();
 
 	UINT DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
+	CUpdateUIBase& UI() override;
 
 	BEGIN_MSG_MAP(CMainFrame)
 		if (uMsg == WM_COMMAND) {
@@ -33,6 +34,7 @@ public:
 					return TRUE;
 			}
 		}
+		NOTIFY_CODE_HANDLER(TBVN_PAGEACTIVATED, OnPageActivated)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(ID_VIEW_FINDINPROVIDERS, OnFindAll)
@@ -51,6 +53,7 @@ public:
 
 private:
 	void InitMenu();
+	void UpdateUI();
 
 // Handler prototypes (uncomment arguments if needed):
 //	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -59,6 +62,7 @@ private:
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
+	LRESULT OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnViewProviders(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
@@ -70,4 +74,6 @@ private:
 	LRESULT OnNewSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CCustomTabView m_view;
+	CMultiPaneStatusBarCtrl m_StatusBar;
+	int m_ActivePage{ -1 };
 };
