@@ -6,8 +6,10 @@
 #include "MainFrm.h"
 #include <ThemeHelper.h>
 #include "SecurityHelper.h"
+#include "AppSettings.h"
 
 CAppModule _Module;
+AppSettings g_Settings;
 
 int Run(LPCTSTR /*lpstrCmdLine*/ = nullptr, int nCmdShow = SW_SHOWDEFAULT) {
 	CMessageLoop theLoop;
@@ -36,12 +38,15 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lp
 	SecurityHelper::EnablePrivilege(SE_SYSTEM_PROFILE_NAME);
 
 	AtlInitCommonControls(ICC_BAR_CLASSES | ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES);
+	AppSettings::Get().LoadFromKey(L"SOFTWARE\\ScorpioSoftware\\ETWStudio");
 
 	hRes = _Module.Init(NULL, hInstance);
 	ATLASSERT(SUCCEEDED(hRes));
 	ThemeHelper::Init();
 
 	int nRet = Run(lpstrCmdLine, nCmdShow);
+
+	g_Settings.Save();
 
 	_Module.Term();
 	::CoUninitialize();

@@ -8,6 +8,7 @@
 #include <TraceSession.h>
 #include "LogView.h"
 #include "FullFindDlg.h"
+#include "AppSettings.h"
 
 const int WindowMenuPosition = 5;
 
@@ -108,10 +109,21 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	InitMenu();
 	AddMenu(GetMenu());
 	UIAddMenu(GetMenu());
-	UISetCheck(ID_VIEW_STATUS_BAR, true);
-
+	UISetCheck(ID_VIEW_STATUS_BAR, AppSettings::Get().ViewStatusBar());
 	UpdateUI();
 
+	return 0;
+}
+
+LRESULT CMainFrame::OnShowWindow(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled) {
+	static bool shown = false;
+	if (!shown) {
+		shown = true;
+		auto wp = AppSettings::Get().MainWindowPlacement();
+		if (wp.showCmd)
+			SetWindowPlacement(&wp);
+		SetAlwaysOnTop(AppSettings::Get().AlwaysOnTop());
+	}
 	return 0;
 }
 
@@ -128,9 +140,12 @@ CUpdateUIBase& CMainFrame::UI() {
 }
 
 LRESULT CMainFrame::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled) {
-	// unregister message filtering and idle updates
-	CMessageLoop* pLoop = _Module.GetMessageLoop();
-	ATLASSERT(pLoop != NULL);
+	WINDOWPLACEMENT wp{ sizeof(wp) };
+	GetWindowPlacement(&wp);
+	AppSettings::Get().MainWindowPlacement(wp);
+
+	auto pLoop = _Module.GetMessageLoop();
+	ATLASSERT(pLoop);
 	pLoop->RemoveMessageFilter(this);
 	pLoop->RemoveIdleHandler(this);
 
@@ -140,6 +155,7 @@ LRESULT CMainFrame::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*
 
 void CMainFrame::SetAlwaysOnTop(bool onTop) {
 	SetWindowPos(onTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+	AppSettings::Get().AlwaysOnTop(onTop);
 	UISetCheck(ID_OPTIONS_ALWAYSONTOP, onTop);
 }
 
