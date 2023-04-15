@@ -40,8 +40,11 @@
 #define IDD_PROPERTIES                  238
 #define IDI_CLEAR                       240
 #define IDI_HIGHLIGHT                   241
-#define IDI_ICON1                       242
 #define IDI_PROPERTIES                  242
+#define IDI_PIN                         243
+#define IDI_CHECK                       244
+#define IDI_ICON2                       245
+#define IDI_RADIO                       245
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -99,13 +102,14 @@
 #define ID_VIEW_PROPERTIES              32794
 #define ID_EDIT_CLEAR32795              32795
 #define ID_EDIT_HIGHLIGHT               32796
+#define ID_VIEW_FIND                    32797
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        243
-#define _APS_NEXT_COMMAND_VALUE         32797
+#define _APS_NEXT_RESOURCE_VALUE        246
+#define _APS_NEXT_COMMAND_VALUE         32798
 #define _APS_NEXT_CONTROL_VALUE         1040
 #define _APS_NEXT_SYMED_VALUE           104
 #endif

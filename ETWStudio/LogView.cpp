@@ -82,6 +82,15 @@ BOOL CLogView::OnDoubleClickList(HWND h, int row, int col, POINT const& pt) {
 	return 0;
 }
 
+BOOL CLogView::OnRightClickList(HWND h, int row, int col, POINT const& pt) {
+	if (row >= 0) {
+		CMenu menu;
+		menu.LoadMenu(IDR_CONTEXT);
+		Frame()->DisplayContextMenu(menu.GetSubMenu(1), pt.x, pt.y);
+	}
+	return 0;
+}
+
 bool CLogView::IsSortable(HWND h, int col) const {
 	return !m_Running;
 }

@@ -179,6 +179,9 @@
       <TypeLibraryName>$(IntDir)/ETWStudio.tlb</TypeLibraryName>
       <DllDataFileName />
     </Midl>
+    <PostBuildEvent>
+      <Command>signtool sign /i DigiCert /fd sha256 $(TargetPath)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -211,6 +214,9 @@
       <TypeLibraryName>$(IntDir)/ETWStudio.tlb</TypeLibraryName>
       <DllDataFileName />
     </Midl>
+    <PostBuildEvent>
+      <Command>signtool sign /i DigiCert /fd sha256 $(TargetPath)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AboutDlg.cpp" />
@@ -258,6 +264,7 @@
   <ItemGroup>
     <Image Include="res\autoscroll.ico" />
     <Image Include="res\bug_green.ico" />
+    <Image Include="res\check.ico" />
     <Image Include="res\computer.ico" />
     <Image Include="res\Copy.ico" />
     <Image Include="res\Critical.ico" />
@@ -273,12 +280,14 @@
     <Image Include="res\Find.ico" />
     <Image Include="res\highlight.ico" />
     <Image Include="res\Open.ico" />
+    <Image Include="res\pin.ico" />
     <Image Include="res\Play.ico" />
     <Image Include="res\process.ico" />
     <Image Include="res\Properties.ico" />
     <Image Include="res\provider1.ico" />
     <Image Include="res\provider2.ico" />
     <Image Include="res\providers.ico" />
+    <Image Include="res\radio.ico" />
     <Image Include="res\Save.ico" />
     <Image Include="res\Session.ico" />
     <Image Include="res\stop.ico" />

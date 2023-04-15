@@ -42,6 +42,7 @@ void CMainFrame::InitMenu() {
 		{ ID_EDIT_FILTER, IDI_FILTER },
 		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
 		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
+		{ ID_OPTIONS_ALWAYSONTOP, IDI_PIN },
 	};
 	for (auto& cmd : cmds) {
 		if (cmd.icon)
@@ -49,12 +50,14 @@ void CMainFrame::InitMenu() {
 		else
 			AddCommand(cmd.id, cmd.hIcon);
 	}
+	SetCheckIcon(IDI_CHECK, IDI_RADIO);
+
 }
 
 LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	CreateSimpleStatusBar();
 	m_StatusBar.SubclassWindow(m_hWndStatusBar);
-	int panes[] = { 100, 124, 300 };
+	int panes[] = { 100, 124, 350 };
 	m_StatusBar.SetParts(_countof(panes), panes);
 
 	ToolBarButtonInfo const buttons[] = {
@@ -105,6 +108,8 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	InitMenu();
 	AddMenu(GetMenu());
 	UIAddMenu(GetMenu());
+	UISetCheck(ID_VIEW_STATUS_BAR, true);
+
 	UpdateUI();
 
 	return 0;
@@ -133,7 +138,19 @@ LRESULT CMainFrame::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*
 	return 1;
 }
 
+void CMainFrame::SetAlwaysOnTop(bool onTop) {
+	SetWindowPos(onTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+	UISetCheck(ID_OPTIONS_ALWAYSONTOP, onTop);
+}
+
+LRESULT CMainFrame::OnAlwaysOnTop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	bool top = (GetExStyle() & WS_EX_TOPMOST) == 0;
+	SetAlwaysOnTop(top);
+	return 0;
+}
+
 LRESULT CMainFrame::OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	m_view.RemoveAllPages();
 	PostMessage(WM_CLOSE);
 	return 0;
 }
@@ -244,4 +261,10 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_VIEW_PROPERTIES, false);
 }
 
+LRESULT CMainFrame::OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const {
+	::TrySubmitThreadpoolCallback([](auto, auto ctx) {
+		::ShellAbout(nullptr, L"ETW Studio", nullptr, nullptr);
+		}, nullptr, nullptr);
 
+	return 0;
+}

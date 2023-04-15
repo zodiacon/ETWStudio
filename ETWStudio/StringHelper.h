@@ -9,5 +9,6 @@ struct StringHelper abstract final {
 	static std::wstring InTypeToString(USHORT type);
 	static PCWSTR LevelToString(UCHAR level);
 	static std::wstring TimeStampToString(ULONGLONG ts);
+	static std::wstring ProviderGuidToName(GUID const& guid);
 };
 

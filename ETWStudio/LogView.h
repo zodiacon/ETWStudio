@@ -25,6 +25,7 @@ public:
 	int GetRowImage(HWND, int row, int col) const;
 	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
 	BOOL OnDoubleClickList(HWND h, int row, int col, POINT const& pt);
+	BOOL OnRightClickList(HWND h, int row, int col, POINT const& pt);
 	int GetSaveColumnRange(HWND, int&) const {
 		return 1;
 	}

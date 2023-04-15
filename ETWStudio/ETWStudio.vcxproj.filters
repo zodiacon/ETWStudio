@@ -213,5 +213,14 @@
     <Image Include="res\Properties.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
+    <Image Include="res\pin.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\check.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\radio.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
   </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@
 #include "resource.h"
 #include "PropertiesDlg.h"
 #include "StringHelper.h"
+#include <EtwProvider.h>
 
 CPropertiesDlg::CPropertiesDlg(std::shared_ptr<EventData> data, HICON hIcon) : 
     m_Data(std::move(data)), m_hIcon(hIcon), m_Properties(m_Data->GetProperties()) {
@@ -55,6 +56,8 @@ LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     SetDlgItemText(IDC_MESSAGE, GetFullMessage());
     SetDlgItemText(IDC_TASK, m_Data->GetEventStrings().Task.c_str());
     SetDlgItemText(IDC_EVENT, m_Data->GetEventStrings().Name.c_str());
+    SetDlgItemText(IDC_PROVIDER, StringHelper::ProviderGuidToName(m_Data->GetProviderId()).c_str());
+    SetDlgItemInt(IDC_VERSION, m_Data->GetEventDescriptor().Version);
 
     auto cm = GetColumnManager(m_List);
     cm->AddColumn(L"Property", 0, 150);

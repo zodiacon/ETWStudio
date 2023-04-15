@@ -113,3 +113,24 @@ std::wstring StringHelper::TimeStampToString(ULONGLONG ts) {
 	::FileTimeToSystemTime(&ft, &st);
 	return std::format(L"{:02}:{:02}:{:02}.{:03}", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 }
+
+namespace std {
+	template<>
+	struct hash<GUID> {
+		size_t operator()(GUID const& guid) const {
+			return guid.Data1 ^ (guid.Data2 << 16) | ((size_t)guid.Data3 << 32);
+		}
+
+	};
+}
+
+std::wstring StringHelper::ProviderGuidToName(GUID const& guid) {
+	static std::unordered_map<GUID, EtwProvider> providers;
+	if (providers.empty()) {
+		for (auto& p : EtwProvider::EnumProviders()) {
+			providers.insert({ p.Guid(), std::move(p) });
+		}
+	}
+	auto it = providers.find(guid);
+	return it == providers.end() ? GuidToString(guid) : it->second.Name();
+}

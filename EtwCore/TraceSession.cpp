@@ -135,7 +135,7 @@ bool TraceSession::Stop() {
 		::CloseTrace(m_hOpenTrace);
 		m_hOpenTrace = 0;
 	}
-	if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 3000))
+	if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 1000))
 		::TerminateThread(m_hProcessThread.get(), 1);
 	m_hProcessThread.reset();
 
@@ -273,6 +273,9 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 			return;
 
 		m_Callback(data);
+	}
+	else {
+		--m_Index;
 	}
 }
 
