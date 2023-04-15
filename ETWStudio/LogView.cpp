@@ -94,14 +94,11 @@ void CLogView::ShowProperties(int index) const {
 
 void CLogView::UpdateUI() {
 	auto& ui = Frame()->UI();
-	ui.UIEnable(ID_SESSION_RUN, true);
-	ui.UIEnable(ID_SESSION_STOP, true);
-	ui.UIEnable(ID_SESSION_CLEAR, true);
-	ui.UIEnable(ID_VIEW_AUTOSCROLL, true);
 	ui.UISetCheck(ID_SESSION_RUN, m_Running);
 	ui.UISetCheck(ID_SESSION_STOP, !m_Running);
 	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
+	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
@@ -128,6 +125,7 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Task", 0, 160, ColumnType::Task);
 	cm->AddColumn(L"Keyword", 0, 160, ColumnType::Keyword);
 	cm->AddColumn(L"Opcode", 0, 100, ColumnType::OpCode);
+	cm->AddColumn(L"Channel", 0, 140, ColumnType::Channel);
 	cm->AddColumn(L"Name", 0, 100, ColumnType::EventName);
 	cm->AddColumn(L"Attributes", 0, 120, ColumnType::Attributes, ColumnFlags::None);
 	cm->AddColumn(L"Message", 0, 300, ColumnType::Message);
@@ -148,13 +146,26 @@ LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 		m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 		if (m_AutoScroll)
 			m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
+		Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
 	}
 	return 0;
 }
 
 LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
-	if (active)
+	if (active) {
+		auto& ui = Frame()->UI();
+		ui.UIEnable(ID_SESSION_RUN, true);
+		ui.UIEnable(ID_SESSION_STOP, true);
+		ui.UIEnable(ID_VIEW_AUTOSCROLL, true);
+		ui.UIEnable(ID_EDIT_CLEAR_ALL, true);
+		ui.UIEnable(ID_EDIT_FIND, true);
+		ui.UIEnable(ID_EDIT_HIGHLIGHT, true);
+		ui.UIEnable(ID_EDIT_FILTER, true);
+		Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
+		Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
+
 		UpdateUI();
+	}
 	return 0;
 }
 
@@ -176,19 +187,24 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 	if (m_Running)
 		return 0;
 
-	auto ok = m_Session->Start([&](auto evt) {
-		std::lock_guard locker(m_EventsLock);
-		m_TempEvents.push_back(evt);
-		});
-	if (!ok) {
-		AtlMessageBox(m_hWnd, L"Failed to start session", IDR_MAINFRAME, MB_ICONERROR);
-	}
+	if (m_Session->IsRunning())
+		m_Session->Pause(false);
 	else {
-		SetTimer(1, 1000);
-		Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
-		Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
-		m_Running = true;
+		auto ok = m_Session->Start([&](auto evt) {
+			std::lock_guard locker(m_EventsLock);
+			m_TempEvents.push_back(evt);
+			});
+		if (!ok) {
+			AtlMessageBox(m_hWnd, L"Failed to start session", IDR_MAINFRAME, MB_ICONERROR);
+			return 0;
+		}
 	}
+
+	SetTimer(1, 1000);
+	Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
+	Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
+	Frame()->SetStatusIcon(1, AtlLoadIconImage(IDI_RUN, 0, 16, 16));
+	m_Running = true;
 	return 0;
 }
 
@@ -199,6 +215,7 @@ LRESULT CLogView::OnStop(WORD, WORD, HWND, BOOL&) {
 	m_Session->Pause(true);
 	Frame()->UI().UISetCheck(ID_SESSION_RUN, false);
 	Frame()->UI().UISetCheck(ID_SESSION_STOP, true);
+	Frame()->SetStatusIcon(1, AtlLoadIconImage(IDI_STOP, 0, 16, 16));
 	m_Running = false;
 
 	return 0;
@@ -224,5 +241,12 @@ LRESULT CLogView::OnEditFilter(WORD, WORD, HWND, BOOL&) {
 LRESULT CLogView::OnViewProperties(WORD, WORD, HWND, BOOL&) {
 	ATLASSERT(m_List.GetSelectedCount() == 1);
 	ShowProperties(m_List.GetNextItem(-1, LVNI_SELECTED));
+	return 0;
+}
+
+LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
+	m_Events.clear();
+	m_List.SetItemCount(0);
+
 	return 0;
 }

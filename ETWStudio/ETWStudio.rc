@@ -65,11 +65,12 @@ BEGIN
     END
     POPUP "&Edit"
     BEGIN
-        MENUITEM "Cu&t\tCtrl+X",                ID_EDIT_CUT
         MENUITEM "&Copy\tCtrl+C",               ID_EDIT_COPY
-        MENUITEM "&Paste\tCtrl+V",              ID_EDIT_PASTE
         MENUITEM SEPARATOR
         MENUITEM "&Filter...\tCtrl+L",          ID_EDIT_FILTER
+        MENUITEM "&Highlight...\tCtrl+H",       ID_EDIT_HIGHLIGHT
+        MENUITEM SEPARATOR
+        MENUITEM "Clear",                       ID_EDIT_CLEAR_ALL
     END
     POPUP "&View"
     BEGIN
@@ -83,7 +84,8 @@ BEGIN
     BEGIN
         MENUITEM "&Run",                        ID_SESSION_RUN
         MENUITEM "&Stop",                       ID_SESSION_STOP
-        MENUITEM "&Clear",                      ID_SESSION_CLEAR
+        MENUITEM SEPARATOR
+        MENUITEM "Clear",                       ID_EDIT_CLEAR_ALL
     END
     POPUP "&Tools"
     BEGIN
@@ -133,8 +135,6 @@ IDI_PROVIDERS           ICON                    "res\\providers.ico"
 
 IDI_COPY                ICON                    "res\\Copy.ico"
 
-IDI_PASTE               ICON                    "res\\Paste.ico"
-
 IDI_SESSION             ICON                    "res\\Session.ico"
 
 IDI_AUTOSCROLL          ICON                    "res\\autoscroll.ico"
@@ -169,8 +169,6 @@ IDI_CRITICAL            ICON                    "res\\Critical.ico"
 
 IDI_EVENT               ICON                    "res\\event.ico"
 
-IDI_CUT                 ICON                    "res\\Cut.ico"
-
 IDI_EVENT2              ICON                    "res\\event2.ico"
 
 IDI_PROCESS             ICON                    "res\\process.ico"
@@ -178,6 +176,12 @@ IDI_PROCESS             ICON                    "res\\process.ico"
 IDI_DOWN                ICON                    "res\\down.ico"
 
 IDI_UP                  ICON                    "res\\up.ico"
+
+IDI_CLEAR               ICON                    "res\\erase.ico"
+
+IDI_HIGHLIGHT           ICON                    "res\\highlight.ico"
+
+IDI_PROPERTIES          ICON                    "res\\Properties.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -400,8 +404,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,1,0,0
- PRODUCTVERSION 0,1,0,0
+ FILEVERSION 0,2,0,0
+ PRODUCTVERSION 0,2,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -418,12 +422,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Scorpio Software"
             VALUE "FileDescription", "ETW Studio"
-            VALUE "FileVersion", "0.1.0.0"
+            VALUE "FileVersion", "0.2.0.0"
             VALUE "InternalName", "ETWStudio"
             VALUE "LegalCopyright", "©2021-2023 Pavel Yosifovich"
             VALUE "OriginalFilename", "ETWStudio.exe"
             VALUE "ProductName", "ETW Studio"
-            VALUE "ProductVersion", "0.1.0.0"
+            VALUE "ProductVersion", "0.2"
         END
     END
     BLOCK "VarFileInfo"

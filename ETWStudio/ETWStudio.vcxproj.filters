@@ -144,9 +144,6 @@
     <Image Include="res\Open.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
-    <Image Include="res\Paste.ico">
-      <Filter>Resource Files\Icons</Filter>
-    </Image>
     <Image Include="res\Save.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
@@ -201,13 +198,19 @@
     <Image Include="res\process.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
-    <Image Include="res\Cut.ico">
-      <Filter>Resource Files\Icons</Filter>
-    </Image>
     <Image Include="res\down.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\up.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\erase.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\highlight.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\Properties.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
   </ItemGroup>

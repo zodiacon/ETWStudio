@@ -10,7 +10,6 @@
 #define IDS_TITLE                       129
 #define IDI_PROVIDERS                   201
 #define IDI_COPY                        203
-#define IDI_PASTE                       204
 #define IDI_SESSION                     205
 #define IDI_AUTOSCROLL                  206
 #define IDI_FILTER                      207
@@ -29,7 +28,6 @@
 #define IDI_CRITICAL                    220
 #define IDI_EVENT                       221
 #define IDD_SESSION                     222
-#define IDI_CUT                         224
 #define IDI_EVENT2                      225
 #define IDI_PROCESS                     226
 #define IDR_CONTEXT                     227
@@ -40,6 +38,10 @@
 #define IDI_DOWN                        236
 #define IDI_UP                          237
 #define IDD_PROPERTIES                  238
+#define IDI_CLEAR                       240
+#define IDI_HIGHLIGHT                   241
+#define IDI_ICON1                       242
+#define IDI_PROPERTIES                  242
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -95,13 +97,15 @@
 #define ID_VIEW_FINDINPROVIDERS         32792
 #define ID_EDIT_FILTER                  32793
 #define ID_VIEW_PROPERTIES              32794
+#define ID_EDIT_CLEAR32795              32795
+#define ID_EDIT_HIGHLIGHT               32796
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        240
-#define _APS_NEXT_COMMAND_VALUE         32795
+#define _APS_NEXT_RESOURCE_VALUE        243
+#define _APS_NEXT_COMMAND_VALUE         32797
 #define _APS_NEXT_CONTROL_VALUE         1040
 #define _APS_NEXT_SYMED_VALUE           104
 #endif

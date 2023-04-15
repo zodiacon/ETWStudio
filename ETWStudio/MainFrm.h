@@ -23,6 +23,8 @@ public:
 
 	UINT DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) override;
 	CUpdateUIBase& UI() override;
+	void SetStatusText(int pane, PCWSTR text) override;
+	void SetStatusIcon(int pane, HICON hIcon) override;
 
 	BEGIN_MSG_MAP(CMainFrame)
 		if (uMsg == WM_COMMAND) {
@@ -45,6 +47,7 @@ public:
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 		COMMAND_ID_HANDLER(ID_WINDOW_CLOSE, OnWindowClose)
 		COMMAND_ID_HANDLER(ID_WINDOW_CLOSE_ALL, OnWindowCloseAll)
+		MESSAGE_HANDLER(WM_MENUSELECT, [](auto, auto, auto, auto) { return 0; })
 		COMMAND_RANGE_HANDLER(ID_WINDOW_TABFIRST, ID_WINDOW_TABLAST, OnWindowActivate)
 		CHAIN_MSG_MAP(COwnerDrawnMenu<CMainFrame>)
 		CHAIN_MSG_MAP(CAutoUpdateUI<CMainFrame>)

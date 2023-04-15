@@ -43,6 +43,7 @@ public:
 		COMMAND_ID_HANDLER(ID_VIEW_PROPERTIES, OnViewProperties)
 		COMMAND_ID_HANDLER(ID_SESSION_RUN, OnRun)
 		COMMAND_ID_HANDLER(ID_SESSION_STOP, OnStop)
+		COMMAND_ID_HANDLER(ID_EDIT_CLEAR_ALL, OnClearAll)
 		COMMAND_ID_HANDLER(ID_VIEW_AUTOSCROLL, OnAutoScroll)
 		COMMAND_ID_HANDLER(ID_EDIT_FILTER, OnEditFilter)
 	END_MSG_MAP()
@@ -73,6 +74,7 @@ private:
 	LRESULT OnAutoScroll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnEditFilter(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnViewProperties(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnClearAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	CQuickFindEdit m_QuickFind;

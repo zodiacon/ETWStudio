@@ -261,8 +261,8 @@
     <Image Include="res\computer.ico" />
     <Image Include="res\Copy.ico" />
     <Image Include="res\Critical.ico" />
-    <Image Include="res\Cut.ico" />
     <Image Include="res\down.ico" />
+    <Image Include="res\erase.ico" />
     <Image Include="res\error.ico" />
     <Image Include="res\ETWStudio.ico" />
     <Image Include="res\event.ico" />
@@ -271,10 +271,11 @@
     <Image Include="res\EventWarning.ico" />
     <Image Include="res\Filter.ico" />
     <Image Include="res\Find.ico" />
+    <Image Include="res\highlight.ico" />
     <Image Include="res\Open.ico" />
-    <Image Include="res\Paste.ico" />
     <Image Include="res\Play.ico" />
     <Image Include="res\process.ico" />
+    <Image Include="res\Properties.ico" />
     <Image Include="res\provider1.ico" />
     <Image Include="res\provider2.ico" />
     <Image Include="res\providers.ico" />

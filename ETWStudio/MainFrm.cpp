@@ -29,8 +29,6 @@ void CMainFrame::InitMenu() {
 		HICON hIcon = nullptr;
 	} cmds[] = {
 		{ ID_EDIT_COPY, IDI_COPY },
-		{ ID_EDIT_CUT, IDI_CUT },
-		{ ID_EDIT_PASTE, IDI_PASTE },
 		{ ID_EDIT_FIND, IDI_FIND },
 		{ ID_FILE_SAVE, IDI_SAVE },
 		{ ID_FILE_OPEN, IDI_OPEN },
@@ -38,10 +36,12 @@ void CMainFrame::InitMenu() {
 		{ ID_SESSION_STOP, IDI_STOP },
 		{ ID_VIEW_AUTOSCROLL, IDI_AUTOSCROLL },
 		//{ ID_EDIT_DELETE, IDI_CANCEL },
-		//{ ID_EDIT_CLEAR_ALL, IDI_ERASE },
+		{ ID_EDIT_CLEAR_ALL, IDI_CLEAR },
 		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
 		{ ID_NEW_SESSION, IDI_SESSION },
 		{ ID_EDIT_FILTER, IDI_FILTER },
+		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
+		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
 	};
 	for (auto& cmd : cmds) {
 		if (cmd.icon)
@@ -53,6 +53,9 @@ void CMainFrame::InitMenu() {
 
 LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	CreateSimpleStatusBar();
+	m_StatusBar.SubclassWindow(m_hWndStatusBar);
+	int panes[] = { 100, 124, 300 };
+	m_StatusBar.SetParts(_countof(panes), panes);
 
 	ToolBarButtonInfo const buttons[] = {
 		{ ID_FILE_OPEN, IDI_OPEN },
@@ -64,10 +67,12 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 		{ ID_SESSION_STOP, IDI_STOP },
 		{ 0 },
 		{ ID_VIEW_AUTOSCROLL, IDI_AUTOSCROLL },
-		//{ ID_EDIT_DELETE, IDI_CANCEL },
-		//{ ID_EDIT_CLEAR_ALL, IDI_ERASE },
+		{ ID_EDIT_CLEAR_ALL, IDI_CLEAR },
 		{ 0 },
-		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
+		{ ID_EDIT_FILTER, IDI_FILTER },
+		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
+		{ 0 },
+		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
 	};
 	CreateSimpleReBar(ATL_SIMPLE_REBAR_NOBORDER_STYLE);
 	auto tb = ToolbarHelper::CreateAndInitToolBar(m_hWnd, buttons, _countof(buttons));
@@ -103,6 +108,14 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	UpdateUI();
 
 	return 0;
+}
+
+void CMainFrame::SetStatusText(int pane, PCWSTR text) {
+	m_StatusBar.SetText(pane, text);
+}
+
+void CMainFrame::SetStatusIcon(int pane, HICON hIcon) {
+	m_StatusBar.SetIcon(pane, hIcon);
 }
 
 CUpdateUIBase& CMainFrame::UI() {
@@ -170,7 +183,8 @@ LRESULT CMainFrame::OnWindowCloseAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*
 
 LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	int nPage = wID - ID_WINDOW_TABFIRST;
-	m_view.SetActivePage(nPage);
+	if(nPage < m_view.GetPageCount())
+		m_view.SetActivePage(nPage);
 
 	return 0;
 }
@@ -209,7 +223,8 @@ LRESULT CMainFrame::OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bH
 	if (m_ActivePage >= 0 && m_ActivePage < m_view.GetPageCount())
 		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 0, 0);
 	m_ActivePage = m_view.GetActivePage();
-	::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 1, 0);
+	if(m_ActivePage >= 0)
+		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 1, 0);
 
 	return 0;
 }
@@ -218,10 +233,15 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_EDIT_COPY, false);
 	UIEnable(ID_SESSION_RUN, false);
 	UIEnable(ID_SESSION_STOP, false);
-	UIEnable(ID_SESSION_CLEAR, false);
 	UIEnable(ID_VIEW_AUTOSCROLL, false);
 	UIEnable(ID_EDIT_FIND, false);
+	UIEnable(ID_EDIT_CLEAR_ALL, false);
 	UISetCheck(ID_SESSION_RUN, false);
 	UISetCheck(ID_SESSION_STOP, false);
 	UISetCheck(ID_VIEW_AUTOSCROLL, false);
+	UIEnable(ID_EDIT_HIGHLIGHT, false);
+	UIEnable(ID_EDIT_FILTER, false);
+	UIEnable(ID_VIEW_PROPERTIES, false);
 }
+
+

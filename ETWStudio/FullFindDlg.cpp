@@ -35,6 +35,8 @@ bool CFullFindDlg::Find(std::wstring const& name, PCWSTR text) {
 
 LRESULT CFullFindDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	InitDynamicLayout();
+	SetDialogIcon(IDI_PROVIDERS);
+
 	m_List.Attach(GetDlgItem(IDC_LIST));
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 

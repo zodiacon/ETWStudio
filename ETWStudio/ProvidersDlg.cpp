@@ -20,6 +20,8 @@ void CProvidersDlg::DoSort(SortInfo const* si) {
 
 LRESULT CProvidersDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	InitDynamicLayout();
+	SetDialogIcon(IDI_PROVIDERS);
+
 	m_List.Attach(GetDlgItem(IDC_LIST));
 	m_List.SetExtendedListViewStyle(LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT);
 
