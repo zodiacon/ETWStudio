@@ -23,6 +23,18 @@ bool CPropertiesDlg::IsSortable(HWND, int col) const {
     return col == 0;
 }
 
+CString CPropertiesDlg::GetFullMessage() const {
+    CString msg = m_Data->GetEventStrings().Message.c_str();
+    if (msg.IsEmpty())
+        return msg;
+
+    auto& props = m_Data->GetProperties();
+    for (int i = 0; i < (int)m_Data->GetProperties().size(); i++) {
+        msg.Replace(std::format(L"%{}", i + 1).c_str(), m_Data->FormatProperty(props[i]).c_str());
+    }
+    return msg;
+}
+
 LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     InitDynamicLayout();
     m_List.Attach(GetDlgItem(IDC_LIST));
@@ -40,12 +52,12 @@ LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     SetDlgItemText(IDC_KEYWORD, m_Data->GetEventStrings().Keyword.c_str());
     SetDlgItemText(IDC_OPCODE, m_Data->GetEventStrings().Opcode.c_str());
     SetDlgItemText(IDC_CHANNEL, m_Data->GetEventStrings().Channel.c_str());
-    SetDlgItemText(IDC_MESSAGE, m_Data->GetEventStrings().Message.c_str());
+    SetDlgItemText(IDC_MESSAGE, GetFullMessage());
     SetDlgItemText(IDC_TASK, m_Data->GetEventStrings().Task.c_str());
     SetDlgItemText(IDC_EVENT, m_Data->GetEventStrings().Name.c_str());
 
     auto cm = GetColumnManager(m_List);
-    cm->AddColumn(L"Name", 0, 150);
+    cm->AddColumn(L"Property", 0, 150);
     cm->AddColumn(L"Value", 0, 340);
 
     m_List.SetItemCount((int)m_Data->GetProperties().size());

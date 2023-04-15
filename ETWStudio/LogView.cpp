@@ -176,14 +176,19 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 	if (m_Running)
 		return 0;
 
-	m_Session->Start([&](auto evt) {
+	auto ok = m_Session->Start([&](auto evt) {
 		std::lock_guard locker(m_EventsLock);
 		m_TempEvents.push_back(evt);
 		});
-	SetTimer(1, 1000);
-	Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
-	Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
-	m_Running = true;
+	if (!ok) {
+		AtlMessageBox(m_hWnd, L"Failed to start session", IDR_MAINFRAME, MB_ICONERROR);
+	}
+	else {
+		SetTimer(1, 1000);
+		Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
+		Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
+		m_Running = true;
+	}
 	return 0;
 }
 

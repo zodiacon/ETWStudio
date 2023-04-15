@@ -91,7 +91,7 @@ private:
 	std::shared_ptr<EventData> m_LastExcluded;
 	uint32_t m_Index{ 0 };
 	wil::unique_handle m_hMemMap;
-	bool m_IsTraceProcesses{ true };
+	bool m_IsTraceProcesses{ false };
 	bool m_DumpUnnamedEvents{ false };
 	std::atomic<bool> m_IsPaused{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
