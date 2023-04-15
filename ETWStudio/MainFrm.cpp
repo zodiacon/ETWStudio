@@ -41,6 +41,7 @@ void CMainFrame::InitMenu() {
 		//{ ID_EDIT_CLEAR_ALL, IDI_ERASE },
 		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
 		{ ID_NEW_SESSION, IDI_SESSION },
+		{ ID_EDIT_FILTER, IDI_FILTER },
 	};
 	for (auto& cmd : cmds) {
 		if (cmd.icon)
@@ -222,4 +223,5 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_EDIT_FIND, false);
 	UISetCheck(ID_SESSION_RUN, false);
 	UISetCheck(ID_SESSION_STOP, false);
+	UISetCheck(ID_VIEW_AUTOSCROLL, false);
 }

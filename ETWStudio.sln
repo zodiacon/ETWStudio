@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EtwCore", "EtwCore\EtwCore.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WTLHelper", "WTLHelper\WTLHelper\WTLHelper.vcxproj", "{AE53419F-A769-4548-8E15-E311904DF7DF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FilterManager", "FilterManager\FilterManager.vcxproj", "{EDC1DF26-EAFC-418B-A104-937564ED31EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -69,6 +71,18 @@ Global
 		{AE53419F-A769-4548-8E15-E311904DF7DF}.Release|x64.Build.0 = Release|x64
 		{AE53419F-A769-4548-8E15-E311904DF7DF}.Release|x86.ActiveCfg = Release|Win32
 		{AE53419F-A769-4548-8E15-E311904DF7DF}.Release|x86.Build.0 = Release|Win32
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|ARM64.ActiveCfg = Debug|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|ARM64.Build.0 = Debug|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|x64.ActiveCfg = Debug|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|x64.Build.0 = Debug|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|x86.ActiveCfg = Debug|Win32
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Debug|x86.Build.0 = Debug|Win32
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|ARM64.ActiveCfg = Release|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|ARM64.Build.0 = Release|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|x64.ActiveCfg = Release|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|x64.Build.0 = Release|x64
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|x86.ActiveCfg = Release|Win32
+		{EDC1DF26-EAFC-418B-A104-937564ED31EB}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

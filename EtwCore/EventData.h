@@ -21,10 +21,11 @@ struct EventStrings {
 struct EventProperty {
 	friend class EventData;
 
-	EventProperty(EVENT_PROPERTY_INFO& info);
+	explicit EventProperty(EVENT_PROPERTY_INFO& info);
 
 	std::wstring Name;
-	EVENT_PROPERTY_INFO& Info;
+	EVENT_PROPERTY_INFO const& Info;
+
 	ULONG GetLength() const {
 		return (ULONG)Data.size();
 	}

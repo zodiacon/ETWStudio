@@ -18,6 +18,10 @@ std::wstring const& TraceSession::SessionName() const {
 	return m_SessionName;
 }
 
+FilterManager& TraceSession::GetFilterManager() {
+	return m_FilterMgr;
+}
+
 bool TraceSession::SetSessionName(std::wstring name) {
 	if (!m_IsPaused)
 		return false;
@@ -264,8 +268,12 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 		m_LastEvent = data;
 	}
-	if (m_Callback && (!processEvent || m_IsTraceProcesses))
+	if (m_Callback && (!processEvent || m_IsTraceProcesses)) {
+		if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
+			return;
+
 		m_Callback(data);
+	}
 }
 
 DWORD TraceSession::Run() {

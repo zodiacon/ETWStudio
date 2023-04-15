@@ -88,13 +88,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_WINDOWS;STRICT;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore;..\FilterManager</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -122,13 +122,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_WINDOWS;STRICT;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore;..\FilterManager</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -156,12 +156,12 @@
       <DebugInformationFormat />
       <PreprocessorDefinitions>WIN32;_WINDOWS;STRICT;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore;..\FilterManager</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -189,12 +189,12 @@
       <DebugInformationFormat />
       <PreprocessorDefinitions>_WINDOWS;STRICT;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\WTLHelper\WTLHelper;..\EtwCore;..\FilterManager</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -215,6 +215,7 @@
   <ItemGroup>
     <ClCompile Include="AboutDlg.cpp" />
     <ClCompile Include="ETWStudio.cpp" />
+    <ClCompile Include="FilterDlg.cpp" />
     <ClCompile Include="FullFindDlg.cpp" />
     <ClCompile Include="LogView.cpp" />
     <ClCompile Include="MainFrm.cpp" />
@@ -224,6 +225,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PropertiesDlg.cpp" />
+    <ClCompile Include="PropertyFilter.cpp" />
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
     <ClCompile Include="SecurityHelper.cpp" />
@@ -233,10 +236,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AboutDlg.h" />
+    <ClInclude Include="FilterDlg.h" />
     <ClInclude Include="FullFindDlg.h" />
     <ClInclude Include="Interfaces.h" />
     <ClInclude Include="LogView.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="PropertiesDlg.h" />
+    <ClInclude Include="PropertyFilter.h" />
     <ClInclude Include="ProvidersDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />
@@ -256,6 +262,7 @@
     <Image Include="res\Copy.ico" />
     <Image Include="res\Critical.ico" />
     <Image Include="res\Cut.ico" />
+    <Image Include="res\down.ico" />
     <Image Include="res\error.ico" />
     <Image Include="res\ETWStudio.ico" />
     <Image Include="res\event.ico" />
@@ -274,6 +281,7 @@
     <Image Include="res\Save.ico" />
     <Image Include="res\Session.ico" />
     <Image Include="res\stop.ico" />
+    <Image Include="res\up.ico" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

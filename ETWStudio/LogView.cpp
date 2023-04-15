@@ -4,6 +4,8 @@
 #include <SortHelper.h>
 #include <ClipboardHelper.h>
 #include "StringHelper.h"
+#include "FilterDlg.h"
+#include "PropertiesDlg.h"
 
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
@@ -42,7 +44,25 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 }
 
 void CLogView::DoSort(const SortInfo* si) {
+	auto col = GetColumnManager(m_List)->GetColumnTag<ColumnType>(si->SortColumn);
 
+	auto compare = [&](auto& e1, auto& e2) {
+		switch (col) {
+			case ColumnType::Index: return SortHelper::Sort(e1->GetIndex(), e2->GetIndex(), si->SortAscending);
+			case ColumnType::PID: return SortHelper::Sort(e1->GetProcessId(), e2->GetProcessId(), si->SortAscending);
+			case ColumnType::TID: return SortHelper::Sort(e1->GetThreadId(), e2->GetThreadId(), si->SortAscending);
+			case ColumnType::ProcessName: return SortHelper::Sort(e1->GetProcessName(), e2->GetProcessName(), si->SortAscending);
+			case ColumnType::Channel: return SortHelper::Sort(e1->GetEventStrings().Channel, e2->GetEventStrings().Channel, si->SortAscending);
+			case ColumnType::Task: return SortHelper::Sort(e1->GetEventStrings().Task, e2->GetEventStrings().Task, si->SortAscending);
+			case ColumnType::Keyword: return SortHelper::Sort(e1->GetEventStrings().Keyword, e2->GetEventStrings().Keyword, si->SortAscending);
+			case ColumnType::Level: return SortHelper::Sort(e1->GetEventStrings().Level, e2->GetEventStrings().Level, si->SortAscending);
+			case ColumnType::EventName: return SortHelper::Sort(e1->GetEventStrings().Name, e2->GetEventStrings().Name, si->SortAscending);
+			case ColumnType::OpCode: return SortHelper::Sort(e1->GetEventStrings().Opcode, e2->GetEventStrings().Opcode, si->SortAscending);
+			case ColumnType::Message: return SortHelper::Sort(e1->GetEventStrings().Message, e2->GetEventStrings().Message, si->SortAscending);
+		}
+		return false;
+	};
+	m_Events.Sort(compare);
 }
 
 int CLogView::GetRowImage(HWND h, int row, int col) const {
@@ -50,10 +70,26 @@ int CLogView::GetRowImage(HWND h, int row, int col) const {
 }
 
 void CLogView::OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState) {
+	if ((oldState & LVIS_SELECTED) || (newState & LVIS_SELECTED))
+		UpdateUI();
 }
 
 BOOL CLogView::OnDoubleClickList(HWND h, int row, int col, POINT const& pt) {
+	if (row >= 0) {
+		ShowProperties(row);
+		return true;
+	}
 	return 0;
+}
+
+bool CLogView::IsSortable(HWND h, int col) const {
+	return !m_Running;
+}
+
+void CLogView::ShowProperties(int index) const {
+	auto dlg = new CPropertiesDlg(m_Events[index], m_List.GetImageList(LVSIL_SMALL).GetIcon(GetRowImage(m_List, index, 0)));
+	dlg->Create(m_hWnd);
+	dlg->ShowWindow(SW_SHOW);
 }
 
 void CLogView::UpdateUI() {
@@ -65,6 +101,7 @@ void CLogView::UpdateUI() {
 	ui.UISetCheck(ID_SESSION_RUN, m_Running);
 	ui.UISetCheck(ID_SESSION_STOP, !m_Running);
 	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
+	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
@@ -166,5 +203,21 @@ LRESULT CLogView::OnAutoScroll(WORD, WORD, HWND, BOOL&) {
 	m_AutoScroll = !m_AutoScroll;
 	Frame()->UI().UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 
+	return 0;
+}
+
+LRESULT CLogView::OnEditFilter(WORD, WORD, HWND, BOOL&) {
+	auto mgr = m_FilterMgr.Clone();
+	CFilterDlg dlg(mgr);
+	if (IDOK == dlg.DoModal()) {
+		m_FilterMgr = std::move(mgr);
+	}
+
+	return 0;
+}
+
+LRESULT CLogView::OnViewProperties(WORD, WORD, HWND, BOOL&) {
+	ATLASSERT(m_List.GetSelectedCount() == 1);
+	ShowProperties(m_List.GetNextItem(-1, LVNI_SELECTED));
 	return 0;
 }

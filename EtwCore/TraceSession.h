@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KernelEvents.h"
+#include <FilterManager.h>
 
 class EventData;
 
@@ -23,6 +24,8 @@ public:
 	TraceSession& operator=(const TraceSession&) = delete;
 	TraceSession(TraceSession&& other) = default;
 	TraceSession& operator=(TraceSession&&) = default;
+
+	FilterManager& GetFilterManager();
 
 	bool SetSessionName(std::wstring name);
 	std::wstring const& SessionName() const;
@@ -95,5 +98,6 @@ private:
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
 	std::unordered_set<GUID> m_Providers;
 	std::wstring m_SessionName;
+	FilterManager m_FilterMgr;
 };
 

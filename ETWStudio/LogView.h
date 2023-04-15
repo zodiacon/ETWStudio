@@ -12,6 +12,7 @@
 #include <TraceSession.h>
 #include <SortedFilteredVector.h>
 #include <EventData.h>
+#include <FilterManager.h>
 
 class CLogView :
 	public CFrameView<CLogView, IMainFrame>,
@@ -27,6 +28,8 @@ public:
 	int GetSaveColumnRange(HWND, int&) const {
 		return 1;
 	}
+	bool IsSortable(HWND h, int col) const;
+	void ShowProperties(int index) const;
 
 	BEGIN_MSG_MAP(CLogView)
 		MESSAGE_HANDLER(WM_TIMER, OnTimer)
@@ -37,9 +40,11 @@ public:
 		CHAIN_MSG_MAP(CVirtualListView<CLogView>)
 		CHAIN_MSG_MAP(BaseFrame)
 	ALT_MSG_MAP(1)
+		COMMAND_ID_HANDLER(ID_VIEW_PROPERTIES, OnViewProperties)
 		COMMAND_ID_HANDLER(ID_SESSION_RUN, OnRun)
 		COMMAND_ID_HANDLER(ID_SESSION_STOP, OnStop)
 		COMMAND_ID_HANDLER(ID_VIEW_AUTOSCROLL, OnAutoScroll)
+		COMMAND_ID_HANDLER(ID_EDIT_FILTER, OnEditFilter)
 	END_MSG_MAP()
 
 private:
@@ -66,6 +71,8 @@ private:
 	LRESULT OnRun(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnStop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnAutoScroll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnEditFilter(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnViewProperties(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	CQuickFindEdit m_QuickFind;
@@ -73,6 +80,7 @@ private:
 	SortedFilteredVector<std::shared_ptr<EventData>> m_Events;
 	std::vector<std::shared_ptr<EventData>> m_TempEvents;
 	std::mutex m_EventsLock;
+	FilterManager m_FilterMgr;
 	bool m_AutoScroll{ false };
 	bool m_Running{ false };
 };

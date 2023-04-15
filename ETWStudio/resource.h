@@ -36,6 +36,10 @@
 #define IDD_PROVIDERS                   228
 #define IDD_SIMPLE                      230
 #define IDD_FULLFIND                    232
+#define IDD_FILTER                      234
+#define IDI_DOWN                        236
+#define IDI_UP                          237
+#define IDD_PROPERTIES                  238
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -47,16 +51,30 @@
 #define IDC_BROWSE                      1008
 #define IDC_REMOVE                      1010
 #define IDC_LEVEL                       1011
-#define IDC_SPLIT1                      1012
 #define IDC_ADD                         1012
 #define IDC_FILTER                      1013
-#define IDC_LIST1                       1014
 #define IDC_TEXT                        1015
 #define IDC_PROVIDER                    1017
 #define IDC_EVENTS                      1018
 #define IDC_PROPS                       1019
 #define IDC_FIND                        1020
 #define IDC_STATS                       1021
+#define IDC_UP                          1022
+#define IDC_DOWN                        1023
+#define IDC_SAVE                        1024
+#define IDC_LOAD                        1025
+#define IDC_CLEAR                       1026
+#define IDC_PID                         1027
+#define IDC_TID                         1028
+#define IDC_INDEX                       1029
+#define IDC_PNAME                       1030
+#define IDC_TIME                        1031
+#define IDC_KEYWORD                     1032
+#define IDC_CHANNEL                     1033
+#define IDC_OPCODE                      1034
+#define IDC_TASK                        1036
+#define IDC_MESSAGE                     1037
+#define IDC_EVENT                       1039
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -75,14 +93,16 @@
 #define ID_VIEW_QUICKFIN                32788
 #define ID_VIEW_QUICKFIND               32789
 #define ID_VIEW_FINDINPROVIDERS         32792
+#define ID_EDIT_FILTER                  32793
+#define ID_VIEW_PROPERTIES              32794
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        234
-#define _APS_NEXT_COMMAND_VALUE         32793
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_RESOURCE_VALUE        240
+#define _APS_NEXT_COMMAND_VALUE         32795
+#define _APS_NEXT_CONTROL_VALUE         1040
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

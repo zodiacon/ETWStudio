@@ -22,6 +22,9 @@
     <Filter Include="Resource Files\Icons">
       <UniqueIdentifier>{851d4c25-868b-4f2b-a385-19f43751aea0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Filters">
+      <UniqueIdentifier>{33568f5e-0f00-4aeb-9b06-35e3eccda39f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -58,6 +61,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FullFindDlg.cpp">
+      <Filter>Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="PropertyFilter.cpp">
+      <Filter>Filters</Filter>
+    </ClCompile>
+    <ClCompile Include="FilterDlg.cpp">
+      <Filter>Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="PropertiesDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
   </ItemGroup>
@@ -99,6 +111,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FullFindDlg.h">
+      <Filter>Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="PropertyFilter.h">
+      <Filter>Filters</Filter>
+    </ClInclude>
+    <ClInclude Include="FilterDlg.h">
+      <Filter>Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="PropertiesDlg.h">
       <Filter>Dialogs</Filter>
     </ClInclude>
   </ItemGroup>
@@ -181,6 +202,12 @@
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\Cut.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\down.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\up.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
   </ItemGroup>

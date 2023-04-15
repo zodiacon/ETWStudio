@@ -68,22 +68,27 @@ BEGIN
         MENUITEM "Cu&t\tCtrl+X",                ID_EDIT_CUT
         MENUITEM "&Copy\tCtrl+C",               ID_EDIT_COPY
         MENUITEM "&Paste\tCtrl+V",              ID_EDIT_PASTE
+        MENUITEM SEPARATOR
+        MENUITEM "&Filter...\tCtrl+L",          ID_EDIT_FILTER
     END
     POPUP "&View"
     BEGIN
-        MENUITEM "&Registered Providers",       ID_TRACING_REGISTEREDPROVIDERS
-        MENUITEM SEPARATOR
         MENUITEM "&Autoscroll",                 ID_VIEW_AUTOSCROLL
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
         MENUITEM "&Quick Find...",              ID_VIEW_QUICKFIND
         MENUITEM SEPARATOR
-        MENUITEM "Find in &Providers...",       ID_VIEW_FINDINPROVIDERS
+        MENUITEM "&Properties...\tAlt+Enter",   ID_VIEW_PROPERTIES
     END
     POPUP "&Session"
     BEGIN
         MENUITEM "&Run",                        ID_SESSION_RUN
         MENUITEM "&Stop",                       ID_SESSION_STOP
         MENUITEM "&Clear",                      ID_SESSION_CLEAR
+    END
+    POPUP "&Tools"
+    BEGIN
+        MENUITEM "&Registered Providers",       ID_TRACING_REGISTEREDPROVIDERS
+        MENUITEM "Find in &Providers...",       ID_VIEW_FINDINPROVIDERS
     END
     POPUP "&Options"
     BEGIN
@@ -170,6 +175,10 @@ IDI_EVENT2              ICON                    "res\\event2.ico"
 
 IDI_PROCESS             ICON                    "res\\process.ico"
 
+IDI_DOWN                ICON                    "res\\down.ico"
+
+IDI_UP                  ICON                    "res\\up.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -244,6 +253,54 @@ BEGIN
     LTEXT           "Items found:",IDC_STATS,281,10,68,8
 END
 
+IDD_FILTER DIALOGEX 0, 0, 381, 199
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Filter"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,132,178,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,198,178,50,14
+    CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | WS_BORDER | WS_TABSTOP,7,7,311,161
+    PUSHBUTTON      "",IDC_UP,325,14,19,14,BS_ICON
+    PUSHBUTTON      "",IDC_DOWN,325,33,19,14,BS_ICON
+    PUSHBUTTON      "Save...",IDC_SAVE,324,58,50,14
+    PUSHBUTTON      "Load...",IDC_LOAD,324,78,50,14
+    PUSHBUTTON      "Clear",IDC_CLEAR,324,154,50,14
+END
+
+IDD_PROPERTIES DIALOGEX 0, 0, 381, 271
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Dialog"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    PUSHBUTTON      "Close",IDCANCEL,177,250,50,14
+    CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | WS_BORDER | WS_TABSTOP,7,129,367,111
+    LTEXT           "PID:",IDC_STATIC,7,10,15,8
+    EDITTEXT        IDC_PID,28,9,40,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "TID:",IDC_STATIC,81,9,15,8
+    EDITTEXT        IDC_TID,102,8,40,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Index:",IDC_STATIC,155,8,22,8
+    EDITTEXT        IDC_INDEX,180,8,55,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Process Name:",IDC_STATIC,7,30,48,8
+    EDITTEXT        IDC_PNAME,61,28,173,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Time:",IDC_STATIC,245,8,18,8
+    EDITTEXT        IDC_TIME,270,8,95,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Keyword:",IDC_STATIC,7,49,32,8
+    EDITTEXT        IDC_KEYWORD,42,47,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Channel:",IDC_STATIC,194,49,30,8
+    EDITTEXT        IDC_CHANNEL,228,47,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Opcode:",IDC_STATIC,7,68,28,8
+    EDITTEXT        IDC_OPCODE,42,66,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Level:",IDC_STATIC,195,68,20,8
+    EDITTEXT        IDC_LEVEL,228,66,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Task:",IDC_STATIC,7,88,18,8
+    EDITTEXT        IDC_TASK,42,86,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Message:",IDC_STATIC,7,108,32,8
+    EDITTEXT        IDC_MESSAGE,42,106,332,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Event:",IDC_STATIC,197,88,22,8
+    EDITTEXT        IDC_EVENT,228,86,137,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -291,6 +348,22 @@ BEGIN
         RIGHTMARGIN, 418
         TOPMARGIN, 7
         BOTTOMMARGIN, 270
+    END
+
+    IDD_FILTER, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 374
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 192
+    END
+
+    IDD_PROPERTIES, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 374
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 264
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -410,6 +483,50 @@ BEGIN
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 100, 100,
+    0, 0, 0, 0,
+    0, 0, 0, 0
+END
+
+IDD_FILTER AFX_DIALOG_LAYOUT
+BEGIN
+    0,
+    50, 100, 0, 0,
+    50, 100, 0, 0,
+    0, 0, 100, 100,
+    100, 50, 0, 0,
+    100, 50, 0, 0,
+    100, 50, 0, 0,
+    100, 50, 0, 0,
+    100, 100, 0, 0
+END
+
+IDD_PROPERTIES AFX_DIALOG_LAYOUT
+BEGIN
+    0,
+    50, 100, 0, 0,
+    0, 0, 100, 100,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0
 END
