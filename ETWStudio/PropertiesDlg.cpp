@@ -3,6 +3,7 @@
 #include "PropertiesDlg.h"
 #include "StringHelper.h"
 #include <EtwProvider.h>
+#include "AppSettings.h"
 
 CPropertiesDlg::CPropertiesDlg(std::shared_ptr<EventData> data, HICON hIcon) : 
     m_Data(std::move(data)), m_hIcon(hIcon), m_Properties(m_Data->GetProperties()) {
@@ -38,6 +39,8 @@ CString CPropertiesDlg::GetFullMessage() const {
 
 LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     InitDynamicLayout();
+    AppSettings::Get().LoadWindowPosition(m_hWnd, L"PropertiesDialog");
+
     m_List.Attach(GetDlgItem(IDC_LIST));
     m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
@@ -70,5 +73,11 @@ LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 
 LRESULT CPropertiesDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
     DestroyWindow();
+    return 0;
+}
+
+LRESULT CPropertiesDlg::OnDestroy(UINT, WPARAM, LPARAM, BOOL&) {
+    AppSettings::Get().SaveWindowPosition(m_hWnd, L"PropertiesDialog");
+
     return 0;
 }

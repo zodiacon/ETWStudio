@@ -19,6 +19,10 @@ CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
 	return L"";
 }
 
+std::vector<CSessionDlg::ProviderInfo> const& CSessionDlg::GetProviders() const {
+	return m_Providers;
+}
+
 LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	InitDynamicLayout();
 	SetDialogIcon(IDI_SESSION);
@@ -39,10 +43,11 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 
 LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 	if (wID == IDOK) {
-		CWaitCursor wait;
-		m_Session.Init();
-		for (auto& p : m_Providers)
-			m_Session.AddProvider(p.Guid);
+		if (m_Providers.empty()) {
+			AtlMessageBox(m_hWnd, L"Session must have at least one provider",
+				IDS_TITLE, MB_ICONWARNING);
+			return 0;
+		}
 	}
 	EndDialog(wID);
 	return 0;

@@ -418,8 +418,8 @@ bool TraceSession::Init() {
 		return true;
 
 	// {6990501B-4484-4EF0-8793-84159B8D4728}
-	static const GUID sessionGuid =
-	{ 0x6990501b, 0x4484, 0x4ef0, { 0x87, 0x93, 0x84, 0x15, 0x9b, 0x8d, 0x47, 0x28 } };
+	GUID sessionGuid;
+	::CoCreateGuid(&sessionGuid);
 
 	auto size = sizeof(EVENT_TRACE_PROPERTIES) + (m_SessionName.length() + 1) * sizeof(WCHAR);
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);

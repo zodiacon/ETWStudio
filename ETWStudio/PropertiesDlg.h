@@ -21,6 +21,7 @@ public:
 
 	BEGIN_MSG_MAP(CPropertiesDlg)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
+		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
 		CHAIN_MSG_MAP(CVirtualListView<CPropertiesDlg>)
 		CHAIN_MSG_MAP(CDynamicDialogLayout<CPropertiesDlg>)
@@ -36,6 +37,7 @@ private:
 
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	std::shared_ptr<EventData> m_Data;

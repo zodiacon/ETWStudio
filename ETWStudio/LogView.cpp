@@ -6,6 +6,7 @@
 #include "StringHelper.h"
 #include "FilterDlg.h"
 #include "PropertiesDlg.h"
+#include <fstream>
 
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
@@ -110,6 +111,22 @@ void CLogView::UpdateUI() {
 	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
 }
 
+bool CLogView::DoSave(PCWSTR path) const {
+	std::wofstream stm;
+	stm.open(path, std::ios::out);
+	if (!stm.good())
+		return false;
+
+	if (m_Running)
+		m_Session->Pause(true);
+	auto str = ListViewHelper::GetAllRowsAsString(m_List, L",", L"\n");
+	stm << (PCWSTR)str;
+	stm.close();
+	if (m_Running)
+		m_Session->Pause(false);
+	return true;
+}
+
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA);
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP);
@@ -146,21 +163,24 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 	std::lock_guard locker(m_EventsLock);
 	if (m_TempEvents.empty()) {
-		if (m_Session->IsPaused())
+		if (!m_Running)
 			KillTimer(id);
 	}
 	else {
 		m_Events.append(m_TempEvents.begin(), m_TempEvents.end());
 		m_TempEvents.clear();
 		m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
-		if (m_AutoScroll)
-			m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
-		Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
+		if (m_Active) {
+			if (m_AutoScroll)
+				m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
+			Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
+		}
 	}
 	return 0;
 }
 
 LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
+	m_Active = (bool)active;
 	if (active) {
 		auto& ui = Frame()->UI();
 		ui.UIEnable(ID_SESSION_RUN, true);
@@ -257,5 +277,22 @@ LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
 	m_Events.clear();
 	m_List.SetItemCount(0);
 
+	return 0;
+}
+
+LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) const {
+	ThemeHelper::Suspend();
+	CSimpleFileDialog dlg(FALSE, L"log", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
+		L"Log Files (*.log)\0*.txt;*.log\0All Files\0*.*\0", m_hWnd);
+	auto ok = IDOK == dlg.DoModal();
+	ThemeHelper::Resume();
+	if (ok) {
+		DoSave(dlg.m_szFileName);
+	}
+	return 0;
+}
+
+LRESULT CLogView::OnCopy(WORD, WORD, HWND, BOOL&) const {
+	ClipboardHelper::CopyText(m_hWnd, ListViewHelper::GetSelectedRowsAsString(m_List));
 	return 0;
 }

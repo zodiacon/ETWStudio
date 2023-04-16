@@ -19,6 +19,13 @@ public:
 
 	CString GetColumnText(HWND, int row, int col) const;
 
+	struct ProviderInfo {
+		GUID Guid;
+		std::wstring Name;
+		UCHAR Level;
+	};
+	std::vector<ProviderInfo> const& GetProviders() const;
+
 	BEGIN_MSG_MAP(CSessionDlg)
 		NOTIFY_HANDLER(IDC_ADD, BCN_DROPDOWN, OnProviderDropdown)
 		COMMAND_ID_HANDLER(ID_PROVIDER_REGISTERED, OnRegisteredProvider)
@@ -37,12 +44,6 @@ public:
 	//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
 
 private:
-	struct ProviderInfo {
-		GUID Guid;
-		std::wstring Name;
-		UCHAR Level;
-	};
-
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnBrowseFile(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);

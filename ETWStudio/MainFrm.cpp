@@ -227,12 +227,14 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 	auto session = std::make_unique<TraceSession>(name);
 	CSessionDlg dlg(this, *session);
 	if (IDOK == dlg.DoModal()) {
-		if (session->GetProviders().empty()) {
-			AtlMessageBox(m_hWnd, L"Session must have at least one provider", 
-				IDS_TITLE, MB_ICONERROR);
+		CWaitCursor wait;
+		if (!session->Init()) {
+			AtlMessageBox(m_hWnd, L"Failed to initialize trace session", IDS_TITLE, MB_ICONERROR);
 			return 0;
 		}
-		CWaitCursor wait;
+		for (auto& p : dlg.GetProviders())
+			session->AddProvider(p.Guid);
+
 		auto view = new CLogView(this, std::move(session));
 		view->Create(m_view, rcDefault, nullptr,
 			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
@@ -275,6 +277,8 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_EDIT_HIGHLIGHT, false);
 	UIEnable(ID_EDIT_FILTER, false);
 	UIEnable(ID_VIEW_PROPERTIES, false);
+	SetStatusText(2, L"");
+	SetStatusIcon(1, nullptr);
 }
 
 LRESULT CMainFrame::OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const {
