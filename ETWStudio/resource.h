@@ -44,6 +44,8 @@
 #define IDI_PIN                         243
 #define IDI_CHECK                       244
 #define IDI_RADIO                       245
+#define IDI_ICON1                       246
+#define IDI_FILTER_ADD                  246
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -79,6 +81,10 @@
 #define IDC_TASK                        1036
 #define IDC_MESSAGE                     1037
 #define IDC_EVENT                       1039
+#define IDC_PROPERTY                    1040
+#define IDC_COMPARE                     1041
+#define IDC_VALUE                       1042
+#define IDC_ACTION                      1044
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -108,9 +114,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        246
+#define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         32799
-#define _APS_NEXT_CONTROL_VALUE         1040
+#define _APS_NEXT_CONTROL_VALUE         1045
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

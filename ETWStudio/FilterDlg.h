@@ -32,4 +32,5 @@ private:
 
 	CListViewCtrl m_List;
 	FilterManager& m_FilterMgr;
+	CComboBox m_PropCB, m_CompCB, m_ValueCB;
 };

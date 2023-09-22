@@ -228,5 +228,8 @@
     <Image Include="res\radio.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
+    <Image Include="res\Apply filter.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
   </ItemGroup>
 </Project>

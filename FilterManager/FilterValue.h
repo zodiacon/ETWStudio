@@ -19,7 +19,7 @@ struct NumericRange {
 
 class FilterValue final {
 public:
-	FilterValue() = default;
+	FilterValue();
 	FilterValue(int64_t value);
 	FilterValue(std::string value);
 	FilterValue(std::wstring value);

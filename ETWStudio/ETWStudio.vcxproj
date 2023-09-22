@@ -264,6 +264,7 @@
     <ResourceCompile Include="ETWStudio.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\Apply filter.ico" />
     <Image Include="res\autoscroll.ico" />
     <Image Include="res\bug_green.ico" />
     <Image Include="res\check.ico" />
