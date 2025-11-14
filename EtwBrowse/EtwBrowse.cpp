@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <format>
 #include <unordered_map>
-#include <unordered_set>
 #include "EtwProvider.h"
 
 void DumpDescriptor(const EVENT_DESCRIPTOR& desc) {

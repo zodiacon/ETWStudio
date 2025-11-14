@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "FilterValue.h"
 
+FilterValue::FilterValue() = default;
+
 FilterValue::FilterValue(int64_t value) : m_Value(value) {
 }
 

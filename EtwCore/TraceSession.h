@@ -39,7 +39,7 @@ public:
 	bool AddProvider(std::wstring const& name, int level = TRACE_LEVEL_INFORMATION);
 	bool AddEventsForProvider(GUID const& guid, std::span<USHORT> ids);
 
-	std::vector<GUID> GetProviders() const;
+	std::vector<std::pair<const GUID, int>> GetProviders() const;
 
 	bool SetBackupFile(PCWSTR path);
 	void Pause(bool pause);
@@ -96,7 +96,7 @@ private:
 	std::atomic<bool> m_IsPaused{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
-	std::unordered_set<GUID> m_Providers;
+	std::unordered_map<GUID, int> m_Providers;
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
 };

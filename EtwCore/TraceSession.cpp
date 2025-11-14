@@ -63,7 +63,7 @@ bool TraceSession::AddProvider(GUID const& guid, int level) {
 	if (m_Providers.contains(guid))
 		return true;
 
-	m_Providers.insert(guid);
+	m_Providers.insert({ guid, level });
 	if (m_hTrace) {
 		auto error = ::EnableTraceEx(&guid, nullptr, m_hTrace, TRUE, (UCHAR)level, 0, 0, 0, nullptr);
 		return error == ERROR_SUCCESS;
@@ -94,7 +94,7 @@ bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids)
 	return true;
 }
 
-std::vector<GUID> TraceSession::GetProviders() const {
+std::vector<std::pair< const GUID, int>> TraceSession::GetProviders() const {
 	return std::vector(m_Providers.begin(), m_Providers.end());
 }
 

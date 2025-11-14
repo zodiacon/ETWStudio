@@ -15,9 +15,10 @@ class CSessionDlg :
 public:
 	enum { IDD = IDD_SESSION };
 
-	CSessionDlg(IMainFrame* frame, TraceSession& session);
+	CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit = false);
 
 	CString GetColumnText(HWND, int row, int col) const;
+	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState) const;
 
 	struct ProviderInfo {
 		GUID Guid;
@@ -31,6 +32,7 @@ public:
 		COMMAND_ID_HANDLER(ID_PROVIDER_REGISTERED, OnRegisteredProvider)
 		COMMAND_ID_HANDLER(ID_PROVIDER_GUID, OnGuidProvider)
 		COMMAND_ID_HANDLER(IDC_BROWSE, OnBrowseFile)
+		COMMAND_ID_HANDLER(IDC_REMOVE, OnRemoveProvider)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -50,10 +52,12 @@ private:
 	LRESULT OnProviderDropdown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnRegisteredProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnGuidProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnRemoveProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	IMainFrame* m_pFrame;
 	TraceSession& m_Session;
 	std::vector<ProviderInfo> m_Providers;
 	CListViewCtrl m_List;
+	bool m_Edit;
 };
 

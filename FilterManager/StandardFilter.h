@@ -5,7 +5,7 @@
 class StandardFilter : public FilterBase {
 public:
 	FilterResult Eval(FilterValue const& value) override;
-	virtual std::unique_ptr<FilterBase> Clone() const override;
+	std::unique_ptr<FilterBase> Clone() const override;
 
 protected:
 	FilterResult Compare(int64_t left, int64_t right) const;

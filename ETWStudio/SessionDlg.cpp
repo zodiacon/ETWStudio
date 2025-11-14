@@ -6,7 +6,7 @@
 #include "StringHelper.h"
 #include "SimpleDlg.h"
 
-CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session) : m_pFrame(frame), m_Session(session) {
+CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit) : m_pFrame(frame), m_Session(session), m_Edit(edit) {
 }
 
 CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
@@ -17,6 +17,10 @@ CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
 		case 2: return StringHelper::LevelToString(pi.Level);
 	}
 	return L"";
+}
+
+void CSessionDlg::OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState) const {
+	GetDlgItem(IDC_REMOVE).EnableWindow(m_List.GetSelectedCount() == 1);
 }
 
 std::vector<CSessionDlg::ProviderInfo> const& CSessionDlg::GetProviders() const {
@@ -38,6 +42,17 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"GUID", 0, 200);
 	cm->AddColumn(L"Level", 0, 60);
 
+	if (m_Edit) {
+		for (auto& [guid, level] : m_Session.GetProviders()) {
+			ProviderInfo pi;
+			pi.Guid = guid;
+			pi.Level = level;
+			pi.Name = StringHelper::ProviderGuidToName(guid);
+			m_Providers.push_back(std::move(pi));
+		}
+		m_List.SetItemCount((int)m_Providers.size());
+		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
+	}
 	return 0;
 }
 
@@ -105,5 +120,14 @@ LRESULT CSessionDlg::OnGuidProvider(WORD, WORD wID, HWND, BOOL&) {
 		m_Providers.push_back(std::move(pi));
 		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 	}
+	return 0;
+}
+
+LRESULT CSessionDlg::OnRemoveProvider(WORD, WORD wID, HWND, BOOL&) {
+	int selected = m_List.GetSelectedIndex();
+	ATLASSERT(selected >= 0);
+	m_Providers.erase(m_Providers.begin() + selected);
+	m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOSCROLL);
+
 	return 0;
 }

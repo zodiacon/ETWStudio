@@ -67,7 +67,7 @@ LRESULT CProvidersDlg::OnChangeFilter(WORD, WORD wID, HWND, BOOL&) {
 	if (m_FilterText.IsEmpty())
 		m_Providers.Filter(nullptr);
 	else {
-		m_Providers.Filter([&](auto& item, int index) {
+		m_Providers.Filter([&](auto& item, size_t index) {
 			CString name(item.Name().c_str());
 			name.MakeLower();
 			if (name.Find(m_FilterText) >= 0)

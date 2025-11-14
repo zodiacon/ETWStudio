@@ -7,6 +7,7 @@
 #include "FilterDlg.h"
 #include "PropertiesDlg.h"
 #include <fstream>
+#include "SessionDlg.h"
 
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
@@ -294,5 +295,12 @@ LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) const {
 
 LRESULT CLogView::OnCopy(WORD, WORD, HWND, BOOL&) const {
 	ClipboardHelper::CopyText(m_hWnd, ListViewHelper::GetSelectedRowsAsString(m_List));
+	return 0;
+}
+
+LRESULT CLogView::OnEditSession(WORD, WORD, HWND, BOOL&) {
+	CSessionDlg dlg(Frame(), *m_Session, true);
+	if (IDOK == dlg.DoModal()) {
+	}
 	return 0;
 }

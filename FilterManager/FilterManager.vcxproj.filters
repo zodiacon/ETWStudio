@@ -30,6 +30,9 @@
     <ClInclude Include="StandardFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProviderFilter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FilterManager.cpp">
@@ -45,6 +48,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="StandardFilter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProviderFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
