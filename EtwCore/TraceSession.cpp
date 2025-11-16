@@ -6,7 +6,7 @@
 
 #pragma comment(lib, "tdh")
 
-TraceSession::TraceSession(std::wstring_view name) : m_SessionName(name.data()) {
+TraceSession::TraceSession(std::wstring name) : m_SessionName(std::move(name)) {
 }
 
 
@@ -23,10 +23,10 @@ FilterManager& TraceSession::GetFilterManager() {
 }
 
 bool TraceSession::SetSessionName(std::wstring name) {
-	if (!m_IsPaused)
+	if (m_hTrace)
 		return false;
 
-	m_SessionName = name;
+	m_SessionName = std::move(name);
 	return true;
 }
 
@@ -112,6 +112,11 @@ bool TraceSession::Start(EventCallback cb) {
 	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_REAL_TIME;
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
 		((TraceSession*)record->UserContext)->OnEventRecord(record);
+		static auto time = ::GetTickCount64();
+		if (::GetTickCount64() - time > 5000) {
+			EnumProcesses();
+			time = ::GetTickCount64();
+		}
 	};
 	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
 	if (!m_hOpenTrace)
@@ -122,13 +127,20 @@ bool TraceSession::Start(EventCallback cb) {
 		return ((TraceSession*)param)->Run();
 		}, this, 0, nullptr));
 	::SetThreadPriority(m_hProcessThread.get(), THREAD_PRIORITY_HIGHEST);
+	::SetThreadDescription(m_hProcessThread.get(), L"ETW Processing Thread");
+	if (::WaitForSingleObject(m_hProcessThread.get(), 100) == WAIT_OBJECT_0) {
+		m_hProcessThread.reset();
+		::CloseTrace(m_hTrace);
+		m_hTrace = 0;
+		return false;
+	}
 
 	return true;
 }
 
 bool TraceSession::Stop() {
 	if (m_hTrace) {
-		::ControlTrace(m_hTrace, KERNEL_LOGGER_NAME, m_Properties, EVENT_TRACE_CONTROL_STOP);
+		::ControlTrace(m_hTrace, m_SessionName.c_str(), m_Properties, EVENT_TRACE_CONTROL_STOP);
 		m_hTrace = 0;
 	}
 	if (m_hOpenTrace) {
@@ -283,8 +295,7 @@ DWORD TraceSession::Run() {
 	EnumProcesses();
 	FILETIME now;
 	::GetSystemTimeAsFileTime(&now);
-	auto error = ::ProcessTrace(&m_hOpenTrace, 1, &now, nullptr);
-	return error;
+	return ::ProcessTrace(&m_hOpenTrace, 1, &now, nullptr);
 }
 
 void TraceSession::HandleNoProcessId(EventData* data) {
@@ -417,10 +428,6 @@ bool TraceSession::Init() {
 	if (m_hTrace)
 		return true;
 
-	// {6990501B-4484-4EF0-8793-84159B8D4728}
-	GUID sessionGuid;
-	::CoCreateGuid(&sessionGuid);
-
 	auto size = sizeof(EVENT_TRACE_PROPERTIES) + (m_SessionName.length() + 1) * sizeof(WCHAR);
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);
 	ULONG error;
@@ -431,15 +438,16 @@ bool TraceSession::Init() {
 		m_Properties = reinterpret_cast<EVENT_TRACE_PROPERTIES*>(m_PropertiesBuffer.get());
 		m_Properties->EnableFlags = (ULONG)KernelEventTypes::Process;
 		m_Properties->Wnode.BufferSize = (ULONG)size;
-		m_Properties->Wnode.Guid = sessionGuid;
+		//m_Properties->BufferSize = 64;
+		//m_Properties->Wnode.Guid = sessionGuid;
 		m_Properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
 		m_Properties->Wnode.ClientContext = 1;
 		m_Properties->FlushTimer = 1;
-		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE | EVENT_TRACE_SYSTEM_LOGGER_MODE;
+		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE; // | EVENT_TRACE_SYSTEM_LOGGER_MODE;
 		m_Properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 
 		// copy session name
-		::wcscpy_s((PWSTR)(m_Properties + 1), m_SessionName.length() + 1, m_SessionName.c_str());
+		//::wcscpy_s((PWSTR)(m_Properties + 1), m_SessionName.length() + 1, m_SessionName.c_str());
 
 		error = ::StartTrace(&m_hTrace, m_SessionName.c_str(), m_Properties);
 		if (error == ERROR_ALREADY_EXISTS) {
@@ -447,6 +455,11 @@ bool TraceSession::Init() {
 			if (error != ERROR_SUCCESS)
 				return false;
 			continue;
+		}
+		for (auto& [p, level] : m_Providers) {
+			error = ::EnableTraceEx(&p, nullptr, m_hTrace, 1, level, 0, 0, 0, nullptr);
+			if (error != ERROR_SUCCESS)
+				break;
 		}
 		break;
 	}

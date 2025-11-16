@@ -55,12 +55,13 @@ public:
 private:
 	void UpdateUI();
 	bool DoSave(PCWSTR path) const;
+	static std::wstring GetProperties(EventData const& evt);
 
 	enum class ColumnType {
 		ProcessName, Guid, Index,
-		PID, TID, Time, Attributes,
+		PID, TID, Time, Attributes, CPU,
 		Keyword, Task, OpCode, Level, Message, Id, 
-		Source, Channel, Version, EventName,
+		Source, Channel, Version, EventName, Properties,
 	};
 
 	// Handler prototypes (uncomment arguments if needed):

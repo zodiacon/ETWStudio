@@ -58,11 +58,16 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 
 LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 	if (wID == IDOK) {
+		CString name;
+		GetDlgItemText(IDC_NAME, name);
+		m_Session.SetSessionName((PCWSTR)name);
 		if (m_Providers.empty()) {
 			AtlMessageBox(m_hWnd, L"Session must have at least one provider",
 				IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
+		for (auto& p : m_Providers)
+			m_Session.AddProvider(p.Guid);
 	}
 	EndDialog(wID);
 	return 0;
@@ -113,7 +118,7 @@ LRESULT CSessionDlg::OnGuidProvider(WORD, WORD wID, HWND, BOOL&) {
 	if (IDOK == dlg.DoModal()) {
 		ProviderInfo pi;
 		if (S_OK != ::CLSIDFromString(dlg.GetText(), &pi.Guid)) {
-			AtlMessageBox(m_hWnd, L"Invalid GUID", IDS_TITLE, MB_ICONERROR);
+			AtlMessageBox(m_hWnd, L"Invalid GUID", IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
 		pi.Level = 0;

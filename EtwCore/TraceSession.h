@@ -18,7 +18,7 @@ namespace std {
 
 class TraceSession final {
 public:
-	explicit TraceSession(std::wstring_view name = nullptr);
+	explicit TraceSession(std::wstring name);
 	~TraceSession();
 	TraceSession(const TraceSession&) = delete;
 	TraceSession& operator=(const TraceSession&) = delete;
@@ -59,7 +59,7 @@ private:
 	static std::wstring GetProcessFullPath(DWORD pid);
 	void AddProcessName(DWORD pid, std::wstring name);
 	bool RemoveProcessName(DWORD pid);
-	void EnumProcesses();
+	static void EnumProcesses();
 	bool ParseProcessStartStop(EventData* data);
 	void OnEventRecord(PEVENT_RECORD rec);
 	DWORD Run();
@@ -84,7 +84,7 @@ private:
 	std::unordered_set<KernelEventTypes> m_KernelEventTypes;
 	std::unordered_set<std::wstring> m_KernelEventStacks;
 	mutable std::shared_mutex m_ProcessesLock;
-	std::unordered_map<DWORD, ProcessInfo> m_Processes;
+	inline static std::unordered_map<DWORD, ProcessInfo> m_Processes;
 	mutable std::unordered_map<ULONGLONG, std::wstring> m_KernelEventNames;
 	std::vector<DWORD> m_CleanupPids;
 	std::shared_ptr<EventData> m_LastEvent;

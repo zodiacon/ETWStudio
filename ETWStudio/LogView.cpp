@@ -40,6 +40,7 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 		case ColumnType::Level: return evt.GetEventStrings().Level.c_str();
 		case ColumnType::Message: return evt.GetEventStrings().Message.c_str();
 		case ColumnType::Attributes: return evt.GetEventStrings().EventAttributes.c_str();
+		case ColumnType::Properties: return GetProperties(evt).c_str();
 	}
 
 	return CString();
@@ -128,6 +129,16 @@ bool CLogView::DoSave(PCWSTR path) const {
 	return true;
 }
 
+std::wstring CLogView::GetProperties(EventData const& evt) {
+	return std::to_wstring(evt.GetProperties().size());
+
+	//std::wstring text;
+	//for (auto& prop : evt.GetProperties()) {
+	//	text += prop.Name + L": " + evt.FormatProperty(prop) + L";";
+	//}
+	//return text;
+}
+
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA);
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP);
@@ -148,6 +159,7 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
 	cm->AddColumn(L"Time", LVCFMT_RIGHT, 90, ColumnType::Time);
 	cm->AddColumn(L"TID", LVCFMT_RIGHT, 60, ColumnType::TID);
+	cm->AddColumn(L"CPU", LVCFMT_RIGHT, 40, ColumnType::CPU);
 	cm->AddColumn(L"Level", 0, 80, ColumnType::Level);
 	cm->AddColumn(L"Task", 0, 160, ColumnType::Task);
 	cm->AddColumn(L"Keyword", 0, 160, ColumnType::Keyword);
@@ -156,6 +168,7 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Name", 0, 100, ColumnType::EventName);
 	cm->AddColumn(L"Attributes", 0, 120, ColumnType::Attributes, ColumnFlags::None);
 	cm->AddColumn(L"Message", 0, 300, ColumnType::Message);
+	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Properties);
 	cm->DeleteColumn(0);
 
 	return 0;
