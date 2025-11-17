@@ -8,11 +8,11 @@
 #include "Interfaces.h"
 #include "CustomTabView.h"
 
-class CMainFrame : 
-	public CFrameWindowImpl<CMainFrame>, 
+class CMainFrame :
+	public CFrameWindowImpl<CMainFrame>,
 	public CAutoUpdateUI<CMainFrame>,
 	public COwnerDrawnMenu<CMainFrame>,
-	public CMessageFilter, 
+	public CMessageFilter,
 	public IMainFrame,
 	public CIdleHandler {
 public:
@@ -36,11 +36,12 @@ public:
 					return TRUE;
 			}
 		}
-		NOTIFY_CODE_HANDLER(TBVN_PAGEACTIVATED, OnPageActivated)
+	NOTIFY_CODE_HANDLER(TBVN_PAGEACTIVATED, OnPageActivated)
 		COMMAND_ID_HANDLER(ID_VIEW_FINDINPROVIDERS, OnFindAll)
 		COMMAND_ID_HANDLER(ID_APP_EXIT, OnFileExit)
 		COMMAND_ID_HANDLER(ID_TRACING_REGISTEREDPROVIDERS, OnViewProviders)
 		COMMAND_ID_HANDLER(ID_NEW_SESSION, OnNewSession)
+		COMMAND_ID_HANDLER(ID_TOOLS_TRACESESSIONS, OnViewTraceSessions)
 		COMMAND_ID_HANDLER(ID_VIEW_STATUS_BAR, OnViewStatusBar)
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 		COMMAND_ID_HANDLER(ID_WINDOW_CLOSE, OnWindowClose)
@@ -62,10 +63,10 @@ private:
 	void UpdateUI();
 	void SetAlwaysOnTop(bool onTop);
 
-// Handler prototypes (uncomment arguments if needed):
-//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-//	LRESULT CommandHandler(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
-//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
+	// Handler prototypes (uncomment arguments if needed):
+	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+	//	LRESULT CommandHandler(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
@@ -82,6 +83,7 @@ private:
 	LRESULT OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const;
 	LRESULT OnAlwaysOnTop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnShowWindow(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
+	LRESULT OnViewTraceSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CCustomTabView m_view;
 	CMultiPaneStatusBarCtrl m_StatusBar;

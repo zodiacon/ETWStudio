@@ -350,6 +350,7 @@
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
     <ClCompile Include="StringHelper.cpp" />
+    <ClCompile Include="TraceSessionsView.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AboutDlg.h" />
@@ -369,6 +370,7 @@
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />
     <ClInclude Include="StringHelper.h" />
+    <ClInclude Include="TraceSessionsView.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ETWStudio.rc" />

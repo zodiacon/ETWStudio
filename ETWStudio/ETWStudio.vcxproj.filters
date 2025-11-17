@@ -75,6 +75,9 @@
     <ClCompile Include="AppSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraceSessionsView.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -127,6 +130,9 @@
     </ClInclude>
     <ClInclude Include="AppSettings.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraceSessionsView.h">
+      <Filter>Views</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

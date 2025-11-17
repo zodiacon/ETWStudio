@@ -9,6 +9,7 @@
 #include "LogView.h"
 #include "FullFindDlg.h"
 #include "AppSettings.h"
+#include "TraceSessionsView.h"
 
 const int WindowMenuPosition = 5;
 
@@ -288,3 +289,12 @@ LRESULT CMainFrame::OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hW
 
 	return 0;
 }
+
+LRESULT CMainFrame::OnViewTraceSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	auto pView = new CTraceSessionsView(this);
+	pView->Create(m_view, rcDefault, nullptr,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+	m_view.AddPage(pView->m_hWnd, L"Sessions", 1, pView);
+	return 0;
+}
+

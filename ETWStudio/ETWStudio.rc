@@ -53,10 +53,8 @@ IDR_MAINFRAME MENU
 BEGIN
     POPUP "&File"
     BEGIN
-        POPUP "&New"
-        BEGIN
-            MENUITEM "&Session...",                 ID_NEW_SESSION
-        END
+        MENUITEM "New &Session...",             ID_NEW_SESSION
+        MENUITEM SEPARATOR
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN
         MENUITEM "&Save...\tCtrl+S",            ID_FILE_SAVE
         MENUITEM SEPARATOR
@@ -93,6 +91,7 @@ BEGIN
     BEGIN
         MENUITEM "&Registered Providers",       ID_TRACING_REGISTEREDPROVIDERS
         MENUITEM "Find in &Providers...",       ID_VIEW_FINDINPROVIDERS
+        MENUITEM "&Trace Sessions",             ID_TOOLS_TRACESESSIONS
     END
     POPUP "&Options"
     BEGIN

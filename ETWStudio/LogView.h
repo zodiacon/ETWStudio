@@ -7,7 +7,6 @@
 #include "Interfaces.h"
 #include <FrameView.h>
 #include <VirtualListView.h>
-#include "EtwProvider.h"
 #include <QuickFindEdit.h>
 #include <TraceSession.h>
 #include <SortedFilteredVector.h>

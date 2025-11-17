@@ -251,6 +251,7 @@
     <ClInclude Include="KernelEvents.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="TraceSession.h" />
+    <ClInclude Include="TraceSessionInfo.h" />
     <ClInclude Include="WMIHelper.h" />
   </ItemGroup>
   <ItemGroup>
@@ -266,6 +267,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='ReleaseSigned|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="TraceSession.cpp" />
+    <ClCompile Include="TraceSessionInfo.cpp" />
     <ClCompile Include="WMIHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
