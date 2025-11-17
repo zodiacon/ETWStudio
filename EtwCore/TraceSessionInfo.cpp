@@ -37,3 +37,4 @@ std::vector<TraceSessionInfo> TraceSessionInfo::EnumTraceSessions() {
 	}
 	return sessions;
 }
+

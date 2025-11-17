@@ -157,7 +157,7 @@ void DumpProvider(const EtwProvider& provider, bool includeEvents, bool includeP
 
 void DumpAllProviders() {
 	int count = printf("%-60s %-38s %s\n", "Provider Name", "Provider GUID", "Schema Source");
-	printf("%s\n", std::string('-', count).c_str());
+	printf("%s\n", std::string(count, '-').c_str());
 
 	for (auto& provider : EtwProvider::EnumProviders(true)) {
 		printf("%-60ws %-38ws %s\n", provider.Name().c_str(), 

@@ -75,6 +75,7 @@ BEGIN
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
         MENUITEM "&Quick Find...\tCtrl+Q",      ID_VIEW_QUICKFIND
         MENUITEM "&Find...\tCtrl+F",            ID_VIEW_FIND
+        MENUITEM "&Refresh",                    ID_VIEW_REFRESH
         MENUITEM SEPARATOR
         MENUITEM "&Properties...\tAlt+Enter",   ID_VIEW_PROPERTIES
     END

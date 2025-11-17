@@ -14,8 +14,9 @@ public:
 	explicit CTraceSessionsView(IMainFrame* frame);
 
 	CString GetColumnText(HWND, int row, int col) const;
-	//void DoSort(const SortInfo* si);
+	void DoSort(const SortInfo* si);
 	int GetRowImage(HWND, int row, int col) const;
+	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
 
 	BEGIN_MSG_MAP(CTraceSessionsView)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
@@ -32,9 +33,11 @@ public:
 
 private:
 	void Refresh();
+	void UpdateUI();
 
 	enum class ColumnType {
-		Name, Guid, Index, FileName,
+		Name, Guid, Index, FileName, TID, State, BufferSize, MinBuffers, MaxBuffers,
+		LogFileMode, FlushTimer, EnableFlags,
 	};
 
 	// Handler prototypes (uncomment arguments if needed):

@@ -9,5 +9,6 @@ struct TraceSessionInfo : EVENT_TRACE_PROPERTIES {
 	std::wstring LoggerName;
 	std::wstring LogFileName;
 	uint32_t Index;
+	bool Running{ true };
 };
 
