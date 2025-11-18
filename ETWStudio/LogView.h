@@ -87,7 +87,7 @@ private:
 	CListViewCtrl m_List;
 	CQuickFindEdit m_QuickFind;
 	std::unique_ptr<TraceSession> m_Session;
-	SortedFilteredVector<std::shared_ptr<EventData>> m_Events;
+	std::vector<std::shared_ptr<EventData>> m_Events;
 	std::vector<std::shared_ptr<EventData>> m_TempEvents;
 	std::mutex m_EventsLock;
 	FilterManager m_FilterMgr;

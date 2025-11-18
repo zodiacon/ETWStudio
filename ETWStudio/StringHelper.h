@@ -8,7 +8,7 @@ struct StringHelper abstract final {
 	static std::wstring OutTypeToString(USHORT type);
 	static std::wstring InTypeToString(USHORT type);
 	static PCWSTR LevelToString(UCHAR level);
-	static std::wstring TimeStampToString(ULONGLONG ts);
+	static std::wstring TimeStampToString(ULONGLONG ts, bool includeDate = false);
 	static std::wstring ProviderGuidToName(GUID const& guid);
 };
 

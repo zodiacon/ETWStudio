@@ -6,8 +6,9 @@
 #include "StringHelper.h"
 #include "FilterDlg.h"
 #include "PropertiesDlg.h"
-#include <fstream>
 #include "SessionDlg.h"
+#include <execution>
+#include <fstream>
 
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
@@ -30,7 +31,7 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 				return L"";
 			return std::format(L"{}", tid).c_str();
 		}
-		case ColumnType::Time: return StringHelper::TimeStampToString(evt.GetTimeStamp()).c_str();
+		case ColumnType::Time: return StringHelper::TimeStampToString(evt.GetTimeStamp(), !m_Session->IsRealTimeSession()).c_str();
 		case ColumnType::Index: return std::format(L"{}", evt.GetIndex()).c_str();
 		case ColumnType::EventName: return evt.GetEventStrings().Name.c_str();
 		case ColumnType::Task: return evt.GetEventStrings().Task.c_str();
@@ -65,7 +66,13 @@ void CLogView::DoSort(const SortInfo* si) {
 		}
 		return false;
 	};
-	m_Events.Sort(compare);
+	if (m_Events.size() > 100000) {
+		CWaitCursor wait;
+		std::sort(std::execution::par_unseq, m_Events.begin(), m_Events.end(), compare);
+	}
+	else {
+		std::ranges::sort(m_Events, compare);
+	}
 }
 
 int CLogView::GetRowImage(HWND h, int row, int col) const {
@@ -156,18 +163,19 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"dummy", 0, 0, 0);
 	cm->AddColumn(L"#", LVCFMT_RIGHT, 70, ColumnType::Index);
 	cm->AddColumn(L"PID", LVCFMT_RIGHT, 60, ColumnType::PID);
-	cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
-	cm->AddColumn(L"Time", LVCFMT_RIGHT, 90, ColumnType::Time);
+	if(m_Session->IsRealTimeSession())
+		cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
+	cm->AddColumn(L"Time", LVCFMT_RIGHT, m_Session->IsRealTimeSession() ? 90 : 150, ColumnType::Time);
 	cm->AddColumn(L"TID", LVCFMT_RIGHT, 60, ColumnType::TID);
 	cm->AddColumn(L"CPU", LVCFMT_RIGHT, 40, ColumnType::CPU);
 	cm->AddColumn(L"Level", 0, 80, ColumnType::Level);
-	cm->AddColumn(L"Task", 0, 160, ColumnType::Task);
-	cm->AddColumn(L"Keyword", 0, 160, ColumnType::Keyword);
-	cm->AddColumn(L"Opcode", 0, 100, ColumnType::OpCode);
+	cm->AddColumn(L"Task", 0, 150, ColumnType::Task);
+	cm->AddColumn(L"Keyword", 0, 150, ColumnType::Keyword);
+	cm->AddColumn(L"Opcode", 0, 120, ColumnType::OpCode);
 	cm->AddColumn(L"Channel", 0, 140, ColumnType::Channel);
 	cm->AddColumn(L"Name", 0, 100, ColumnType::EventName);
 	cm->AddColumn(L"Attributes", 0, 120, ColumnType::Attributes, ColumnFlags::None);
-	cm->AddColumn(L"Message", 0, 300, ColumnType::Message);
+	cm->AddColumn(L"Message", 0, 250, ColumnType::Message);
 	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Properties);
 	cm->DeleteColumn(0);
 
@@ -175,14 +183,16 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 }
 
 LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
-	std::lock_guard locker(m_EventsLock);
+	std::unique_lock locker(m_EventsLock);
 	if (m_TempEvents.empty()) {
 		if (!m_Running)
 			KillTimer(id);
 	}
 	else {
-		m_Events.append(m_TempEvents.begin(), m_TempEvents.end());
+		m_Events.insert(m_Events.end(), m_TempEvents.begin(), m_TempEvents.end());
 		m_TempEvents.clear();
+		locker.unlock();
+
 		m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 		if (m_Active) {
 			if (m_AutoScroll)

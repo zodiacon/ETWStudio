@@ -103,7 +103,7 @@ PCWSTR StringHelper::LevelToString(UCHAR level) {
 	return L"(Unknown)";
 }
 
-std::wstring StringHelper::TimeStampToString(ULONGLONG ts) {
+std::wstring StringHelper::TimeStampToString(ULONGLONG ts, bool includeDate) {
 	if (ts == (ULONGLONG)-1 || ts == 0)
 		return L"";
 
@@ -111,7 +111,10 @@ std::wstring StringHelper::TimeStampToString(ULONGLONG ts) {
 	FILETIME ft;
 	::FileTimeToLocalFileTime((FILETIME const*)&ts, &ft);
 	::FileTimeToSystemTime(&ft, &st);
-	return std::format(L"{:02}:{:02}:{:02}.{:03}", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+	std::wstring dt;
+	if (includeDate)
+		dt = std::format(L"{:04}/{:02}/{:02} ", st.wYear, st.wMonth, st.wDay);
+	return dt + std::format(L"{:02}:{:02}:{:02}.{:03}", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 }
 
 namespace std {

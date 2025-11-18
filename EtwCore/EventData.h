@@ -80,7 +80,7 @@ protected:
 	void SetProcessName(std::wstring name);
 
 private:
-	inline static HANDLE s_hHeap = nullptr;
+	inline static HANDLE s_hHeap, s_hHeap2;
 	inline static CRITICAL_SECTION s_HeapLock = {0};
 	inline static volatile uint32_t s_Count = 0;
 

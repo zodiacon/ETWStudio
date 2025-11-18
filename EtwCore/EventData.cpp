@@ -30,7 +30,7 @@ EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index
 	ULONG size = 0;
 	auto error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
 	if (error == ERROR_INSUFFICIENT_BUFFER) {
-		auto buffer = ::HeapAlloc(s_hHeap, 0, size);
+		auto buffer = ::HeapAlloc(s_hHeap2, 0, size);
 		auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
 		error = ::TdhGetEventInformation(rec, 0, nullptr, info, &size);
 		m_EventInfo = info;
@@ -42,32 +42,28 @@ EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index
 
 EventData::~EventData() {
 	if (m_EventInfo)
-		::HeapFree(s_hHeap, HEAP_NO_SERIALIZE, m_EventInfo);
+		::HeapFree(s_hHeap2, HEAP_NO_SERIALIZE, m_EventInfo);
 }
 
 void* EventData::operator new(size_t size) {
 	if (InterlockedIncrement(&s_Count) == 1) {
 		InitializeCriticalSection(&s_HeapLock);
-		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 26, 0);
-		assert(s_hHeap);
+		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
+		s_hHeap2 = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
+		assert(s_hHeap && s_hHeap2);
 	}
 
-	EnterCriticalSection(&s_HeapLock);
-	void* p = ::HeapAlloc(s_hHeap, 0, size);
-	LeaveCriticalSection(&s_HeapLock);
-
-	return p;
+	return ::HeapAlloc(s_hHeap, 0, size);
 }
 
 void EventData::operator delete(void* p) {
-	EnterCriticalSection(&s_HeapLock);
 	::HeapFree(s_hHeap, 0, p);
-	LeaveCriticalSection(&s_HeapLock);
 
 	if (InterlockedDecrement(&s_Count) == 0) {
 		if (s_hHeap) {
 			::HeapDestroy(s_hHeap);
-			s_hHeap = nullptr;
+			::HeapDestroy(s_hHeap2);
+			s_hHeap = s_hHeap2 = nullptr;
 		}
 	}
 }

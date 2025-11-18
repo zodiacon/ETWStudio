@@ -9,13 +9,21 @@
 TraceSession::TraceSession(std::wstring name) : m_SessionName(std::move(name)) {
 }
 
+bool TraceSession::OpenFile(PCWSTR path) {
+	m_LogFileName = path;
+	return true;
+}
 
 TraceSession::~TraceSession() {
 	Stop();
 }
 
-std::wstring const& TraceSession::SessionName() const {
+std::wstring const& TraceSession::SessionName() const noexcept {
 	return m_SessionName;
+}
+
+std::wstring const& TraceSession::LogFileName() const noexcept {
+	return m_LogFileName;
 }
 
 FilterManager& TraceSession::GetFilterManager() {
@@ -98,8 +106,13 @@ std::vector<std::pair< const GUID, int>> TraceSession::GetProviders() const {
 	return std::vector(m_Providers.begin(), m_Providers.end());
 }
 
-bool TraceSession::Start(EventCallback cb) {
-	m_Callback = cb;
+bool TraceSession::Start(EventCallback cb, bool cont) {
+	if(cb)
+		m_Callback = cb;
+	if (m_Callback == nullptr)
+		return false;
+
+	m_Continue = cont;
 
 	//error = UpdateEventConfig();
 	//if (error != ERROR_SUCCESS) {
@@ -108,18 +121,24 @@ bool TraceSession::Start(EventCallback cb) {
 	//}
 
 	m_TraceLog.Context = this;
-	m_TraceLog.LoggerName = m_SessionName.data();
-	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_REAL_TIME;
+	if(m_LogFileName.empty())
+		m_TraceLog.LoggerName = m_SessionName.data();
+	else
+		m_TraceLog.LogFileName = m_LogFileName.data();
+	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | (m_SessionName.empty() ? 0 : PROCESS_TRACE_MODE_REAL_TIME);
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
-		((TraceSession*)record->UserContext)->OnEventRecord(record);
-		static auto time = ::GetTickCount64();
-		if (::GetTickCount64() - time > 5000) {
-			EnumProcesses();
-			time = ::GetTickCount64();
+		auto session = ((TraceSession*)record->UserContext);
+		session->OnEventRecord(record);
+		if (session->LogFileName().empty()) {
+			static auto time = ::GetTickCount64();
+			if (::GetTickCount64() - time > 5000) {
+				EnumProcesses();
+				time = ::GetTickCount64();
+			}
 		}
 	};
-	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
-	if (!m_hOpenTrace)
+	m_hTrace = ::OpenTrace(&m_TraceLog);
+	if (!m_hTrace)
 		return false;
 
 	// create a dedicated thread to process the trace
@@ -138,14 +157,12 @@ bool TraceSession::Start(EventCallback cb) {
 	return true;
 }
 
-bool TraceSession::Stop() {
+bool TraceSession::Stop() noexcept {
 	if (m_hTrace) {
-		::ControlTrace(m_hTrace, m_SessionName.c_str(), m_Properties, EVENT_TRACE_CONTROL_STOP);
+		if(IsRealTimeSession())
+			::ControlTrace(m_hTrace, nullptr, m_Properties, EVENT_TRACE_CONTROL_STOP);
+		::CloseTrace(m_hTrace);
 		m_hTrace = 0;
-	}
-	if (m_hOpenTrace) {
-		::CloseTrace(m_hOpenTrace);
-		m_hOpenTrace = 0;
 	}
 	if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 1000))
 		::TerminateThread(m_hProcessThread.get(), 1);
@@ -154,8 +171,8 @@ bool TraceSession::Stop() {
 	return true;
 }
 
-bool TraceSession::IsRunning() const {
-	return m_hProcessThread != nullptr;
+bool TraceSession::IsRunning() const noexcept {
+	return m_hTrace != 0;
 }
 
 std::wstring const& TraceSession::GetProcessImageById(DWORD pid) const {
@@ -255,7 +272,7 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
-	if (m_hOpenTrace == 0 || m_IsPaused)
+	if (m_hTrace == 0)
 		return;
 
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {
@@ -292,10 +309,25 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 }
 
 DWORD TraceSession::Run() {
-	EnumProcesses();
-	FILETIME now;
-	::GetSystemTimeAsFileTime(&now);
-	return ::ProcessTrace(&m_hOpenTrace, 1, &now, nullptr);
+	DWORD err;
+	if (m_LogFileName.empty()) {
+		EnumProcesses();
+		FILETIME now;
+		::GetSystemTimeAsFileTime(&now);
+		err = ::ProcessTrace(&m_hTrace, 1, &now, nullptr);
+	}
+	else {
+		FILETIME ft;
+		PFILETIME start = nullptr;
+		if (m_Continue && m_LastEvent) {
+			*(ULONGLONG*)&ft = m_LastEvent->GetTimeStamp();
+			start = &ft;
+		}
+		err = ::ProcessTrace(&m_hTrace, 1,  start, nullptr);
+	}
+	::CloseTrace(m_hTrace);
+	m_hTrace = 0;
+	return err;
 }
 
 void TraceSession::HandleNoProcessId(EventData* data) {
@@ -375,10 +407,6 @@ bool TraceSession::RemoveProcessName(DWORD pid) {
 	return m_Processes.erase(pid);
 }
 
-bool TraceSession::IsPaused() const {
-	return m_IsPaused;
-}
-
 std::wstring TraceSession::GetDosNameFromNtName(PCWSTR name) {
 	static std::vector<std::pair<std::wstring, std::wstring>> deviceNames;
 	static bool first = true;
@@ -420,8 +448,15 @@ bool TraceSession::SetBackupFile(PCWSTR path) {
 	return true;
 }
 
-void TraceSession::Pause(bool pause) {
-	m_IsPaused = pause;
+void TraceSession::Pause(bool pause) noexcept {
+	if (pause)
+		Stop();
+	else
+		Start(nullptr, !m_LogFileName.empty());
+}
+
+bool TraceSession::IsRealTimeSession() const noexcept {
+	return m_LogFileName.empty();
 }
 
 bool TraceSession::Init() {

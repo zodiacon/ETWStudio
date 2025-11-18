@@ -18,7 +18,8 @@ namespace std {
 
 class TraceSession final {
 public:
-	explicit TraceSession(std::wstring name);
+	explicit TraceSession(std::wstring name = L"");
+	bool OpenFile(PCWSTR path);
 	~TraceSession();
 	TraceSession(const TraceSession&) = delete;
 	TraceSession& operator=(const TraceSession&) = delete;
@@ -28,7 +29,8 @@ public:
 	FilterManager& GetFilterManager();
 
 	bool SetSessionName(std::wstring name);
-	std::wstring const& SessionName() const;
+	std::wstring const& SessionName() const noexcept;
+	std::wstring const& LogFileName() const noexcept;
 
 	static GUID const* GetProviderGuid(std::wstring const& name);
 
@@ -42,12 +44,12 @@ public:
 	std::vector<std::pair<const GUID, int>> GetProviders() const;
 
 	bool SetBackupFile(PCWSTR path);
-	void Pause(bool pause);
+	void Pause(bool pause) noexcept;
+	bool IsRealTimeSession() const noexcept;
 	bool Init();
-	bool Start(EventCallback callback);
-	bool Stop();
-	bool IsRunning() const;
-	bool IsPaused() const;
+	bool Start(EventCallback callback, bool cont = false);
+	bool Stop() noexcept;
+	bool IsRunning() const noexcept;
 
 	void ResetIndex(uint32_t index = 0);
 	int UpdateEventConfig();
@@ -74,7 +76,7 @@ private:
 		std::wstring FullPath;
 	};
 
-	TRACEHANDLE m_hOpenTrace{ 0 };
+	//TRACEHANDLE m_hOpenTrace{ 0 };
 	TRACEHANDLE m_hTrace{ 0 };
 	EVENT_TRACE_PROPERTIES* m_Properties;
 	std::unique_ptr<BYTE[]> m_PropertiesBuffer;
@@ -93,11 +95,12 @@ private:
 	wil::unique_handle m_hMemMap;
 	bool m_IsTraceProcesses{ false };
 	bool m_DumpUnnamedEvents{ false };
-	std::atomic<bool> m_IsPaused{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
 	std::unordered_map<GUID, int> m_Providers;
+	std::wstring m_LogFileName;
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
+	bool m_Continue{ false };
 };
 

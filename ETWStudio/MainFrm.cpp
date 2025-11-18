@@ -37,9 +37,7 @@ void CMainFrame::InitMenu() {
 		{ ID_SESSION_RUN, IDI_RUN },
 		{ ID_SESSION_STOP, IDI_STOP },
 		{ ID_VIEW_AUTOSCROLL, IDI_AUTOSCROLL },
-		//{ ID_EDIT_DELETE, IDI_CANCEL },
 		{ ID_EDIT_CLEAR_ALL, IDI_CLEAR },
-		{ ID_TRACING_REGISTEREDPROVIDERS, IDI_PROVIDERS },
 		{ ID_NEW_SESSION, IDI_SESSION },
 		{ ID_EDIT_FILTER, IDI_FILTER },
 		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
@@ -85,6 +83,8 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	UIAddToolBar(tb);
 
 	m_view.m_bTabCloseButton = false;
+	m_view.m_cchTabTextLength = 45;
+
 	m_hWndClient = m_view.Create(m_hWnd, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
 	UISetCheck(ID_VIEW_STATUS_BAR, 1);
@@ -100,7 +100,7 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	CImageList images;
 	images.Create(16, 16, ILC_COLOR32, 4, 4);
 	UINT icons[] = {
-		IDI_PROVIDERS, IDI_SESSION,
+		IDI_PROVIDERS, IDI_SESSION, IDI_PERF,
 	};
 	for (auto icon : icons)
 		images.AddIcon(AtlLoadIconImage(icon, 0, 16, 16));
@@ -295,6 +295,27 @@ LRESULT CMainFrame::OnViewTraceSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND
 	pView->Create(m_view, rcDefault, nullptr,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
 	m_view.AddPage(pView->m_hWnd, L"Sessions", 1, pView);
+	return 0;
+}
+
+LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	CSimpleFileDialog dlg(TRUE, L"etl", nullptr, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_ENABLESIZING,
+		L"Event Trace Files (*.etl)\0*.Etl\0CSV Files (*csv)\0*.csv\0All Files\0*.*\0");
+	ThemeHelper::Suspend();
+	bool ok = IDOK == dlg.DoModal();
+	ThemeHelper::Resume();
+	if(ok) {
+		auto session = std::make_unique<TraceSession>();
+		if (!session->OpenFile(dlg.m_szFileName)) {
+			AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
+			return 0;
+		}
+		auto view = new CLogView(this, std::move(session));
+		view->Create(m_view, rcDefault, nullptr,
+			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+		m_view.AddPage(view->m_hWnd, dlg.m_szFileTitle, 2, view);
+		PostMessage(WM_COMMAND, ID_SESSION_RUN);
+	}
 	return 0;
 }
 

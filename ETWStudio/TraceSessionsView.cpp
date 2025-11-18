@@ -55,6 +55,7 @@ void CTraceSessionsView::OnStateChanged(HWND, int from, int to, UINT oldState, U
 
 void CTraceSessionsView::Refresh() {
 	m_Sessions = TraceSessionInfo::EnumTraceSessions();
+	Sort(m_List);
 	m_List.SetItemCount((int)m_Sessions.size());
 }
 

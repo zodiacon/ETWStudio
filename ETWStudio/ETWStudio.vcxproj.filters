@@ -237,5 +237,11 @@
     <Image Include="res\Apply filter.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
+    <Image Include="res\perf.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\tracelog.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
   </ItemGroup>
 </Project>
