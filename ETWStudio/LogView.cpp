@@ -32,6 +32,7 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 			return std::format(L"{}", tid).c_str();
 		}
 		case ColumnType::Time: return StringHelper::TimeStampToString(evt.GetTimeStamp(), !m_Session->IsRealTimeSession()).c_str();
+		case ColumnType::CPU: return std::to_wstring(evt.GetCPU()).c_str();
 		case ColumnType::Index: return std::format(L"{}", evt.GetIndex()).c_str();
 		case ColumnType::EventName: return evt.GetEventStrings().Name.c_str();
 		case ColumnType::Task: return evt.GetEventStrings().Task.c_str();

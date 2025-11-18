@@ -125,11 +125,11 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 		m_TraceLog.LoggerName = m_SessionName.data();
 	else
 		m_TraceLog.LogFileName = m_LogFileName.data();
-	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | (m_SessionName.empty() ? 0 : PROCESS_TRACE_MODE_REAL_TIME);
+	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | (IsRealTimeSession() ? PROCESS_TRACE_MODE_REAL_TIME : 0);
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
 		auto session = ((TraceSession*)record->UserContext);
 		session->OnEventRecord(record);
-		if (session->LogFileName().empty()) {
+		if (session->IsRealTimeSession()) {
 			static auto time = ::GetTickCount64();
 			if (::GetTickCount64() - time > 5000) {
 				EnumProcesses();
@@ -137,8 +137,8 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 			}
 		}
 	};
-	m_hTrace = ::OpenTrace(&m_TraceLog);
-	if (!m_hTrace)
+	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
+	if (m_hOpenTrace == INVALID_PROCESSTRACE_HANDLE)
 		return false;
 
 	// create a dedicated thread to process the trace
@@ -159,11 +159,16 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 
 bool TraceSession::Stop() noexcept {
 	if (m_hTrace) {
-		if(IsRealTimeSession())
-			::ControlTrace(m_hTrace, nullptr, m_Properties, EVENT_TRACE_CONTROL_STOP);
+		assert(IsRealTimeSession());
+		::ControlTrace(m_hTrace, nullptr, m_Properties, EVENT_TRACE_CONTROL_STOP);
 		::CloseTrace(m_hTrace);
 		m_hTrace = 0;
 	}
+	if (m_hOpenTrace != INVALID_PROCESSTRACE_HANDLE) {
+		::CloseTrace(m_hOpenTrace);
+		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
+	}
+
 	if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 1000))
 		::TerminateThread(m_hProcessThread.get(), 1);
 	m_hProcessThread.reset();
@@ -172,7 +177,7 @@ bool TraceSession::Stop() noexcept {
 }
 
 bool TraceSession::IsRunning() const noexcept {
-	return m_hTrace != 0;
+	return m_hOpenTrace != INVALID_PROCESSTRACE_HANDLE;
 }
 
 std::wstring const& TraceSession::GetProcessImageById(DWORD pid) const {
@@ -272,9 +277,6 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
-	if (m_hTrace == 0)
-		return;
-
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {
 		//
 		// check if event should be filtered
@@ -309,12 +311,13 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 }
 
 DWORD TraceSession::Run() {
+	assert(m_hTrace != INVALID_PROCESSTRACE_HANDLE);
 	DWORD err;
 	if (m_LogFileName.empty()) {
 		EnumProcesses();
 		FILETIME now;
 		::GetSystemTimeAsFileTime(&now);
-		err = ::ProcessTrace(&m_hTrace, 1, &now, nullptr);
+		err = ::ProcessTrace(&m_hOpenTrace, 1, &now, nullptr);
 	}
 	else {
 		FILETIME ft;
@@ -323,10 +326,10 @@ DWORD TraceSession::Run() {
 			*(ULONGLONG*)&ft = m_LastEvent->GetTimeStamp();
 			start = &ft;
 		}
-		err = ::ProcessTrace(&m_hTrace, 1,  start, nullptr);
+		err = ::ProcessTrace(&m_hOpenTrace, 1,  start, nullptr);
 	}
-	::CloseTrace(m_hTrace);
-	m_hTrace = 0;
+	::CloseTrace(m_hOpenTrace);
+	m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
 	return err;
 }
 

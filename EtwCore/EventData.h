@@ -65,15 +65,15 @@ public:
 	DWORD GetProcessId() const;
 	DWORD GetThreadId() const;
 	EVENT_HEADER const& GetEventHeader() const;
-	ULONGLONG GetTimeStamp() const;
-	const GUID& GetProviderId() const;
+	ULONGLONG GetTimeStamp() const noexcept;
+	const GUID& GetProviderId() const noexcept;
 	const EVENT_DESCRIPTOR& GetEventDescriptor() const;
 	const std::wstring& GetProcessName() const;
-	uint32_t GetIndex() const;
+	uint32_t GetIndex() const noexcept;
 	EventStrings const& GetEventStrings() const;
-
+	int GetCPU() const noexcept;
 	const std::vector<EventProperty>& GetProperties() const;
-	const EventProperty* GetProperty(PCWSTR name) const;
+	const EventProperty* GetProperty(PCWSTR name) const noexcept;
 	std::wstring FormatProperty(const EventProperty& prop) const;
 
 protected:

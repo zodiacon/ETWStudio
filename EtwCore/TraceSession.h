@@ -78,6 +78,7 @@ private:
 
 	//TRACEHANDLE m_hOpenTrace{ 0 };
 	TRACEHANDLE m_hTrace{ 0 };
+	TRACEHANDLE m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
 	EVENT_TRACE_PROPERTIES* m_Properties;
 	std::unique_ptr<BYTE[]> m_PropertiesBuffer;
 	EVENT_TRACE_LOGFILE m_TraceLog = { 0 };

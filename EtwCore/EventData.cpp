@@ -84,11 +84,11 @@ EVENT_HEADER const& EventData::GetEventHeader() const {
 	return m_Header;
 }
 
-ULONGLONG EventData::GetTimeStamp() const {
+ULONGLONG EventData::GetTimeStamp() const noexcept {
 	return m_Header.TimeStamp.QuadPart;
 }
 
-const GUID& EventData::GetProviderId() const {
+const GUID& EventData::GetProviderId() const noexcept {
 	return m_Header.ProviderId;
 }
 
@@ -132,14 +132,14 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 	return m_Properties;
 }
 
-const EventProperty* EventData::GetProperty(PCWSTR name) const {
+const EventProperty* EventData::GetProperty(PCWSTR name) const noexcept {
 	for (auto& prop : GetProperties())
 		if (prop.Name == name)
 			return &prop;
 	return nullptr;
 }
 
-uint32_t EventData::GetIndex() const {
+uint32_t EventData::GetIndex() const noexcept {
 	return m_Index;
 }
 
@@ -219,4 +219,8 @@ EventStrings const& EventData::GetEventStrings() const {
 		m_Strings._HasValue = true;
 	}
 	return m_Strings;
+}
+
+int EventData::GetCPU() const noexcept {
+	return GetEventProcessorIndex(&m_Record);
 }
