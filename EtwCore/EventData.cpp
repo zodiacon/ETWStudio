@@ -48,8 +48,8 @@ EventData::~EventData() {
 void* EventData::operator new(size_t size) {
 	if (InterlockedIncrement(&s_Count) == 1) {
 		InitializeCriticalSection(&s_HeapLock);
-		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
-		s_hHeap2 = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
+		s_hHeap = ::HeapCreate(0, 1 << 24, 0);
+		s_hHeap2 = ::HeapCreate(0, 1 << 24, 0);
 		assert(s_hHeap && s_hHeap2);
 	}
 
@@ -110,6 +110,9 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 		EventProperty property(prop);
 		property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
 		ULONG len = prop.length;
+		if (prop.Flags & PropertyParamLength) {
+			len = m_Properties[len].GetValue<int16_t>();
+		}
 		if (len == 0) {
 			PROPERTY_DATA_DESCRIPTOR desc;
 			desc.PropertyName = (ULONGLONG)property.Name.c_str();

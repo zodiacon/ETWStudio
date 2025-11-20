@@ -78,6 +78,9 @@
     <ClCompile Include="TraceSessionsView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
+    <ClCompile Include="RomemView.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -132,6 +135,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraceSessionsView.h">
+      <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="RomemView.h">
       <Filter>Views</Filter>
     </ClInclude>
   </ItemGroup>

@@ -10,6 +10,7 @@
 #include "FullFindDlg.h"
 #include "AppSettings.h"
 #include "TraceSessionsView.h"
+#include "RomemView.h"
 
 const int WindowMenuPosition = 5;
 
@@ -217,7 +218,7 @@ LRESULT CMainFrame::OnWindowCloseAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*
 
 LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	int nPage = wID - ID_WINDOW_TABFIRST;
-	if(nPage < m_view.GetPageCount())
+	if (nPage < m_view.GetPageCount())
 		m_view.SetActivePage(nPage);
 
 	return 0;
@@ -228,7 +229,6 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 	auto session = std::make_unique<TraceSession>(name);
 	CSessionDlg dlg(this, *session);
 	if (IDOK == dlg.DoModal()) {
-		CWaitCursor wait;
 		if (!session->Init()) {
 			AtlMessageBox(m_hWnd, L"Failed to initialize trace session", IDS_TITLE, MB_ICONERROR);
 			return 0;
@@ -259,7 +259,7 @@ LRESULT CMainFrame::OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bH
 	if (m_ActivePage >= 0 && m_ActivePage < m_view.GetPageCount())
 		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 0, 0);
 	m_ActivePage = m_view.GetActivePage();
-	if(m_ActivePage >= 0)
+	if (m_ActivePage >= 0)
 		::SendMessage(m_view.GetPageHWND(m_ActivePage), WM_ACTIVATE, 1, 0);
 
 	return 0;
@@ -285,7 +285,7 @@ void CMainFrame::UpdateUI() {
 LRESULT CMainFrame::OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const {
 	::TrySubmitThreadpoolCallback([](auto, auto ctx) {
 		::ShellAbout(nullptr, L"ETW Studio", nullptr, nullptr);
-		}, nullptr, nullptr);
+	}, nullptr, nullptr);
 
 	return 0;
 }
@@ -304,7 +304,7 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	ThemeHelper::Suspend();
 	bool ok = IDOK == dlg.DoModal();
 	ThemeHelper::Resume();
-	if(ok) {
+	if (ok) {
 		auto session = std::make_unique<TraceSession>();
 		if (!session->OpenFile(dlg.m_szFileName)) {
 			AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
@@ -319,3 +319,43 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	return 0;
 }
 
+LRESULT CMainFrame::OnRomemRealTime(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	auto name = std::format(L"Romem_Session{}", m_view.GetPageCount() + 1);
+	auto session = std::make_unique<TraceSession>(name);
+	if (!session->Init()) {
+		AtlMessageBox(m_hWnd, L"Failed to initialize trace session", IDS_TITLE, MB_ICONERROR);
+		return 0;
+	}
+	PCWSTR sguid = L"{0473d05f-19cd-5921-634a-b26413b0183a}";
+	GUID guid;
+	ATLVERIFY(S_OK == ::CLSIDFromString(sguid, &guid));
+	session->AddProvider(guid, 0);
+
+	auto view = new CRomemView(this, std::move(session));
+	view->Create(m_view, rcDefault, nullptr,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+	m_view.AddPage(view->m_hWnd, name.c_str(), 1, view);
+	PostMessage(WM_COMMAND, ID_SESSION_RUN);
+	return 0;
+}
+
+LRESULT CMainFrame::OnRomemTraceFile(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	CSimpleFileDialog dlg(TRUE, L"etl", nullptr, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_ENABLESIZING,
+		L"Event Trace Files (*.etl)\0*.Etl\0");
+	ThemeHelper::Suspend();
+	bool ok = IDOK == dlg.DoModal();
+	ThemeHelper::Resume();
+	if (ok) {
+		auto session = std::make_unique<TraceSession>();
+		if (!session->OpenFile(dlg.m_szFileName)) {
+			AtlMessageBox(m_hWnd, L"Failed to open trace file", IDR_MAINFRAME, MB_ICONERROR);
+			return 0;
+		}
+		auto view = new CRomemView(this, std::move(session));
+		view->Create(m_view, rcDefault, nullptr,
+			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+		m_view.AddPage(view->m_hWnd, dlg.m_szFileTitle, 2, view);
+		PostMessage(WM_COMMAND, ID_SESSION_RUN);
+	}
+	return 0;
+}

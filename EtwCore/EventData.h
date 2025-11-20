@@ -90,7 +90,7 @@ private:
 	mutable std::vector<EventProperty> m_Properties;
 	uint32_t m_Index;
 	mutable EventStrings m_Strings;
-	PTRACE_EVENT_INFO m_EventInfo;
+	PTRACE_EVENT_INFO m_EventInfo{};
 	EVENT_RECORD m_Record;
 };
 

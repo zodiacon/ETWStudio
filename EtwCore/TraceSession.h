@@ -102,6 +102,7 @@ private:
 	std::wstring m_LogFileName;
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
+	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };
 };
 

@@ -346,6 +346,7 @@
     <ClCompile Include="PropertyFilter.cpp" />
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
+    <ClCompile Include="RomemView.cpp" />
     <ClCompile Include="SecurityHelper.cpp" />
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
@@ -366,6 +367,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ProvidersView.h" />
+    <ClInclude Include="RomemView.h" />
     <ClInclude Include="SecurityHelper.h" />
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />

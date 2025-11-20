@@ -149,8 +149,8 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 	::SetThreadDescription(m_hProcessThread.get(), L"ETW Processing Thread");
 	if (::WaitForSingleObject(m_hProcessThread.get(), 100) == WAIT_OBJECT_0) {
 		m_hProcessThread.reset();
-		::CloseTrace(m_hTrace);
-		m_hTrace = 0;
+		::CloseTrace(m_hOpenTrace);
+		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
 		return false;
 	}
 
@@ -277,6 +277,9 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
+	if (m_Paused)
+		return;
+
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {
 		//
 		// check if event should be filtered
@@ -452,10 +455,15 @@ bool TraceSession::SetBackupFile(PCWSTR path) {
 }
 
 void TraceSession::Pause(bool pause) noexcept {
-	if (pause)
-		Stop();
-	else
-		Start(nullptr, !m_LogFileName.empty());
+	if (IsRealTimeSession()) {
+		m_Paused = pause;
+	}
+	else {
+		if (pause)
+			Stop();
+		else
+			Start(nullptr, !m_LogFileName.empty());
+	}
 }
 
 bool TraceSession::IsRealTimeSession() const noexcept {

@@ -53,6 +53,9 @@ IDR_MAINFRAME MENU
 BEGIN
     POPUP "&File"
     BEGIN
+        MENUITEM "&Romem Session (Realtime)",   ID_FILE_ROMEMSESSION
+        MENUITEM "Open Romem Trace...",         ID_FILE_OPENROMEMTRACE
+        MENUITEM SEPARATOR
         MENUITEM "New &Session...",             ID_NEW_SESSION
         MENUITEM SEPARATOR
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN
