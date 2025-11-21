@@ -13,6 +13,18 @@
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
 }
 
+bool CLogView::OpenLogFile(PCWSTR path) {
+	m_Session = std::make_unique<TraceSession>();
+	m_Running = m_Session->OpenFile(path, [&](auto evt) {
+		if (!m_Session->IsRunning())
+			return;
+		std::lock_guard locker(m_EventsLock);
+		m_TempEvents.push_back(evt);
+	});
+	UpdateUI();
+	return m_Running;
+}
+
 CString CLogView::GetColumnText(HWND h, int row, int col) const {
 	auto& evt = *m_Events[row];
 	switch (GetColumnManager(h)->GetColumnTag<ColumnType>(col)) {
@@ -39,7 +51,7 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 		case ColumnType::Channel: return evt.GetEventStrings().Channel.c_str();
 		case ColumnType::Keyword: return evt.GetEventStrings().Keyword.c_str();
 		case ColumnType::OpCode: return std::format(L"{} ({})", evt.GetEventStrings().Opcode, evt.GetEventDescriptor().Opcode).c_str();
-		case ColumnType::Level: return evt.GetEventStrings().Level.c_str();
+		case ColumnType::Level: return StringHelper::LevelToString(evt.GetEventDescriptor().Level);// evt.GetEventStrings().Level.c_str();
 		case ColumnType::Message: return evt.GetEventStrings().Message.c_str();
 		case ColumnType::Attributes: return evt.GetEventStrings().EventAttributes.c_str();
 		case ColumnType::Properties: return GetProperties(evt).c_str();
@@ -69,7 +81,7 @@ void CLogView::DoSort(const SortInfo* si) {
 	};
 	if (m_Events.size() > 100000) {
 		CWaitCursor wait;
-		std::sort(std::execution::par_unseq, m_Events.begin(), m_Events.end(), compare);
+		std::sort(std::execution::par, m_Events.begin(), m_Events.end(), compare);
 	}
 	else {
 		std::ranges::sort(m_Events, compare);
@@ -119,6 +131,7 @@ void CLogView::UpdateUI() {
 	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
 	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
+	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
 }
 
 bool CLogView::DoSave(PCWSTR path) const {
@@ -160,13 +173,14 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 		images.AddIcon(AtlLoadIconImage(icon, 0, 16, 16));
 	m_List.SetImageList(images, LVSIL_SMALL);
 
+	auto realtimeSession = m_Session && m_Session->IsRealTimeSession();
 	auto cm = GetColumnManager(m_List);
 	cm->AddColumn(L"dummy", 0, 0, 0);
 	cm->AddColumn(L"#", LVCFMT_RIGHT, 70, ColumnType::Index);
 	cm->AddColumn(L"PID", LVCFMT_RIGHT, 60, ColumnType::PID);
-	if(m_Session->IsRealTimeSession())
+	if(realtimeSession)
 		cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
-	cm->AddColumn(L"Time", LVCFMT_RIGHT, m_Session->IsRealTimeSession() ? 90 : 150, ColumnType::Time);
+	cm->AddColumn(L"Time", LVCFMT_RIGHT, realtimeSession ? 90 : 150, ColumnType::Time);
 	cm->AddColumn(L"TID", LVCFMT_RIGHT, 60, ColumnType::TID);
 	cm->AddColumn(L"CPU", LVCFMT_RIGHT, 40, ColumnType::CPU);
 	cm->AddColumn(L"Level", 0, 80, ColumnType::Level);
@@ -180,14 +194,15 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Properties);
 	cm->DeleteColumn(0);
 
+	SetTimer(1, 1400, nullptr);
+
 	return 0;
 }
 
 LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 	std::unique_lock locker(m_EventsLock);
 	if (m_TempEvents.empty()) {
-		if (!m_Running)
-			KillTimer(id);
+		return 0;
 	}
 	else {
 		m_Events.insert(m_Events.end(), m_TempEvents.begin(), m_TempEvents.end());
@@ -254,11 +269,8 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 		}
 	}
 
-	SetTimer(1, 1000);
-	Frame()->UI().UISetCheck(ID_SESSION_RUN, true);
-	Frame()->UI().UISetCheck(ID_SESSION_STOP, false);
-	Frame()->SetStatusIcon(1, AtlLoadIconImage(IDI_RUN, 0, 16, 16));
 	m_Running = true;
+	UpdateUI();
 	return 0;
 }
 
@@ -267,10 +279,8 @@ LRESULT CLogView::OnStop(WORD, WORD, HWND, BOOL&) {
 		return 0;
 
 	m_Session->Pause(true);
-	Frame()->UI().UISetCheck(ID_SESSION_RUN, false);
-	Frame()->UI().UISetCheck(ID_SESSION_STOP, true);
-	Frame()->SetStatusIcon(1, AtlLoadIconImage(IDI_STOP, 0, 16, 16));
 	m_Running = false;
+	UpdateUI();
 
 	return 0;
 }

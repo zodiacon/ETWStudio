@@ -7,6 +7,9 @@
 #include <ThemeHelper.h>
 #include "SecurityHelper.h"
 #include "AppSettings.h"
+#include <DbgHelp.h>
+
+#pragma comment(lib, "Dbghelp.lib")
 
 CAppModule _Module;
 AppSettings g_Settings;
@@ -31,11 +34,17 @@ int Run(LPCTSTR /*lpstrCmdLine*/ = nullptr, int nCmdShow = SW_SHOWDEFAULT) {
 }
 
 int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lpstrCmdLine, int nCmdShow) {
-	HRESULT hRes = ::CoInitialize(NULL);
+	HRESULT hRes = ::CoInitialize(nullptr);
 	ATLASSERT(SUCCEEDED(hRes));
 
 	SecurityHelper::EnablePrivilege(SE_DEBUG_NAME);
 	SecurityHelper::EnablePrivilege(SE_SYSTEM_PROFILE_NAME);
+
+	::SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME | SYMOPT_LOAD_LINES
+#ifdef _DEBUG
+		| SYMOPT_DEBUG
+#endif
+	);
 
 	AtlInitCommonControls(ICC_BAR_CLASSES | ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES);
 	AppSettings::Get().LoadFromKey(L"SOFTWARE\\ScorpioSoftware\\ETWStudio");

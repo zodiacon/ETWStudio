@@ -9,9 +9,10 @@
 TraceSession::TraceSession(std::wstring name) : m_SessionName(std::move(name)) {
 }
 
-bool TraceSession::OpenFile(PCWSTR path) {
+bool TraceSession::OpenFile(PCWSTR path, EventCallback cb) {
 	m_LogFileName = path;
-	return true;
+	m_Callback = cb;
+	return Start(cb);
 }
 
 TraceSession::~TraceSession() {
@@ -107,7 +108,7 @@ std::vector<std::pair< const GUID, int>> TraceSession::GetProviders() const {
 }
 
 bool TraceSession::Start(EventCallback cb, bool cont) {
-	if(cb)
+	if (cb)
 		m_Callback = cb;
 	if (m_Callback == nullptr)
 		return false;
@@ -121,7 +122,7 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 	//}
 
 	m_TraceLog.Context = this;
-	if(m_LogFileName.empty())
+	if (m_LogFileName.empty())
 		m_TraceLog.LoggerName = m_SessionName.data();
 	else
 		m_TraceLog.LogFileName = m_LogFileName.data();
@@ -144,7 +145,7 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 	// create a dedicated thread to process the trace
 	m_hProcessThread.reset(::CreateThread(nullptr, 0, [](auto param) {
 		return ((TraceSession*)param)->Run();
-		}, this, 0, nullptr));
+	}, this, 0, nullptr));
 	::SetThreadPriority(m_hProcessThread.get(), THREAD_PRIORITY_HIGHEST);
 	::SetThreadDescription(m_hProcessThread.get(), L"ETW Processing Thread");
 	if (::WaitForSingleObject(m_hProcessThread.get(), 100) == WAIT_OBJECT_0) {
@@ -277,6 +278,9 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
+	if (m_Paused)
+		return;
+
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {
 		//
 		// check if event should be filtered
@@ -288,7 +292,7 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 	auto pid = rec->EventHeader.ProcessId;
 
-	std::shared_ptr<EventData> data(new EventData(rec, GetProcessImageById(pid), ++m_Index));
+	auto data = std::make_shared<EventData>(rec, GetProcessImageById(pid), ++m_Index);
 	bool processEvent = true;
 	if (::GetLastError() == ERROR_SUCCESS) {
 		processEvent = ParseProcessStartStop(data.get());
@@ -326,7 +330,7 @@ DWORD TraceSession::Run() {
 			*(ULONGLONG*)&ft = m_LastEvent->GetTimeStamp();
 			start = &ft;
 		}
-		err = ::ProcessTrace(&m_hOpenTrace, 1,  start, nullptr);
+		err = ::ProcessTrace(&m_hOpenTrace, 1, start, nullptr);
 	}
 	::CloseTrace(m_hOpenTrace);
 	m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
@@ -452,10 +456,15 @@ bool TraceSession::SetBackupFile(PCWSTR path) {
 }
 
 void TraceSession::Pause(bool pause) noexcept {
-	if (pause)
-		Stop();
-	else
-		Start(nullptr, !m_LogFileName.empty());
+	if (IsRealTimeSession()) {
+		m_Paused = pause;
+	}
+	else {
+		if (pause)
+			Stop();
+		else
+			Start(nullptr, !m_LogFileName.empty());
+	}
 }
 
 bool TraceSession::IsRealTimeSession() const noexcept {

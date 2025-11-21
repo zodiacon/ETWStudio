@@ -55,6 +55,10 @@ void CTraceSessionsView::OnStateChanged(HWND, int from, int to, UINT oldState, U
 
 void CTraceSessionsView::Refresh() {
 	m_Sessions = TraceSessionInfo::EnumTraceSessions();
+	for (auto& session : m_Sessions) {
+		auto providers = session.EnumProviders();
+		int zz = 9;
+	}
 	Sort(m_List);
 	m_List.SetItemCount((int)m_Sessions.size());
 }

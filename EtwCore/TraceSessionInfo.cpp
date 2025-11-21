@@ -38,3 +38,26 @@ std::vector<TraceSessionInfo> TraceSessionInfo::EnumTraceSessions() {
 	return sessions;
 }
 
+std::vector<TRACE_ENABLE_INFO> TraceSessionInfo::EnumProviders() const {
+	std::vector<TRACE_ENABLE_INFO> providers;
+	ULONG size = 0;
+	auto err = ::EnumerateTraceGuidsEx(TraceGuidQueryInfo, (PVOID)&Wnode.Guid, sizeof(GUID), nullptr, 0, &size);
+	if (err != ERROR_SUCCESS && err != ERROR_INSUFFICIENT_BUFFER)
+		return providers;
+	auto buffer = std::make_unique<uint8_t[]>(size);
+	if (!buffer)
+		return providers;
+	auto info = (TRACE_GUID_INFO*)buffer.get();
+	err = ::EnumerateTraceGuidsEx(TraceGuidQueryInfo, (PVOID)&Wnode.Guid, sizeof(GUID), info, size, &size);
+	if (err != ERROR_SUCCESS)
+		return providers;
+
+	auto inst = (TRACE_PROVIDER_INSTANCE_INFO*)PBYTE(info + 1);
+	for (ULONG i = 0; i < info->InstanceCount; i++) {
+		inst = (TRACE_PROVIDER_INSTANCE_INFO*)((PBYTE)inst + inst->NextOffset);
+		int zz = 9;
+		//providers.push_back(*inst);
+	}
+
+	return providers;
+}

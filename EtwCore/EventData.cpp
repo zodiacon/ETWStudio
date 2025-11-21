@@ -30,7 +30,7 @@ EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index
 	ULONG size = 0;
 	auto error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
 	if (error == ERROR_INSUFFICIENT_BUFFER) {
-		auto buffer = ::HeapAlloc(s_hHeap2, 0, size);
+		auto buffer = ::HeapAlloc(s_hHeap, 0, size);
 		auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
 		error = ::TdhGetEventInformation(rec, 0, nullptr, info, &size);
 		m_EventInfo = info;
@@ -42,30 +42,15 @@ EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index
 
 EventData::~EventData() {
 	if (m_EventInfo)
-		::HeapFree(s_hHeap2, HEAP_NO_SERIALIZE, m_EventInfo);
+		::HeapFree(s_hHeap, 0, m_EventInfo);
 }
 
 void* EventData::operator new(size_t size) {
-	if (InterlockedIncrement(&s_Count) == 1) {
-		InitializeCriticalSection(&s_HeapLock);
-		s_hHeap = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
-		s_hHeap2 = ::HeapCreate(HEAP_NO_SERIALIZE, 1 << 24, 0);
-		assert(s_hHeap && s_hHeap2);
-	}
-
 	return ::HeapAlloc(s_hHeap, 0, size);
 }
 
 void EventData::operator delete(void* p) {
 	::HeapFree(s_hHeap, 0, p);
-
-	if (InterlockedDecrement(&s_Count) == 0) {
-		if (s_hHeap) {
-			::HeapDestroy(s_hHeap);
-			::HeapDestroy(s_hHeap2);
-			s_hHeap = s_hHeap2 = nullptr;
-		}
-	}
 }
 
 DWORD EventData::GetProcessId() const {
@@ -97,38 +82,43 @@ const EVENT_DESCRIPTOR& EventData::GetEventDescriptor() const {
 }
 
 const std::vector<EventProperty>& EventData::GetProperties() const {
-	if (!m_Properties.empty() || m_EventInfo == nullptr)
-		return m_Properties;
+	std::lock_guard locker(m_Lock);
+	{
+		if (!m_Properties.empty() || m_EventInfo == nullptr)
+			return m_Properties;
 
-	auto info = m_EventInfo;
-	m_Properties.reserve(info->TopLevelPropertyCount);
-	auto userDataLength = m_Record.UserDataLength;
-	auto data = (BYTE*)m_Record.UserData;
+		auto info = m_EventInfo;
+		m_Properties.reserve(info->TopLevelPropertyCount);
+		auto userDataLength = m_Record.UserDataLength;
+		auto data = (BYTE*)m_Record.UserData;
 
-	for (ULONG i = 0; i < info->TopLevelPropertyCount && userDataLength > 0; i++) {
-		auto& prop = info->EventPropertyInfoArray[i];
-		EventProperty property(prop);
-		property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
-		ULONG len = prop.length;
-		if (len == 0) {
-			PROPERTY_DATA_DESCRIPTOR desc;
-			desc.PropertyName = (ULONGLONG)property.Name.c_str();
-			desc.ArrayIndex = ULONG_MAX;
-			::TdhGetPropertySize((PEVENT_RECORD)&m_Record, 0, nullptr, 1, &desc, &len);
-		}
-		if (len) {
-			auto d = property.Allocate(len);
-			if (d) {
-				::memcpy(d, data, len);
+		for (ULONG i = 0; i < info->TopLevelPropertyCount && userDataLength > 0; i++) {
+			auto& prop = info->EventPropertyInfoArray[i];
+			EventProperty property(prop);
+			property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
+			ULONG len = prop.length;
+			if (prop.Flags & PropertyParamLength)
+				len = m_Properties[len].GetValue<int16_t>();
+
+			if (len == 0) {
+				PROPERTY_DATA_DESCRIPTOR desc;
+				desc.PropertyName = (ULONGLONG)property.Name.c_str();
+				desc.ArrayIndex = ULONG_MAX;
+				::TdhGetPropertySize((PEVENT_RECORD)&m_Record, 0, nullptr, 1, &desc, &len);
 			}
-			data += len;
-			if (userDataLength < len)
-				break;
-			userDataLength -= (USHORT)len;
+			if (len) {
+				auto d = property.Allocate(len);
+				if (d) {
+					::memcpy(d, data, len);
+				}
+				data += len;
+				if (userDataLength < len)
+					break;
+				userDataLength -= (USHORT)len;
+			}
+			m_Properties.push_back(std::move(property));
 		}
-		m_Properties.push_back(std::move(property));
 	}
-
 	return m_Properties;
 }
 
@@ -182,6 +172,7 @@ void EventData::SetProcessName(std::wstring name) {
 
 EventStrings const& EventData::GetEventStrings() const {
 	if (!m_Strings._HasValue) {
+		m_Strings._HasValue = true;
 		auto info = m_EventInfo;
 		if (info) {
 			EventStrings str;
@@ -216,7 +207,6 @@ EventStrings const& EventData::GetEventStrings() const {
 				m_Strings.RelatedActivity = (PCWSTR)((PBYTE)info + info->RelatedActivityIDNameOffset);
 			}
 		}
-		m_Strings._HasValue = true;
 	}
 	return m_Strings;
 }

@@ -15,7 +15,7 @@ struct EventStrings {
 	std::wstring ProviderMessage;
 	std::wstring EventAttributes;
 	std::wstring RelatedActivity;
-	bool _HasValue{ false };
+	std::atomic<bool> _HasValue{ false };
 };
 
 struct EventProperty {
@@ -57,6 +57,9 @@ class EventData final {
 	friend class TraceSession;
 public:
 	EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index);
+	EventData(EventData const&) = delete;
+	EventData& operator=(EventData const&) = delete;
+
 	~EventData();
 
 	void* operator new(size_t size);
@@ -80,9 +83,7 @@ protected:
 	void SetProcessName(std::wstring name);
 
 private:
-	inline static HANDLE s_hHeap, s_hHeap2;
-	inline static CRITICAL_SECTION s_HeapLock = {0};
-	inline static volatile uint32_t s_Count = 0;
+	inline static HANDLE s_hHeap = ::HeapCreate(0, 1 << 24, 0);
 
 	EVENT_HEADER m_Header;
 	std::wstring m_ProcessName;
@@ -90,7 +91,8 @@ private:
 	mutable std::vector<EventProperty> m_Properties;
 	uint32_t m_Index;
 	mutable EventStrings m_Strings;
-	PTRACE_EVENT_INFO m_EventInfo;
+	PTRACE_EVENT_INFO m_EventInfo{};
 	EVENT_RECORD m_Record;
+	mutable std::recursive_mutex m_Lock;
 };
 

@@ -19,7 +19,7 @@ namespace std {
 class TraceSession final {
 public:
 	explicit TraceSession(std::wstring name = L"");
-	bool OpenFile(PCWSTR path);
+	bool OpenFile(PCWSTR path, EventCallback cb);
 	~TraceSession();
 	TraceSession(const TraceSession&) = delete;
 	TraceSession& operator=(const TraceSession&) = delete;
@@ -102,6 +102,8 @@ private:
 	std::wstring m_LogFileName;
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
+	TRACE_LOGFILE_HEADER m_LogFileHeader;
+	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };
 };
 

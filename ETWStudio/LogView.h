@@ -18,6 +18,7 @@ class CLogView :
 	public CVirtualListView<CLogView> {
 public:
 	CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session);
+	bool OpenLogFile(PCWSTR path);
 
 	CString GetColumnText(HWND, int row, int col) const;
 	void DoSort(const SortInfo* si);

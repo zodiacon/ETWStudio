@@ -240,6 +240,7 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 		view->Create(m_view, rcDefault, nullptr,
 			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
 		m_view.AddPage(view->m_hWnd, name.c_str(), 1, view);
+		PostMessage(WM_COMMAND, ID_SESSION_RUN);
 	}
 	return 0;
 }
@@ -305,16 +306,15 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	bool ok = IDOK == dlg.DoModal();
 	ThemeHelper::Resume();
 	if(ok) {
-		auto session = std::make_unique<TraceSession>();
-		if (!session->OpenFile(dlg.m_szFileName)) {
-			AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
-			return 0;
-		}
-		auto view = new CLogView(this, std::move(session));
+		auto view = new CLogView(this, nullptr);
 		view->Create(m_view, rcDefault, nullptr,
 			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+		if (!view->OpenLogFile(dlg.m_szFileName)) {
+			AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
+			view->DestroyWindow();
+			return 0;
+		}
 		m_view.AddPage(view->m_hWnd, dlg.m_szFileTitle, 2, view);
-		PostMessage(WM_COMMAND, ID_SESSION_RUN);
 	}
 	return 0;
 }
