@@ -201,6 +201,10 @@ IDI_FILTER_ADD          ICON                    "res\\Apply filter.ico"
 
 IDI_PERF                ICON                    "res\\perf.ico"
 
+IDI_LEFT                ICON                    "res\\left.ico"
+
+IDI_RIGHT               ICON                    "res\\right.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -300,7 +304,7 @@ STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFR
 CAPTION "Dialog"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    PUSHBUTTON      "Close",IDCANCEL,177,250,50,14
+    PUSHBUTTON      "Close",IDCANCEL,165,250,50,14
     CONTROL         "",IDC_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_OWNERDATA | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,129,367,111
     LTEXT           "PID:",IDC_STATIC,7,29,15,8
     EDITTEXT        IDC_PID,28,28,40,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
@@ -330,6 +334,8 @@ BEGIN
     EDITTEXT        IDC_PROVIDER,236,7,138,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
     LTEXT           "Version:",IDC_STATIC,313,68,27,8
     EDITTEXT        IDC_VERSION,345,65,29,14,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER,WS_EX_STATICEDGE
+    PUSHBUTTON      "Next Event",IDC_NEXT,231,246,43,19,BS_ICON
+    PUSHBUTTON      "Prev Event",IDC_PREV,103,246,43,19,BS_ICON
 END
 
 
@@ -568,7 +574,9 @@ BEGIN
     0, 0, 0, 0,
     0, 0, 100, 0,
     0, 0, 0, 0,
-    0, 0, 0, 0
+    0, 0, 0, 0,
+    50, 100, 0, 0,
+    50, 100, 0, 0
 END
 
 

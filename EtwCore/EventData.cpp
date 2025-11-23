@@ -97,8 +97,15 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 			EventProperty property(prop);
 			property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
 			ULONG len = prop.length;
-			if (prop.Flags & PropertyParamLength)
-				len = m_Properties[len].GetValue<int16_t>();
+			if (prop.Flags & PropertyParamLength) {
+				auto p = m_Properties[len].GetData();
+				auto plen = m_Properties[len].GetLength();
+				assert(plen <= sizeof(ULONG) && plen > 0);
+				if (plen > sizeof(ULONG))
+					plen = sizeof(ULONG);
+				len = 0;
+				memcpy(&len, p, plen);
+			}
 
 			if (len == 0) {
 				PROPERTY_DATA_DESCRIPTOR desc;

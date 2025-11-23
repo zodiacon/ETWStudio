@@ -93,6 +93,6 @@ private:
 	mutable EventStrings m_Strings;
 	PTRACE_EVENT_INFO m_EventInfo{};
 	EVENT_RECORD m_Record;
-	mutable std::recursive_mutex m_Lock;
+	mutable std::mutex m_Lock;
 };
 

@@ -119,7 +119,7 @@ bool CLogView::IsSortable(HWND h, int col) const {
 }
 
 void CLogView::ShowProperties(int index) const {
-	auto dlg = new CPropertiesDlg(m_Events[index], m_List.GetImageList(LVSIL_SMALL).GetIcon(GetRowImage(m_List, index, 0)));
+	auto dlg = new CPropertiesDlg(m_Events, index, m_List.GetImageList(LVSIL_SMALL).GetIcon(GetRowImage(m_List, index, 0)));
 	dlg->Create(m_hWnd);
 	dlg->ShowWindow(SW_SHOW);
 }
@@ -239,7 +239,10 @@ LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
 }
 
 LRESULT CLogView::OnDestroy(UINT, WPARAM, LPARAM, BOOL&) {
-	m_Session->Stop();
+	KillTimer(1);
+	m_Session->Stop(true);
+	m_Events.clear();
+
 	return 0;
 }
 

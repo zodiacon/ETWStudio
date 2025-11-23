@@ -16,7 +16,7 @@ bool TraceSession::OpenFile(PCWSTR path, EventCallback cb) {
 }
 
 TraceSession::~TraceSession() {
-	Stop();
+	Stop(true);
 }
 
 std::wstring const& TraceSession::SessionName() const noexcept {
@@ -158,7 +158,8 @@ bool TraceSession::Start(EventCallback cb, bool cont) {
 	return true;
 }
 
-bool TraceSession::Stop() noexcept {
+bool TraceSession::Stop(bool quit) noexcept {
+	m_Quit = quit;
 	if (m_hTrace) {
 		assert(IsRealTimeSession());
 		::ControlTrace(m_hTrace, nullptr, m_Properties, EVENT_TRACE_CONTROL_STOP);
@@ -169,10 +170,11 @@ bool TraceSession::Stop() noexcept {
 		::CloseTrace(m_hOpenTrace);
 		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
 	}
-
-	if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 1000))
-		::TerminateThread(m_hProcessThread.get(), 1);
-	m_hProcessThread.reset();
+	if (m_hProcessThread) {
+		if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 30000))
+			::TerminateThread(m_hProcessThread.get(), 1);
+		m_hProcessThread.reset();
+	}
 
 	return true;
 }
@@ -278,7 +280,7 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
-	if (m_Paused)
+	if (m_Quit || m_Paused)
 		return;
 
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {

@@ -394,6 +394,7 @@
     <Image Include="res\Filter.ico" />
     <Image Include="res\Find.ico" />
     <Image Include="res\highlight.ico" />
+    <Image Include="res\left.ico" />
     <Image Include="res\Open.ico" />
     <Image Include="res\perf.ico" />
     <Image Include="res\pin.ico" />
@@ -404,6 +405,7 @@
     <Image Include="res\provider2.ico" />
     <Image Include="res\providers.ico" />
     <Image Include="res\radio.ico" />
+    <Image Include="res\right.ico" />
     <Image Include="res\Save.ico" />
     <Image Include="res\Session.ico" />
     <Image Include="res\stop.ico" />

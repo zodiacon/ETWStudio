@@ -48,7 +48,7 @@ public:
 	bool IsRealTimeSession() const noexcept;
 	bool Init();
 	bool Start(EventCallback callback, bool cont = false);
-	bool Stop() noexcept;
+	bool Stop(bool quit = false) noexcept;
 	bool IsRunning() const noexcept;
 
 	void ResetIndex(uint32_t index = 0);
@@ -105,5 +105,6 @@ private:
 	TRACE_LOGFILE_HEADER m_LogFileHeader;
 	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };
+	bool m_Quit{ false };
 };
 

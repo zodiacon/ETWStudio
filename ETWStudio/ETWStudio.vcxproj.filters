@@ -243,5 +243,11 @@
     <Image Include="res\tracelog.ico">
       <Filter>Resource Files\Icons</Filter>
     </Image>
+    <Image Include="res\left.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\right.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
