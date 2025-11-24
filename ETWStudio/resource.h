@@ -47,8 +47,10 @@
 #define IDI_FILTER_ADD                  246
 #define IDI_PERF                        248
 #define IDI_LEFT                        249
-#define IDI_ICON2                       250
 #define IDI_RIGHT                       250
+#define IDD_KERNELPROVIDER              251
+#define IDI_ICON1                       253
+#define IDI_KERNEL                      253
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -116,14 +118,16 @@
 #define ID_SESSION_PROPERTIES           32798
 #define ID_TOOLS_TRACESESSIONS          32799
 #define ID_VIEW_REFRESH32800            32800
+#define ID_OPTIONS_SYMBOLPATH           32801
+#define ID_SESSION_CLOSE                32802
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        251
-#define _APS_NEXT_COMMAND_VALUE         32801
-#define _APS_NEXT_CONTROL_VALUE         1046
+#define _APS_NEXT_RESOURCE_VALUE        254
+#define _APS_NEXT_COMMAND_VALUE         32803
+#define _APS_NEXT_CONTROL_VALUE         1047
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

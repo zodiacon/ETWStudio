@@ -10,11 +10,13 @@ public:
 		SETTING(AlwaysOnTop, 0, SettingType::Bool);
 		SETTING(ViewStatusBar, 1, SettingType::Bool);
 		SETTING(DarkMode, 0, SettingType::Bool);
-	END_SETTINGS
+		SETTING(SymbolPath, L"", SettingType::String);
+		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
 	DEF_SETTING(AlwaysOnTop, bool)
 	DEF_SETTING(ViewStatusBar, bool)
 	DEF_SETTING(MainWindowPlacement, WINDOWPLACEMENT)
+	DEF_SETTING(SymbolPath, CString)
 };
 

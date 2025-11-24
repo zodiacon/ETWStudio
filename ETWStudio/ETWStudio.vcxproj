@@ -332,6 +332,7 @@
     <ClCompile Include="ETWStudio.cpp" />
     <ClCompile Include="FilterDlg.cpp" />
     <ClCompile Include="FullFindDlg.cpp" />
+    <ClCompile Include="KernelProviderDlg.cpp" />
     <ClCompile Include="LogView.cpp" />
     <ClCompile Include="MainFrm.cpp" />
     <ClCompile Include="pch.cpp">
@@ -358,6 +359,7 @@
     <ClInclude Include="FilterDlg.h" />
     <ClInclude Include="FullFindDlg.h" />
     <ClInclude Include="Interfaces.h" />
+    <ClInclude Include="KernelProviderDlg.h" />
     <ClInclude Include="LogView.h" />
     <ClInclude Include="MainFrm.h" />
     <ClInclude Include="PropertiesDlg.h" />
@@ -377,6 +379,7 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\Apply filter.ico" />
+    <Image Include="res\atom.ico" />
     <Image Include="res\autoscroll.ico" />
     <Image Include="res\bug_green.ico" />
     <Image Include="res\check.ico" />

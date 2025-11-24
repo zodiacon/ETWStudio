@@ -23,7 +23,9 @@ public:
 	struct ProviderInfo {
 		GUID Guid;
 		std::wstring Name;
-		UCHAR Level;
+		ULONGLONG MatchAllKeyword{ 0 };
+		ULONGLONG MatchAnyKeyword{ 0 };
+		UCHAR Level{ 0 };
 	};
 	std::vector<ProviderInfo> const& GetProviders() const;
 
@@ -31,6 +33,7 @@ public:
 		NOTIFY_HANDLER(IDC_ADD, BCN_DROPDOWN, OnProviderDropdown)
 		COMMAND_ID_HANDLER(ID_PROVIDER_REGISTERED, OnRegisteredProvider)
 		COMMAND_ID_HANDLER(ID_PROVIDER_GUID, OnGuidProvider)
+		COMMAND_ID_HANDLER(ID_PROVIDER_KERNEL, OnKernelProvider)
 		COMMAND_ID_HANDLER(IDC_BROWSE, OnBrowseFile)
 		COMMAND_ID_HANDLER(IDC_REMOVE, OnRemoveProvider)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
@@ -52,6 +55,7 @@ private:
 	LRESULT OnProviderDropdown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnRegisteredProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnGuidProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnKernelProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnRemoveProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	IMainFrame* m_pFrame;

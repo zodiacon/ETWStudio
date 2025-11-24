@@ -32,12 +32,14 @@ void CPropertiesDlg::UpdateEvent() {
 
     SetWindowText(std::format(L"Event {}", m_Data->GetIndex()).c_str());
 
-    SetDlgItemInt(IDC_PID, m_Data->GetProcessId(), FALSE);
-    SetDlgItemInt(IDC_TID, m_Data->GetThreadId(), FALSE);
+    if((int)m_Data->GetProcessId() >= 0)
+        SetDlgItemInt(IDC_PID, m_Data->GetProcessId());
+    if ((int)m_Data->GetThreadId() >= 0)
+        SetDlgItemInt(IDC_TID, m_Data->GetThreadId());
     SetDlgItemText(IDC_PNAME, m_Data->GetProcessName().c_str());
     SetDlgItemInt(IDC_INDEX, m_Data->GetIndex(), FALSE);
     SetDlgItemText(IDC_TIME, StringHelper::TimeStampToString(m_Data->GetTimeStamp()).c_str());
-    SetDlgItemText(IDC_LEVEL, m_Data->GetEventStrings().Level.c_str());
+    SetDlgItemText(IDC_LEVEL, m_Data->GetEventStrings().Level.empty() ? StringHelper::LevelToString(m_Data->GetEventDescriptor().Level) : m_Data->GetEventStrings().Level.c_str());
     SetDlgItemText(IDC_KEYWORD, m_Data->GetEventStrings().Keyword.c_str());
     SetDlgItemText(IDC_OPCODE, m_Data->GetEventStrings().Opcode.c_str());
     SetDlgItemText(IDC_CHANNEL, m_Data->GetEventStrings().Channel.c_str());

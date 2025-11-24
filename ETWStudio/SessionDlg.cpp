@@ -5,6 +5,7 @@
 #include "Interfaces.h"
 #include "StringHelper.h"
 #include "SimpleDlg.h"
+#include "KernelProviderDlg.h"
 
 CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit) : m_pFrame(frame), m_Session(session), m_Edit(edit) {
 }
@@ -15,6 +16,8 @@ CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
 		case 0: return pi.Name.c_str();
 		case 1: return StringHelper::GuidToString(pi.Guid).c_str();
 		case 2: return StringHelper::LevelToString(pi.Level);
+		case 3: return std::format(L"0x{:016X}", pi.MatchAllKeyword).c_str();
+		case 4: return std::format(L"0x{:016X}", pi.MatchAnyKeyword).c_str();
 	}
 	return L"";
 }
@@ -38,9 +41,11 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	m_List.SetExtendedListViewStyle(LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP);
 
 	auto cm = GetColumnManager(m_List);
-	cm->AddColumn(L"Name", 0, 200);
-	cm->AddColumn(L"GUID", 0, 200);
+	cm->AddColumn(L"Name", 0, 170);
+	cm->AddColumn(L"GUID", 0, 170);
 	cm->AddColumn(L"Level", 0, 60);
+	cm->AddColumn(L"Match All", LVCFMT_RIGHT, 120);
+	cm->AddColumn(L"Match Any", LVCFMT_RIGHT, 120);
 
 	if (m_Edit) {
 		for (auto& [guid, level] : m_Session.GetProviders()) {
@@ -106,7 +111,6 @@ LRESULT CSessionDlg::OnRegisteredProvider(WORD, WORD wID, HWND, BOOL&) {
 		ATLASSERT(p);
 		pi.Guid = p->Guid();
 		pi.Name = p->Name();
-		pi.Level = 0;
 		m_Providers.push_back(std::move(pi));
 		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 	}
@@ -121,9 +125,15 @@ LRESULT CSessionDlg::OnGuidProvider(WORD, WORD wID, HWND, BOOL&) {
 			AtlMessageBox(m_hWnd, L"Invalid GUID", IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
-		pi.Level = 0;
 		m_Providers.push_back(std::move(pi));
 		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+	}
+	return 0;
+}
+
+LRESULT CSessionDlg::OnKernelProvider(WORD, WORD wID, HWND, BOOL&) {
+	CKernelProviderDlg dlg;
+	if (IDOK == dlg.DoModal()) {
 	}
 	return 0;
 }

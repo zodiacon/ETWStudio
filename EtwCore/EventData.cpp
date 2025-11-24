@@ -105,6 +105,8 @@ const std::vector<EventProperty>& EventData::GetProperties() const {
 					plen = sizeof(ULONG);
 				len = 0;
 				memcpy(&len, p, plen);
+				if (len > userDataLength)
+					len = userDataLength;
 			}
 
 			if (len == 0) {

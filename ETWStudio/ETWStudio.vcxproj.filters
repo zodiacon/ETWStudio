@@ -78,6 +78,9 @@
     <ClCompile Include="TraceSessionsView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
+    <ClCompile Include="KernelProviderDlg.cpp">
+      <Filter>Dialogs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -133,6 +136,9 @@
     </ClInclude>
     <ClInclude Include="TraceSessionsView.h">
       <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelProviderDlg.h">
+      <Filter>Dialogs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -244,9 +250,12 @@
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\left.ico">
-      <Filter>Resource Files</Filter>
+      <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\right.ico">
+      <Filter>Resource Files\Icons</Filter>
+    </Image>
+    <Image Include="res\atom.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
