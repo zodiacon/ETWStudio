@@ -57,6 +57,10 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 		}
 		m_List.SetItemCount((int)m_Providers.size());
 		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
+		if (!m_Session.LogFileName().empty()) {
+			SetDlgItemText(IDC_PATH, m_Session.LogFileName().c_str());
+			CheckDlgButton(IDC_FILELOG, BST_CHECKED);
+		}
 	}
 	return 0;
 }
@@ -73,6 +77,11 @@ LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 		}
 		for (auto& p : m_Providers)
 			m_Session.AddProvider(p.Guid);
+		if (IsDlgButtonChecked(IDC_FILELOG)) {
+			CString path;
+			GetDlgItemText(IDC_PATH, path);
+			m_Session.SetLogFileName(path);
+		}
 	}
 	EndDialog(wID);
 	return 0;

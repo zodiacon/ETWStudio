@@ -10,7 +10,7 @@ class CPropertiesDlg :
 	public CVirtualListView<CPropertiesDlg>,
 	public CDialogHelper<CPropertiesDlg> {
 public:
-	CPropertiesDlg(std::vector<std::shared_ptr<EventData>> const& events, int index, HICON hIcon);
+	CPropertiesDlg(std::vector<EventData*> const& events, int index, HICON hIcon);
 
 	void OnFinalMessage(HWND) override;
 
@@ -45,8 +45,8 @@ private:
 	LRESULT OnPrevEvent(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
-	std::vector<std::shared_ptr<EventData>> const& m_Events;
-	std::shared_ptr<EventData> m_Data;
+	std::vector<EventData*> const& m_Events;
+	EventData* m_Data;
 	int m_Index;
 	HICON m_hIcon;
 };

@@ -256,7 +256,7 @@
       <Filter>Resource Files\Icons</Filter>
     </Image>
     <Image Include="res\atom.ico">
-      <Filter>Resource Files</Filter>
+      <Filter>Resource Files\Icons</Filter>
     </Image>
   </ItemGroup>
 </Project>

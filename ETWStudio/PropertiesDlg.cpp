@@ -5,7 +5,7 @@
 #include <EtwProvider.h>
 #include "AppSettings.h"
 
-CPropertiesDlg::CPropertiesDlg(std::vector<std::shared_ptr<EventData>> const& events, int index, HICON hIcon) :
+CPropertiesDlg::CPropertiesDlg(std::vector<EventData*> const& events, int index, HICON hIcon) :
     m_Events(events), m_Index(index), m_hIcon(hIcon) {
 }
 

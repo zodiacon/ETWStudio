@@ -88,11 +88,12 @@ private:
 	CListViewCtrl m_List;
 	CQuickFindEdit m_QuickFind;
 	std::unique_ptr<TraceSession> m_Session;
-	std::vector<std::shared_ptr<EventData>> m_Events;
-	std::vector<std::shared_ptr<EventData>> m_TempEvents;
+	std::vector<EventData*> m_Events;
+	std::vector<EventData*> m_TempEvents;
 	std::mutex m_EventsLock;
 	FilterManager m_FilterMgr;
 	bool m_AutoScroll{ false };
 	bool m_Running{ false };
 	bool m_Active{ false };
+	bool m_Done{ false };
 };

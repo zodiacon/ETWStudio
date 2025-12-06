@@ -15,7 +15,7 @@ CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : C
 
 bool CLogView::OpenLogFile(PCWSTR path) {
 	m_Session = std::make_unique<TraceSession>();
-	m_Running = m_Session->OpenFile(path, [&](auto evt) {
+	m_Running = m_Session->OpenFile(path, [&](EventData* evt) {
 		if (!m_Session->IsRunning())
 			return;
 		std::lock_guard locker(m_EventsLock);
@@ -131,6 +131,7 @@ void CLogView::UpdateUI() {
 	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
 	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
 	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
+	ui.UIEnable(ID_SESSION_PROPERTIES, !m_Running);
 	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
 }
 
@@ -200,6 +201,16 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 }
 
 LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
+	if (m_Done) {
+		KillTimer(1);
+		return 0;
+	}
+	if (!m_Done && m_Session->IsDone()) {
+		m_Done = true;
+		LRESULT result;
+		Frame()->SetStatusText(3, L"Log file processing complete");
+		return ProcessWindowMessage(m_hWnd, WM_COMMAND, ID_SESSION_STOP, 0, result, 1);
+	}
 	std::unique_lock locker(m_EventsLock);
 	if (m_TempEvents.empty()) {
 		return 0;
@@ -262,7 +273,7 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 	if (m_Session->IsRunning())
 		m_Session->Pause(false);
 	else {
-		auto ok = m_Session->Start([&](auto evt) {
+		auto ok = m_Session->Start([&](EventData* evt) {
 			std::lock_guard locker(m_EventsLock);
 			m_TempEvents.push_back(evt);
 			});
