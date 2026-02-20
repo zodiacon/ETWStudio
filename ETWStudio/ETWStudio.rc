@@ -222,8 +222,8 @@ FONT 9, "Segoe UI", 0, 0, 0x0
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,72,57,46,14
     ICON            IDR_MAINFRAME,IDC_STATIC,7,7,20,20
-    CTEXT           "ETW Studio v0.1",IDC_VERSION,44,7,114,13
-    CTEXT           "ETW Studio v0.1",IDC_COPYRIGHT,44,22,114,13
+    CTEXT           "ETW Studio v0.1",IDC_VERSION,41,7,114,13
+    CTEXT           "ETW Studio v0.1",IDC_COPYRIGHT,41,22,114,13
     CONTROL         "<a>https://github.com/zodiacon/ETWStudio</a>",IDC_LINK,
                     "SysLink",WS_TABSTOP,31,38,132,14
 END
@@ -478,7 +478,7 @@ BEGIN
             VALUE "FileDescription", "ETW Studio"
             VALUE "FileVersion", "0.3.0.0"
             VALUE "InternalName", "ETWStudio"
-            VALUE "LegalCopyright", "©2021-2025 Pavel Yosifovich"
+            VALUE "LegalCopyright", "©2021-2026 Pavel Yosifovich"
             VALUE "OriginalFilename", "ETWStudio.exe"
             VALUE "ProductName", "ETW Studio"
             VALUE "ProductVersion", "0.3.0.0"
@@ -614,7 +614,7 @@ END
 STRINGTABLE
 BEGIN
     IDR_MAINFRAME           "ETW Studio"
-    IDS_TITLE               "ETW Studio"
+    IDS_TITLE               "ETW Studio v0.3"
 END
 
 STRINGTABLE

@@ -28,7 +28,9 @@ public:
 	TraceSession(TraceSession&& other) = default;
 	TraceSession& operator=(TraceSession&&) = default;
 
-	std::vector<std::unique_ptr<EventData>> const& GetEvents() const noexcept;
+	std::vector<std::unique_ptr<EventData>> const& GetEvents() const noexcept {
+		return m_Events;
+	}
 
 	FilterManager& GetFilterManager();
 
