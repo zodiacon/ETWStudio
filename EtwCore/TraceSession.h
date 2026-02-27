@@ -32,7 +32,7 @@ public:
 		return m_Events;
 	}
 
-	FilterManager& GetFilterManager();
+	FilterManager& GetFilterManager() noexcept;
 
 	bool SetSessionName(std::wstring name) noexcept;
 	std::wstring const& SessionName() const noexcept;
@@ -90,7 +90,7 @@ private:
 	TRACEHANDLE m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
 	EVENT_TRACE_PROPERTIES* m_Properties;
 	std::unique_ptr<BYTE[]> m_PropertiesBuffer;
-	EVENT_TRACE_LOGFILE m_TraceLog { 0 };
+	EVENT_TRACE_LOGFILE m_TraceLog { nullptr };
 	wil::unique_handle m_hProcessThread;
 	union {
 		EventCallback m_Callback;

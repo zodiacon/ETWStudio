@@ -1,36 +1,34 @@
 #include "pch.h"
 #include "FilterBase.h"
 
-FilterBase::FilterBase() = default;
-
-bool FilterBase::IsEnabled() const {
+bool FilterBase::IsEnabled() const noexcept {
 	return m_IsEnabled;
 }
 
-void FilterBase::Enable(bool enable) {
+void FilterBase::Enable(bool enable) noexcept {
 	m_IsEnabled = enable;
 }
 
-CompareType FilterBase::GetCompareType() const {
+CompareType FilterBase::GetCompareType() const noexcept {
 	return m_Compare;
 }
 
-void FilterBase::SetCompareType(CompareType type) {
+void FilterBase::SetCompareType(CompareType type) noexcept {
 	m_Compare = type;
 }
 
-void FilterBase::SetResult(FilterResult result) {
+void FilterBase::SetResult(FilterResult result) noexcept {
 	m_Result = result;
 }
 
-FilterResult FilterBase::GetResult() const {
+FilterResult FilterBase::GetResult() const noexcept {
 	return m_Result;
 }
 
-FilterValue const& FilterBase::GetValue() const {
+FilterValue const& FilterBase::GetValue() const noexcept {
 	return m_Value;
 }
 
-void FilterBase::SetValue(FilterValue value) {
+void FilterBase::SetValue(FilterValue value) noexcept {
 	m_Value = std::move(value);
 }

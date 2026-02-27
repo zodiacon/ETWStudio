@@ -23,25 +23,25 @@ enum class CompareType {
 	NotInRange,
 };
 
-class FilterBase abstract {
+class FilterBase {
 public:
 	virtual FilterResult Eval(FilterValue const& value) = 0;
 	virtual std::unique_ptr<FilterBase> Clone() const = 0;
 
-	bool IsEnabled() const;
-	void Enable(bool enable);
+	bool IsEnabled() const noexcept;
+	void Enable(bool enable) noexcept;
 	
-	CompareType GetCompareType() const;
-	void SetCompareType(CompareType type);
+	CompareType GetCompareType() const noexcept;
+	void SetCompareType(CompareType type) noexcept;
 
-	void SetResult(FilterResult result);
-	FilterResult GetResult() const;
+	void SetResult(FilterResult result) noexcept;
+	FilterResult GetResult() const noexcept;
 
-	FilterValue const& GetValue() const;
-	void SetValue(FilterValue value);
+	FilterValue const& GetValue() const noexcept;
+	void SetValue(FilterValue value) noexcept;
 
 protected:
-	FilterBase();
+	FilterBase() = default;
 
 private:
 	std::wstring m_Name;

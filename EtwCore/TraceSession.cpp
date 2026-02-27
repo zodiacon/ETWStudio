@@ -39,7 +39,7 @@ bool TraceSession::IsDone() const noexcept {
 	return m_Done;
 }
 
-FilterManager& TraceSession::GetFilterManager() {
+FilterManager& TraceSession::GetFilterManager() noexcept {
 	return m_FilterMgr;
 }
 

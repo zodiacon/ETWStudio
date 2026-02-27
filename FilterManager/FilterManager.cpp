@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "FilterManager.h"
 
-FilterResult FilterManager::Eval(FilterValue const& value) {
+FilterResult FilterManager::Eval(FilterValue const& value) noexcept {
 	for (auto& filter : m_Filters) {
 		if (!filter->IsEnabled())
 			continue;

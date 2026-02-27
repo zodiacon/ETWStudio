@@ -6,9 +6,15 @@
 
 class FilterManager final {
 public:
+	FilterManager() = default;
+	FilterManager(FilterManager const&) = delete;
+	FilterManager& operator=(FilterManager const&) = delete;
+	FilterManager(FilterManager&&) = default;
+	FilterManager& operator=(FilterManager&&) = default;
+
 	FilterManager Clone() const;
 
-	FilterResult Eval(FilterValue const& value);
+	FilterResult Eval(FilterValue const& value) noexcept;
 
 	void AddFilter(std::unique_ptr<FilterBase> filter);
 	void SetDefaultResult(FilterResult result);
