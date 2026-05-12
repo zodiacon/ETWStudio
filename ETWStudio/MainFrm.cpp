@@ -224,7 +224,7 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 }
 
 LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
-	auto name = std::format(L"LogSession{}", m_view.GetPageCount() + 1);
+	auto name = std::format(L"ETWStudioSession{}", m_view.GetPageCount() + 1);
 	auto session = std::make_unique<TraceSession>(name);
 	CSessionDlg dlg(this, *session);
 	if (IDOK == dlg.DoModal()) {

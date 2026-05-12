@@ -110,7 +110,7 @@ bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids)
 	std::unordered_set<USHORT> events;
 	for (auto& id : ids)
 		events.insert(id);
-	m_EventIds.insert({ guid, std::move(events) });
+	m_EventIds.insert_or_assign(guid, std::move(events));
 
 	return true;
 }
@@ -166,9 +166,9 @@ bool TraceSession::IsRunning() const noexcept {
 	return m_hOpenTrace != INVALID_PROCESSTRACE_HANDLE;
 }
 
-std::wstring const& TraceSession::GetProcessImageById(DWORD pid) const {
-	std::shared_lock locker(m_ProcessesLock);
-	if (auto it = m_Processes.find(pid); it != m_Processes.end())
+std::wstring TraceSession::GetProcessImageById(DWORD pid) {
+	std::shared_lock locker(s_ProcessesLock);
+	if (auto it = s_Processes.find(pid); it != s_Processes.end())
 		return it->second.ImageName;
 	static std::wstring empty;
 	return empty;
@@ -185,15 +185,17 @@ void TraceSession::EnumProcesses() {
 	if (!::Process32First(hSnapshot.get(), &pe))
 		return;
 
-	m_Processes.clear();
-	m_Processes.reserve(512);
+	std::lock_guard locker(s_ProcessesLock);
+
+	s_Processes.clear();
+	s_Processes.reserve(512);
 
 	while (::Process32Next(hSnapshot.get(), &pe)) {
 		ProcessInfo pi;
 		pi.Id = pe.th32ProcessID;
 		pi.ImageName = pe.szExeFile;
 		pi.FullPath = GetProcessFullPath(pi.Id);
-		m_Processes.insert({ pe.th32ProcessID, std::move(pi) });
+		s_Processes.insert({ pe.th32ProcessID, std::move(pi) });
 	}
 }
 
@@ -282,12 +284,12 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 	if (::GetLastError() == ERROR_SUCCESS) {
 		processEvent = ParseProcessStartStop(data.get());
 
-		if (!processEvent && data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1) {
+		if (!processEvent && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
 			HandleNoProcessId(data.get());
 		}
 
 	}
-	if (m_Callback && (!processEvent || m_IsTraceProcesses)) {
+	if ((m_Callback || m_CallbackNoOwn) && (!processEvent || m_IsTraceProcesses)) {
 		if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
 			return;
 
@@ -402,9 +404,9 @@ bool TraceSession::StartCommon(bool cont) {
 	if (!m_LogFileName.empty())
 		m_TraceLog.LogFileName = m_LogFileName.data();
 	m_TraceLog.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | (IsRealTimeSession() ? PROCESS_TRACE_MODE_REAL_TIME : 0);
-	m_TraceLog.BufferCallback = [](auto etl) -> ULONG {
-		return ((TraceSession*)etl->Context)->IsRunning();
-	};
+	//m_TraceLog.BufferCallback = [](auto etl) -> ULONG {
+	//	return ((TraceSession*)etl->Context)->IsRunning();
+	//};
 
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
 		auto session = ((TraceSession*)record->UserContext);
@@ -449,17 +451,17 @@ std::wstring TraceSession::GetProcessFullPath(DWORD pid) {
 }
 
 void TraceSession::AddProcessName(DWORD pid, std::wstring name) {
-	std::lock_guard locker(m_ProcessesLock);
+	std::lock_guard locker(s_ProcessesLock);
 	ProcessInfo pi;
 	pi.Id = pid;
 	pi.ImageName = std::move(name);
 	pi.FullPath = GetProcessFullPath(pid);
-	m_Processes.insert({ pid, std::move(pi) });
+	s_Processes.insert({ pid, std::move(pi) });
 }
 
 bool TraceSession::RemoveProcessName(DWORD pid) {
-	std::lock_guard locker(m_ProcessesLock);
-	return m_Processes.erase(pid);
+	std::lock_guard locker(s_ProcessesLock);
+	return s_Processes.erase(pid);
 }
 
 std::wstring TraceSession::GetDosNameFromNtName(PCWSTR name) {
@@ -520,10 +522,10 @@ bool TraceSession::Init() {
 		::memset(m_PropertiesBuffer.get(), 0, size);
 
 		m_Properties = reinterpret_cast<EVENT_TRACE_PROPERTIES*>(m_PropertiesBuffer.get());
-		m_Properties->EnableFlags = (ULONG)KernelEventTypes::Process;
+		//m_Properties->EnableFlags = (ULONG)KernelEventTypes::Process;
 		m_Properties->Wnode.BufferSize = (ULONG)size;
 		//m_Properties->Wnode.Guid = sessionGuid;
-		m_Properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+		//m_Properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
 		m_Properties->Wnode.ClientContext = 1;
 		m_Properties->FlushTimer = 1;
 		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE; // | EVENT_TRACE_SYSTEM_LOGGER_MODE;
@@ -531,13 +533,13 @@ bool TraceSession::Init() {
 
 		error = ::StartTrace(&m_hTrace, m_SessionName.c_str(), m_Properties);
 		if (error == ERROR_ALREADY_EXISTS) {
-			error = ::ControlTrace(m_hTrace, m_SessionName.c_str(), m_Properties, EVENT_TRACE_CONTROL_STOP);
+			error = ::ControlTrace(0, m_SessionName.c_str(), m_Properties, EVENT_TRACE_CONTROL_STOP);
 			if (error != ERROR_SUCCESS)
 				return false;
 			continue;
 		}
 		for (auto& [p, level] : m_Providers) {
-			error = ::EnableTraceEx(&p, nullptr, m_hTrace, 1, level, 0, 0, 0, nullptr);
+			error = ::EnableTraceEx2(m_hTrace, &p, EVENT_CONTROL_CODE_ENABLE_PROVIDER, level, 0, 0, 0, nullptr);
 			if (error != ERROR_SUCCESS)
 				break;
 		}

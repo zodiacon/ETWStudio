@@ -126,7 +126,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -267,7 +267,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -304,7 +304,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -323,7 +323,7 @@
       </DllDataFileName>
     </Midl>
     <PostBuildEvent>
-      <Command>signtool sign /i DigiCert /fd sha256 $(TargetPath)</Command>
+      <Command>signtool sign /a /n Scorpio /t http://timestamp.digicert.com /fd sha256 $(TargetPath)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

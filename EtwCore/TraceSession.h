@@ -12,7 +12,7 @@ namespace std {
 	template<>
 	struct hash<GUID> {
 		size_t operator()(GUID const& guid) const {
-			return guid.Data1 ^ guid.Data3 * guid.Data3 + guid.Data4[1];
+			return guid.Data1 ^ guid.Data3 * guid.Data2 + guid.Data4[1];
 		}
 	};
 }
@@ -23,10 +23,6 @@ public:
 	bool OpenFile(PCWSTR path, EventCallback cb);
 	bool OpenFile(PCWSTR path, EventCallbackNoOwn cb);
 	~TraceSession();
-	TraceSession(const TraceSession&) = delete;
-	TraceSession& operator=(const TraceSession&) = delete;
-	TraceSession(TraceSession&& other) = default;
-	TraceSession& operator=(TraceSession&&) = default;
 
 	std::vector<std::unique_ptr<EventData>> const& GetEvents() const noexcept {
 		return m_Events;
@@ -62,14 +58,14 @@ public:
 	void ResetIndex(uint32_t index = 0);
 	int UpdateEventConfig();
 
-	std::wstring const& GetProcessImageById(DWORD pid) const;
+	static std::wstring GetProcessImageById(DWORD pid);
 	static std::wstring GetDosNameFromNtName(PCWSTR name);
 
 private:
 	bool StartCommon(bool cont);
 	static std::wstring GetProcessFullPath(DWORD pid);
-	void AddProcessName(DWORD pid, std::wstring name);
-	bool RemoveProcessName(DWORD pid);
+	static void AddProcessName(DWORD pid, std::wstring name);
+	static bool RemoveProcessName(DWORD pid);
 	static void EnumProcesses();
 	bool ParseProcessStartStop(EventData* data);
 	void OnEventRecord(PEVENT_RECORD rec);
@@ -88,18 +84,16 @@ private:
 	std::vector<std::unique_ptr<EventData>> m_Events;
 	TRACEHANDLE m_hTrace{ 0 };
 	TRACEHANDLE m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
-	EVENT_TRACE_PROPERTIES* m_Properties;
+	EVENT_TRACE_PROPERTIES* m_Properties{};
 	std::unique_ptr<BYTE[]> m_PropertiesBuffer;
 	EVENT_TRACE_LOGFILE m_TraceLog { nullptr };
 	wil::unique_handle m_hProcessThread;
-	union {
-		EventCallback m_Callback;
-		EventCallbackNoOwn m_CallbackNoOwn{};
-	};
+	EventCallback m_Callback{};
+	EventCallbackNoOwn m_CallbackNoOwn{};
 	std::unordered_set<KernelEventTypes> m_KernelEventTypes;
 	std::unordered_set<std::wstring> m_KernelEventStacks;
-	mutable std::shared_mutex m_ProcessesLock;
-	inline static std::unordered_map<DWORD, ProcessInfo> m_Processes;
+	inline static std::shared_mutex s_ProcessesLock;
+	inline static std::unordered_map<DWORD, ProcessInfo> s_Processes;
 	mutable std::unordered_map<ULONGLONG, std::wstring> m_KernelEventNames;
 	std::vector<DWORD> m_CleanupPids;
 	std::shared_ptr<EventData> m_LastEvent;

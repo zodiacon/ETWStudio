@@ -5,6 +5,7 @@
 #pragma once
 
 #include <DialogHelper.h>
+#include "resource.h"
 
 class CAboutDlg : 
 	public CDialogImpl<CAboutDlg>,
