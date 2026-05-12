@@ -501,13 +501,13 @@ void TraceSession::Pause(bool pause) noexcept {
 		if (pause)
 			Stop();
 		else {
-			m_StoreEvents ? Start(m_Callback, !m_LogFileName.empty()) : Start(m_CallbackNoOwn, !m_LogFileName.empty());
+			m_StoreEvents ? Start(m_CallbackNoOwn, !m_LogFileName.empty()) : Start(m_Callback, !m_LogFileName.empty());
 		}
 	}
 }
 
 bool TraceSession::IsRealTimeSession() const noexcept {
-	return m_Properties->LogFileMode & EVENT_TRACE_REAL_TIME_MODE;
+	return m_RealTimeSession;
 }
 
 bool TraceSession::Init() {
@@ -517,6 +517,7 @@ bool TraceSession::Init() {
 	auto size = sizeof(EVENT_TRACE_PROPERTIES) + (m_SessionName.length() + 1) * sizeof(WCHAR);
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);
 	ULONG error;
+	m_RealTimeSession = true;
 
 	for (;;) {
 		::memset(m_PropertiesBuffer.get(), 0, size);

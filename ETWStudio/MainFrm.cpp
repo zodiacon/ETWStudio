@@ -10,6 +10,7 @@
 #include "FullFindDlg.h"
 #include "AppSettings.h"
 #include "TraceSessionsView.h"
+#include <WTLHelper.h>
 
 const int WindowMenuPosition = 5;
 
@@ -25,11 +26,8 @@ BOOL CMainFrame::OnIdle() {
 	return FALSE;
 }
 
-void CMainFrame::InitMenu() {
-	struct {
-		UINT id, icon;
-		HICON hIcon = nullptr;
-	} cmds[] = {
+void CMainFrame::InitMenu(HMENU hMenu) {
+	MenuItemData cmds[] = {
 		{ ID_EDIT_COPY, IDI_COPY },
 		{ ID_EDIT_FIND, IDI_FIND },
 		{ ID_FILE_SAVE, IDI_SAVE },
@@ -44,13 +42,7 @@ void CMainFrame::InitMenu() {
 		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
 		{ ID_OPTIONS_ALWAYSONTOP, IDI_PIN },
 	};
-	for (auto& cmd : cmds) {
-		if (cmd.icon)
-			AddCommand(cmd.id, cmd.icon);
-		else
-			AddCommand(cmd.id, cmd.hIcon);
-	}
-	SetCheckIcon(IDI_CHECK, IDI_RADIO);
+	WTLHelper::InitMenu(hMenu, cmds, _countof(cmds));
 
 }
 
@@ -107,10 +99,11 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 
 	m_view.SetImageList(images);
 
-	InitMenu();
-	AddMenu(GetMenu());
+	InitMenu(GetMenu());
 	UIAddMenu(GetMenu());
 	UISetCheck(ID_VIEW_STATUS_BAR, AppSettings::Get().ViewStatusBar());
+	UISetCheck(ID_OPTIONS_DARKMODE, WTLHelper::IsDarkMode());
+
 	UpdateUI();
 
 	return 0;
@@ -246,7 +239,8 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 }
 
 UINT CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
-	return ShowContextMenu(hMenu, flags, x, y);
+	InitMenu(hMenu);
+	return (UINT)TrackPopupMenuEx(hMenu, flags, x, y, m_hWnd, nullptr);
 }
 
 LRESULT CMainFrame::OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {

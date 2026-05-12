@@ -114,5 +114,6 @@ private:
 	bool m_Quit{ false };
 	bool m_Done{ false };
 	bool m_StoreEvents{ true };
+	bool m_RealTimeSession{ false };
 };
 

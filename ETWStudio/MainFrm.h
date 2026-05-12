@@ -4,14 +4,12 @@
 
 #pragma once
 
-#include <OwnerDrawnMenu.h>
+#include <NativeCustomTabView.h>
 #include "Interfaces.h"
-#include "CustomTabView.h"
 
 class CMainFrame :
 	public CFrameWindowImpl<CMainFrame>,
 	public CAutoUpdateUI<CMainFrame>,
-	public COwnerDrawnMenu<CMainFrame>,
 	public CMessageFilter,
 	public IMainFrame,
 	public CIdleHandler {
@@ -54,13 +52,12 @@ public:
 		MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
 		MESSAGE_HANDLER(WM_MENUSELECT, [](auto, auto, auto, auto) { return 0; })
 		COMMAND_RANGE_HANDLER(ID_WINDOW_TABFIRST, ID_WINDOW_TABLAST, OnWindowActivate)
-		CHAIN_MSG_MAP(COwnerDrawnMenu<CMainFrame>)
 		CHAIN_MSG_MAP(CAutoUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
 
 private:
-	void InitMenu();
+	void InitMenu(HMENU);
 	void UpdateUI();
 	void SetAlwaysOnTop(bool onTop);
 
@@ -87,7 +84,7 @@ private:
 	LRESULT OnShowWindow(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
 	LRESULT OnViewTraceSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
-	CCustomTabView m_view;
+	CNativeCustomTabView m_view;
 	CMultiPaneStatusBarCtrl m_StatusBar;
 	int m_ActivePage{ -1 };
 };

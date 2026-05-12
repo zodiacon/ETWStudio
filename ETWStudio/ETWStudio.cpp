@@ -4,7 +4,7 @@
 #include "pch.h"
 #include "resource.h"
 #include "MainFrm.h"
-#include <ThemeHelper.h>
+#include <WTLHelper.h>
 #include "SecurityHelper.h"
 #include "AppSettings.h"
 #include <DbgHelp.h>
@@ -51,7 +51,8 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lp
 
 	hRes = _Module.Init(NULL, hInstance);
 	ATLASSERT(SUCCEEDED(hRes));
-	ThemeHelper::Init();
+	//ThemeHelper::Init();
+	WTLHelper::InitDarkMode();
 
 	int nRet = Run(lpstrCmdLine, nCmdShow);
 
