@@ -11,6 +11,7 @@
 #include "AppSettings.h"
 #include "TraceSessionsView.h"
 #include <WTLHelper.h>
+#include <DarkMode/DarkModeSubclass.h>
 
 const int WindowMenuPosition = 5;
 
@@ -243,6 +244,17 @@ UINT CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
 	return (UINT)TrackPopupMenuEx(hMenu, flags, x, y, m_hWnd, nullptr);
 }
 
+LRESULT CMainFrame::OnToggleDarkMode(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	auto& settings = AppSettings::Get();
+	settings.DarkMode(!settings.DarkMode());
+	WTLHelper::SwitchToMode(settings.DarkMode() ? DarkModeKind::Dark : DarkModeKind::Light, m_hWnd);
+	InitMenu(GetMenu());
+	DrawMenuBar();
+	UISetCheck(ID_OPTIONS_DARKMODE, WTLHelper::IsDarkMode());
+
+	return 0;
+}
+
 LRESULT CMainFrame::OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	CFullFindDlg dlg;
 	dlg.DoModal();
@@ -296,9 +308,9 @@ LRESULT CMainFrame::OnViewTraceSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND
 LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	CSimpleFileDialog dlg(TRUE, L"etl", nullptr, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_ENABLESIZING,
 		L"Event Trace Files (*.etl)\0*.Etl\0CSV Files (*csv)\0*.csv\0All Files\0*.*\0");
-	ThemeHelper::Suspend();
+	WTLHelper::SuspendHook();
 	bool ok = IDOK == dlg.DoModal();
-	ThemeHelper::Resume();
+	WTLHelper::ResumeHook();
 	if(ok) {
 		auto view = new CLogView(this, nullptr);
 		view->Create(m_view, rcDefault, nullptr,

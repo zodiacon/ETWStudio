@@ -2,7 +2,6 @@
 //
 
 #include "pch.h"
-#include "resource.h"
 #include "MainFrm.h"
 #include <WTLHelper.h>
 #include "SecurityHelper.h"
@@ -47,12 +46,14 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lp
 	);
 
 	AtlInitCommonControls(ICC_BAR_CLASSES | ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES);
-	AppSettings::Get().LoadFromKey(L"SOFTWARE\\ScorpioSoftware\\ETWStudio");
+	auto exist = AppSettings::Get().LoadFromKey(L"SOFTWARE\\ScorpioSoftware\\ETWStudio");
 
 	hRes = _Module.Init(NULL, hInstance);
 	ATLASSERT(SUCCEEDED(hRes));
-	//ThemeHelper::Init();
-	WTLHelper::InitDarkMode();
+	if (exist)
+		WTLHelper::InitDarkMode(AppSettings::Get().DarkMode() ? DarkModeKind::Dark : DarkModeKind::Light);
+	else
+		WTLHelper::InitDarkMode();
 
 	int nRet = Run(lpstrCmdLine, nCmdShow);
 
