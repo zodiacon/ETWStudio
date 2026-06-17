@@ -11,7 +11,6 @@
 #include "AppSettings.h"
 #include "TraceSessionsView.h"
 #include <WTLHelper.h>
-#include <DarkMode/DarkModeSubclass.h>
 
 const int WindowMenuPosition = 5;
 

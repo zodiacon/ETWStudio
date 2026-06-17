@@ -3,6 +3,7 @@
 #include "LogView.h"
 #include <SortHelper.h>
 #include <ClipboardHelper.h>
+#include <WTLHelper.h>
 #include "StringHelper.h"
 #include "FilterDlg.h"
 #include "PropertiesDlg.h"
@@ -330,11 +331,11 @@ LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) const {
-	ThemeHelper::Suspend();
+	WTLHelper::SuspendHook();
 	CSimpleFileDialog dlg(FALSE, L"log", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
 		L"Log Files (*.log)\0*.txt;*.log\0All Files\0*.*\0", m_hWnd);
 	auto ok = IDOK == dlg.DoModal();
-	ThemeHelper::Resume();
+	WTLHelper::ResumeHook();
 	if (ok) {
 		DoSave(dlg.m_szFileName);
 	}
