@@ -26,6 +26,8 @@ public:
 		ULONGLONG MatchAllKeyword{ 0 };
 		ULONGLONG MatchAnyKeyword{ 0 };
 		UCHAR Level{ 0 };
+		bool Kernel{ false };
+		KernelEventTypes KernelType{ KernelEventTypes::None };
 	};
 	std::vector<ProviderInfo> const& GetProviders() const;
 

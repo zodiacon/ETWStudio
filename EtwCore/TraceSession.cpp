@@ -75,6 +75,15 @@ bool TraceSession::SetKernelEventTypes(std::initializer_list<KernelEventTypes> t
 	return true;
 }
 
+bool TraceSession::SetKernelEventTypes(std::span<KernelEventTypes const> types) {
+	m_KernelEventTypes = std::unordered_set<KernelEventTypes>(types.begin(), types.end());
+	return true;
+}
+
+std::vector<KernelEventTypes> TraceSession::GetKernelEventTypes() const noexcept {
+	return std::vector<KernelEventTypes>(m_KernelEventTypes.begin(), m_KernelEventTypes.end());
+}
+
 bool TraceSession::SetKernelEventStacks(std::initializer_list<std::wstring> categories) {
 	m_KernelEventStacks = categories;
 	return true;
@@ -518,6 +527,7 @@ bool TraceSession::Init() {
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);
 	ULONG error;
 	m_RealTimeSession = true;
+	bool systemLogger = !m_KernelEventTypes.empty();
 
 	for (;;) {
 		::memset(m_PropertiesBuffer.get(), 0, size);
@@ -529,7 +539,7 @@ bool TraceSession::Init() {
 		//m_Properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
 		m_Properties->Wnode.ClientContext = 1;
 		m_Properties->FlushTimer = 1;
-		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE; // | EVENT_TRACE_SYSTEM_LOGGER_MODE;
+		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE | (systemLogger ? EVENT_TRACE_SYSTEM_LOGGER_MODE : 0);
 		m_Properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 
 		error = ::StartTrace(&m_hTrace, m_SessionName.c_str(), m_Properties);
@@ -538,6 +548,13 @@ bool TraceSession::Init() {
 			if (error != ERROR_SUCCESS)
 				return false;
 			continue;
+		}
+		if (error != ERROR_SUCCESS)
+			break;
+		if (systemLogger) {
+			error = (ULONG)UpdateEventConfig();
+			if (error != ERROR_SUCCESS)
+				break;
 		}
 		for (auto& [p, level] : m_Providers) {
 			error = ::EnableTraceEx2(m_hTrace, &p, EVENT_CONTROL_CODE_ENABLE_PROVIDER, level, 0, 0, 0, nullptr);

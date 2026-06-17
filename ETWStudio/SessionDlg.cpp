@@ -10,14 +10,33 @@
 CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit) : m_pFrame(frame), m_Session(session), m_Edit(edit) {
 }
 
+static CSessionDlg::ProviderInfo MakeKernelProvider(KernelEventTypes type) {
+	CSessionDlg::ProviderInfo pi;
+	pi.Kernel = true;
+	pi.KernelType = type;
+	pi.Guid = GUID_NULL;
+	bool first = true;
+	for (auto& cat : KernelEventCategory::GetAllCategories()) {
+		if (cat.EnableFlag != type)
+			continue;
+		if (!first)
+			pi.Name += L", ";
+		pi.Name += cat.Name;
+		if (first && cat.Guid)
+			pi.Guid = *cat.Guid;
+		first = false;
+	}
+	return pi;
+}
+
 CString CSessionDlg::GetColumnText(HWND, int row, int col) const {
 	auto& pi = m_Providers[row];
 	switch (col) {
-		case 0: return pi.Name.c_str();
+		case 0: return pi.Kernel ? (pi.Name + L" (Kernel)").c_str() : pi.Name.c_str();
 		case 1: return StringHelper::GuidToString(pi.Guid).c_str();
-		case 2: return StringHelper::LevelToString(pi.Level);
-		case 3: return std::format(L"0x{:016X}", pi.MatchAllKeyword).c_str();
-		case 4: return std::format(L"0x{:016X}", pi.MatchAnyKeyword).c_str();
+		case 2: return pi.Kernel ? L"" : StringHelper::LevelToString(pi.Level);
+		case 3: return pi.Kernel ? L"" : std::format(L"0x{:016X}", pi.MatchAllKeyword).c_str();
+		case 4: return pi.Kernel ? L"" : std::format(L"0x{:016X}", pi.MatchAnyKeyword).c_str();
 	}
 	return L"";
 }
@@ -55,6 +74,8 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 			pi.Name = StringHelper::ProviderGuidToName(guid);
 			m_Providers.push_back(std::move(pi));
 		}
+		for (auto type : m_Session.GetKernelEventTypes())
+			m_Providers.push_back(MakeKernelProvider(type));
 		m_List.SetItemCount((int)m_Providers.size());
 		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
 		if (!m_Session.LogFileName().empty()) {
@@ -75,8 +96,14 @@ LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 				IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
-		for (auto& p : m_Providers)
-			m_Session.AddProvider(p.Guid);
+		std::vector<KernelEventTypes> kernelTypes;
+		for (auto& p : m_Providers) {
+			if (p.Kernel)
+				kernelTypes.push_back(p.KernelType);
+			else
+				m_Session.AddProvider(p.Guid);
+		}
+		m_Session.SetKernelEventTypes(kernelTypes);
 		if (IsDlgButtonChecked(IDC_FILELOG)) {
 			CString path;
 			GetDlgItemText(IDC_PATH, path);
@@ -141,8 +168,17 @@ LRESULT CSessionDlg::OnGuidProvider(WORD, WORD wID, HWND, BOOL&) {
 }
 
 LRESULT CSessionDlg::OnKernelProvider(WORD, WORD wID, HWND, BOOL&) {
-	CKernelProviderDlg dlg;
+	std::vector<KernelEventTypes> current;
+	for (auto& p : m_Providers)
+		if (p.Kernel)
+			current.push_back(p.KernelType);
+
+	CKernelProviderDlg dlg(current);
 	if (IDOK == dlg.DoModal()) {
+		std::erase_if(m_Providers, [](auto& p) { return p.Kernel; });
+		for (auto type : dlg.GetSelectedTypes())
+			m_Providers.push_back(MakeKernelProvider(type));
+		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 	}
 	return 0;
 }

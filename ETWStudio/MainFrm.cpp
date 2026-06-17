@@ -227,7 +227,8 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 			return 0;
 		}
 		for (auto& p : dlg.GetProviders())
-			session->AddProvider(p.Guid, p.Level);
+			if (!p.Kernel)
+				session->AddProvider(p.Guid, p.Level);
 
 		auto view = new CLogView(this, std::move(session));
 		view->Create(m_view, rcDefault, nullptr,

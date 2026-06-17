@@ -39,6 +39,8 @@ public:
 
 	bool AddKernelEventTypes(std::initializer_list<KernelEventTypes> types);
 	bool SetKernelEventTypes(std::initializer_list<KernelEventTypes> types);
+	bool SetKernelEventTypes(std::span<KernelEventTypes const> types);
+	std::vector<KernelEventTypes> GetKernelEventTypes() const noexcept;
 	bool SetKernelEventStacks(std::initializer_list<std::wstring> categories);
 	bool AddProvider(GUID const& guid, int level = TRACE_LEVEL_INFORMATION);
 	bool AddProvider(std::wstring const& name, int level = TRACE_LEVEL_INFORMATION);
