@@ -196,8 +196,17 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Properties);
 	cm->DeleteColumn(0);
 
+	if (auto hFont = Frame()->GetFont())
+		m_List.SetFont(hFont);
+
 	SetTimer(1, 1400, nullptr);
 
+	return 0;
+}
+
+LRESULT CLogView::OnUpdateFont(UINT, WPARAM wParam, LPARAM, BOOL&) {
+	// a null font reverts the list to the default font
+	m_List.SetFont((HFONT)wParam);
 	return 0;
 }
 

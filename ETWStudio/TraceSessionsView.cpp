@@ -96,8 +96,17 @@ LRESULT CTraceSessionsView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Enable Flags", LVCFMT_RIGHT, 90, ColumnType::EnableFlags);
 	cm->DeleteColumn(0);
 
+	if (auto hFont = Frame()->GetFont())
+		m_List.SetFont(hFont);
+
 	Refresh();
 
+	return 0;
+}
+
+LRESULT CTraceSessionsView::OnUpdateFont(UINT, WPARAM wParam, LPARAM, BOOL&) {
+	// a null font reverts the list to the default font
+	m_List.SetFont((HFONT)wParam);
 	return 0;
 }
 

@@ -53,6 +53,8 @@ IDR_MAINFRAME MENU
 BEGIN
     POPUP "&File"
     BEGIN
+        MENUITEM "&Run as Administrator...",    ID_FILE_RUNASADMINISTRATOR
+        MENUITEM SEPARATOR
         MENUITEM "New &Session...",             ID_NEW_SESSION
         MENUITEM SEPARATOR
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN
@@ -99,6 +101,7 @@ BEGIN
     BEGIN
         MENUITEM "&Always On Top",              ID_OPTIONS_ALWAYSONTOP
         MENUITEM "&Font...",                    ID_OPTIONS_FONT
+        MENUITEM "&Reset Font",                 ID_OPTIONS_RESETFONT
         MENUITEM "&Dark Mode",                  ID_OPTIONS_DARKMODE
         MENUITEM "&Symbol Path...",             ID_OPTIONS_SYMBOLPATH
     END
@@ -614,7 +617,7 @@ END
 STRINGTABLE
 BEGIN
     IDR_MAINFRAME           "ETW Studio"
-    IDS_TITLE               "ETW Studio v0.3"
+    IDS_TITLE               "ETW Studio v0.4"
 END
 
 STRINGTABLE

@@ -11,6 +11,8 @@
 #include "AppSettings.h"
 #include "TraceSessionsView.h"
 #include <WTLHelper.h>
+#include <IconHelper.h>
+#include <SecurityHelper.h>
 
 const int WindowMenuPosition = 5;
 
@@ -41,6 +43,7 @@ void CMainFrame::InitMenu(HMENU hMenu) {
 		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
 		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
 		{ ID_OPTIONS_ALWAYSONTOP, IDI_PIN },
+		{ ID_FILE_RUNASADMINISTRATOR, 0, IconHelper::GetShieldIcon() },
 	};
 	WTLHelper::InitMenu(hMenu, cmds, _countof(cmds));
 
@@ -87,6 +90,10 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	pLoop->AddIdleHandler(this);
 
 	CMenuHandle menuMain = GetMenu();
+	if (SecurityHelper::IsRunningElevated()) {
+		menuMain.GetSubMenu(0).DeleteMenu(0, MF_BYPOSITION);
+		menuMain.GetSubMenu(0).DeleteMenu(0, MF_BYPOSITION);
+	}
 	m_view.SetWindowMenu(menuMain.GetSubMenu(WindowMenuPosition));
 
 	CImageList images;
@@ -98,6 +105,10 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 		images.AddIcon(AtlLoadIconImage(icon, 0, 16, 16));
 
 	m_view.SetImageList(images);
+
+	auto lf = AppSettings::Get().Font();
+	if (lf.lfFaceName[0])
+		m_Font.CreateFontIndirect(&lf);
 
 	InitMenu(GetMenu());
 	UIAddMenu(GetMenu());
@@ -131,6 +142,45 @@ void CMainFrame::SetStatusIcon(int pane, HICON hIcon) {
 
 CUpdateUIBase& CMainFrame::UI() {
 	return *this;
+}
+
+HFONT CMainFrame::GetFont() const {
+	return m_Font.m_hFont;
+}
+
+void CMainFrame::ApplyFontToAllPages() {
+	for (int i = 0; i < m_view.GetPageCount(); i++)
+		::SendMessage(m_view.GetPageHWND(i), WM_UPDATE_FONT, (WPARAM)m_Font.m_hFont, 0);
+}
+
+LRESULT CMainFrame::OnChangeFont(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	LOGFONT lf{};
+	if (m_Font.m_hFont)
+		m_Font.GetLogFont(&lf);
+	else
+		::GetObject(::GetStockObject(DEFAULT_GUI_FONT), sizeof(lf), &lf);
+
+	CFontDialog dlg(&lf, CF_SCREENFONTS | CF_FORCEFONTEXIST | CF_NOVERTFONTS, nullptr, m_hWnd);
+	WTLHelper::SuspendHook();
+	auto ok = IDOK == dlg.DoModal();
+	WTLHelper::ResumeHook();
+	if (ok) {
+		dlg.GetCurrentFont(&lf);
+		if (m_Font.m_hFont)
+			m_Font.DeleteObject();
+		m_Font.CreateFontIndirect(&lf);
+		AppSettings::Get().Font(lf);
+		ApplyFontToAllPages();
+	}
+	return 0;
+}
+
+LRESULT CMainFrame::OnResetFont(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	if (m_Font.m_hFont)
+		m_Font.DeleteObject();
+	AppSettings::Get().Font(LOGFONT{});
+	ApplyFontToAllPages();
+	return 0;
 }
 
 LRESULT CMainFrame::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled) {
@@ -325,3 +375,9 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	return 0;
 }
 
+LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	if (SecurityHelper::RunElevated(nullptr, true)) {
+		PostMessage(WM_CLOSE);
+	}
+	return 0;
+}

@@ -14,6 +14,7 @@ public:
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
+	DEF_SETTING(Font, LOGFONT)
 	DEF_SETTING(AlwaysOnTop, bool)
 	DEF_SETTING(ViewStatusBar, bool)
 	DEF_SETTING(MainWindowPlacement, WINDOWPLACEMENT)

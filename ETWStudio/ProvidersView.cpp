@@ -94,6 +94,20 @@ LRESULT CProvidersView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPar
 
 	InitProviderList();
 
+	if (auto hFont = Frame()->GetFont()) {
+		BOOL bh;
+		OnUpdateFont(WM_UPDATE_FONT, (WPARAM)hFont, 0, bh);
+	}
+
+	return 0;
+}
+
+LRESULT CProvidersView::OnUpdateFont(UINT, WPARAM wParam, LPARAM, BOOL&) {
+	// a null font reverts the lists to the default font
+	auto hFont = (HFONT)wParam;
+	m_ProviderList.SetFont(hFont);
+	m_EventList.SetFont(hFont);
+	m_PropList.SetFont(hFont);
 	return 0;
 }
 

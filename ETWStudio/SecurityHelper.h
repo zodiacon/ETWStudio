@@ -1,6 +1,6 @@
 #pragma once
 
-struct SecurityHelper abstract final {
+struct SecurityHelper final {
 	static bool EnablePrivilege(PCWSTR privilege);
 };
 
