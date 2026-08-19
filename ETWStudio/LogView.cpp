@@ -56,6 +56,7 @@ CString CLogView::GetColumnText(HWND h, int row, int col) const {
 		case ColumnType::Message: return evt.GetEventStrings().Message.c_str();
 		case ColumnType::Attributes: return evt.GetEventStrings().EventAttributes.c_str();
 		case ColumnType::Properties: return GetProperties(evt).c_str();
+		case ColumnType::Details: return GetDetails(evt).c_str();
 	}
 
 	return CString();
@@ -154,12 +155,17 @@ bool CLogView::DoSave(PCWSTR path) const {
 
 std::wstring CLogView::GetProperties(EventData const& evt) {
 	return std::to_wstring(evt.GetProperties().size());
+}
 
-	//std::wstring text;
-	//for (auto& prop : evt.GetProperties()) {
-	//	text += prop.Name + L": " + evt.FormatProperty(prop) + L";";
-	//}
-	//return text;
+std::wstring CLogView::GetDetails(EventData const& evt) {
+	if (evt.UserText.empty()) {
+		std::wstring text;
+		for (auto& prop : evt.GetProperties() | std::views::take(8)) {
+			text += prop.Name + L": " + evt.FormatProperty(prop) + L"; ";
+		}
+		evt.UserText = std::move(text);
+	}
+	return evt.UserText;
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
@@ -183,8 +189,8 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	if(realtimeSession)
 		cm->AddColumn(L"Process Name", 0, 160, ColumnType::ProcessName);
 	cm->AddColumn(L"Time", LVCFMT_RIGHT, realtimeSession ? 90 : 150, ColumnType::Time);
-	cm->AddColumn(L"TID", LVCFMT_RIGHT, 60, ColumnType::TID);
-	cm->AddColumn(L"CPU", LVCFMT_RIGHT, 40, ColumnType::CPU);
+	cm->AddColumn(L"TID", LVCFMT_RIGHT | LVCFMT_FIXED_WIDTH, 60, ColumnType::TID);
+	cm->AddColumn(L"CPU", LVCFMT_RIGHT | LVCFMT_FIXED_WIDTH, 40, ColumnType::CPU);
 	cm->AddColumn(L"Level", 0, 80, ColumnType::Level);
 	cm->AddColumn(L"Task", 0, 150, ColumnType::Task);
 	cm->AddColumn(L"Keyword", 0, 150, ColumnType::Keyword);
@@ -192,8 +198,9 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Channel", 0, 140, ColumnType::Channel);
 	cm->AddColumn(L"Name", 0, 100, ColumnType::EventName);
 	cm->AddColumn(L"Attributes", 0, 120, ColumnType::Attributes, ColumnFlags::None);
-	cm->AddColumn(L"Message", 0, 250, ColumnType::Message);
-	cm->AddColumn(L"Properties", LVCFMT_RIGHT, 60, ColumnType::Properties);
+	cm->AddColumn(L"Message", 0, 200, ColumnType::Message);
+	cm->AddColumn(L"Props", LVCFMT_RIGHT | LVCFMT_FIXED_WIDTH, 50, ColumnType::Properties);
+	cm->AddColumn(L"Details", 0, 400, ColumnType::Details);
 	cm->DeleteColumn(0);
 
 	if (auto hFont = Frame()->GetFont())

@@ -79,6 +79,8 @@ public:
 	const EventProperty* GetProperty(PCWSTR name) const noexcept;
 	std::wstring FormatProperty(const EventProperty& prop) const;
 
+	mutable std::wstring UserText;
+
 protected:
 	void SetProcessName(std::wstring name);
 

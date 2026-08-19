@@ -42,7 +42,6 @@ void CMainFrame::InitMenu(HMENU hMenu) {
 		{ ID_EDIT_FILTER, IDI_FILTER },
 		{ ID_EDIT_HIGHLIGHT, IDI_HIGHLIGHT },
 		{ ID_VIEW_PROPERTIES, IDI_PROPERTIES },
-		{ ID_OPTIONS_ALWAYSONTOP, IDI_PIN },
 		{ ID_FILE_RUNASADMINISTRATOR, 0, IconHelper::GetShieldIcon() },
 	};
 	WTLHelper::InitMenu(hMenu, cmds, _countof(cmds));

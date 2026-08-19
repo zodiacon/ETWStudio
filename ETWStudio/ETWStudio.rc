@@ -59,6 +59,8 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN
         MENUITEM "&Save...\tCtrl+S",            ID_FILE_SAVE
+        MENUITEM "&Load Session...",            ID_FILE_LOADSESSION
+        MENUITEM "Save Session...",             ID_FILE_SAVESESSION
         MENUITEM SEPARATOR
         MENUITEM "E&xit",                       ID_APP_EXIT
     END
