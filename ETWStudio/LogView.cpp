@@ -117,7 +117,7 @@ BOOL CLogView::OnRightClickList(HWND h, int row, int col, POINT const& pt) {
 }
 
 bool CLogView::IsSortable(HWND h, int col) const {
-	return !m_Running;
+	return !m_Running && static_cast<ColumnType>(GetColumnManager(h)->GetColumnTag(col)) != ColumnType::Details;
 }
 
 void CLogView::ShowProperties(int index) const {

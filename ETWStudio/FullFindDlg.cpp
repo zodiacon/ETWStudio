@@ -2,8 +2,18 @@
 #include "resource.h"
 #include "FullFindDlg.h"
 #include <EtwProvider.h>
+#include <SortHelper.h>
 
 void CFullFindDlg::DoSort(SortInfo const* si) {
+	auto compare = [&](auto& i1, auto& i2) {
+		switch (si->SortColumn) {
+			case 0: return SortHelper::Sort(i1.Provider, i2.Provider, si->SortAscending);
+			case 1: return SortHelper::Sort(i1.Event, i2.Event, si->SortAscending);
+			case 2: return SortHelper::Sort(i1.Property, i2.Property, si->SortAscending);
+		}
+		return false;
+	};
+	std::sort(m_Items.begin(), m_Items.end(), compare);
 }
 
 CString CFullFindDlg::GetColumnText(HWND h, int row, int col) const {
@@ -13,7 +23,7 @@ CString CFullFindDlg::GetColumnText(HWND h, int row, int col) const {
 		case 1: return item.Event.c_str();
 		case 2: return item.Property.c_str();
 	}
-	return CString();
+	return L"";
 }
 
 int CFullFindDlg::GetRowImage(HWND, int row, int col) const {
