@@ -179,6 +179,8 @@ void DumpProviders(const std::wstring& filter, bool includeProperties) {
 }
 
 int wmain(int argc, const wchar_t* argv[]) {
+	::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY | COINIT_DISABLE_OLE1DDE);
+
 	if (argc == 1) {
 		DumpAllProviders();
 		return 0;

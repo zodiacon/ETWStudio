@@ -94,11 +94,19 @@ public:
 private:
 	int32_t MofEventCount() const;
 
+	//
+	// MOF providers have no TDH enumeration API, so the schema is walked once out of
+	// the root\WMI class hierarchy and cached into m_Events / m_EventInfo, which lets
+	// EventCount / GetProviderEvents / EventInfo behave the same for both sources.
+	//
+	bool BuildMofSchema() const;
+
 	GUID m_Guid;
 	std::wstring m_name, m_GuidString;
 	EtwSchemaSource m_Source;
 	mutable std::vector<EVENT_DESCRIPTOR> m_Events;
 	mutable int32_t m_EventCount{ -1 };
 	mutable std::unordered_map<ULONG, EtwEventInfo> m_EventInfo;
+	mutable bool m_MofSchemaBuilt{ false };
 };
 

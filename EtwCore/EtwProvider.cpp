@@ -8,6 +8,18 @@
 
 #pragma comment(lib, "tdh")
 
+//
+// m_EventInfo key. Manifest events are identified by (id, version), but classic (MOF)
+// events always have id 0 and are identified by (opcode, version) instead.
+//
+static ULONG ManifestEventKey(EVENT_DESCRIPTOR const& desc) {
+	return ((ULONG)desc.Id << 8) | desc.Version;
+}
+
+static ULONG MofEventKey(EVENT_DESCRIPTOR const& desc) {
+	return ((ULONG)desc.Opcode << 8) | desc.Version;
+}
+
 EtwProvider::EtwProvider(GUID const& guid, PCWSTR name, EtwSchemaSource source) : m_Guid(guid), m_name(name), m_Source(source) {
 	WCHAR sguid[64];
 	if (::StringFromGUID2(guid, sguid, _countof(sguid)))
@@ -92,6 +104,11 @@ EtwSchemaSource EtwProvider::SchemaSource() const {
 
 std::vector<EVENT_DESCRIPTOR> const& EtwProvider::GetProviderEvents() const {
 	std::vector<EVENT_DESCRIPTOR> events;
+	if (m_Source == EtwSchemaSource::Mof) {
+		BuildMofSchema();
+		return m_Events;
+	}
+
 	if (m_EventCount == 0)
 		return m_Events;
 
@@ -123,7 +140,15 @@ std::vector<EVENT_DESCRIPTOR> const& EtwProvider::GetProviderEvents() const {
 EtwEventInfo const& EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
 	static EtwEventInfo dummy;
 
-	ULONG id = ((ULONG)desc.Id << 8) | desc.Version;
+	if (m_Source == EtwSchemaSource::Mof) {
+		// the whole MOF schema is built in one WMI walk, so it is either cached or absent
+		BuildMofSchema();
+		if (auto it = m_EventInfo.find(MofEventKey(desc)); it != m_EventInfo.end())
+			return it->second;
+		return dummy;
+	}
+
+	ULONG id = ManifestEventKey(desc);
 	if (auto it = m_EventInfo.find(id); it != m_EventInfo.end())
 		return it->second;
 
@@ -241,44 +266,366 @@ std::vector<EtwFieldInfo> EtwProvider::FieldInfo(EtwFieldType type) const {
 }
 
 int32_t EtwProvider::MofEventCount() const {
-	wil::com_ptr<IWbemServices> spWmi;
-	WMIHelper::Init(nullptr, L"root\\WMI", spWmi.addressof());
-	if (!spWmi)
-		return 0;
+	BuildMofSchema();
+	return m_EventCount < 0 ? 0 : m_EventCount;
+}
 
-	wil::com_ptr<IEnumWbemClassObject> spEnum;
-	spWmi->ExecQuery(CComBSTR(L"WQL"), CComBSTR(L"SELECT * FROM meta_class WHERE __superclass = 'EventTrace'"),
-		WBEM_FLAG_FORWARD_ONLY, nullptr, spEnum.addressof());
-	if (spEnum) {
-		wil::com_ptr<IWbemClassObject> spClass;
-		ULONG ret;
-		while (S_OK == spEnum->Next(WBEM_INFINITE, 1, spClass.addressof(), &ret)) {
-			wil::com_ptr<IWbemQualifierSet> spQualifiers;
-			spClass->GetQualifierSet(spQualifiers.addressof());
-			if (spQualifiers) {
-				CComVariant value;
-				if (S_OK == spQualifiers->Get(L"guid", 0, &value, nullptr) && _wcsicmp(value.bstrVal, m_GuidString.c_str()) == 0) {
-					auto className = WMIHelper::GetStringProperty(spClass.get(), L"__CLASS");
-					spEnum.reset();
-					spWmi->ExecQuery(CComBSTR(L"WQL"), CComBSTR((L"SELECT * FROM meta_class WHERE __superclass = '" + className + L"'").c_str()),
-						WBEM_FLAG_FORWARD_ONLY, nullptr, spEnum.addressof());
-					if (spEnum) {
-						wil::com_ptr<IWbemClassObject> spObject;
-						while (S_OK == spEnum->Next(WBEM_INFINITE, 1, spObject.addressof(), &ret)) {
-							wil::com_ptr<IWbemQualifierSet> spQualifiers;
-							spObject->GetQualifierSet(spQualifiers.addressof());
-							if (spQualifiers) {
-								CComVariant value;
-								auto names = WMIHelper::GetNames(spQualifiers.get());
-								if (S_OK == spQualifiers->Get(L"displayname", 0, &value, nullptr)) {
+//
+// MOF schema walk.
+//
+// The ETW MOF classes in root\WMI form a three-level hierarchy below EventTrace:
+//
+//   EventTrace
+//    +- Process                     Guid("{3d6fa8d0-...}")            provider class
+//        +- Process_V2              EventVersion(2)                   version class
+//            +- Process_V2_TypeGroup1
+//                                   EventType({1,2,3,4})
+//                                   EventTypeName({"Start","End",...})
+//                                   [WmiDataId(1)] uint32 ProcessId; ...
+//
+// Providers that never versioned their events hang the type groups directly off the
+// provider class, so a type group is recognized by carrying an EventType qualifier
+// rather than by its depth.
+//
+namespace {
+	struct MofClass {
+		wil::com_ptr<IWbemClassObject> Object;
+		std::wstring Name;
+	};
 
-								}
-							}
-						}
+	struct MofEvent {
+		UCHAR Type;
+		UCHAR Version;
+		std::wstring Name;
+		std::vector<EtwEventProperty> Properties;
+	};
+
+	bool HasQualifier(IWbemQualifierSet* qualifiers, PCWSTR name) {
+		if (qualifiers == nullptr)
+			return false;
+		CComVariant value;
+		return S_OK == qualifiers->Get(name, 0, &value, nullptr);
+	}
+
+	std::wstring GetStringQualifier(IWbemQualifierSet* qualifiers, PCWSTR name) {
+		if (qualifiers == nullptr)
+			return L"";
+		CComVariant value;
+		if (S_OK != qualifiers->Get(name, 0, &value, nullptr) || value.vt != VT_BSTR)
+			return L"";
+		return value.bstrVal;
+	}
+
+	int32_t GetIntQualifier(IWbemQualifierSet* qualifiers, PCWSTR name, int32_t defaultValue) {
+		if (qualifiers == nullptr)
+			return defaultValue;
+		CComVariant value;
+		if (S_OK != qualifiers->Get(name, 0, &value, nullptr))
+			return defaultValue;
+		if (value.vt == VT_I4)
+			return value.lVal;
+		if (SUCCEEDED(value.ChangeType(VT_I4)))
+			return value.lVal;
+		return defaultValue;
+	}
+
+	//
+	// EventType/EventTypeName are single valued when the group covers one event and
+	// SAFEARRAYs (parallel to each other) when it covers several.
+	//
+	std::vector<int32_t> GetInt32Qualifiers(IWbemQualifierSet* qualifiers, PCWSTR name) {
+		std::vector<int32_t> values;
+		if (qualifiers == nullptr)
+			return values;
+
+		CComVariant value;
+		if (S_OK != qualifiers->Get(name, 0, &value, nullptr))
+			return values;
+
+		if (value.vt == VT_I4) {
+			values.push_back(value.lVal);
+		}
+		else if (value.vt == (VT_ARRAY | VT_I4)) {
+			LONG lower, upper;
+			if (SUCCEEDED(::SafeArrayGetLBound(value.parray, 1, &lower)) &&
+				SUCCEEDED(::SafeArrayGetUBound(value.parray, 1, &upper))) {
+				for (LONG i = lower; i <= upper; i++) {
+					LONG item;
+					if (SUCCEEDED(::SafeArrayGetElement(value.parray, &i, &item)))
+						values.push_back(item);
+				}
+			}
+		}
+		return values;
+	}
+
+	std::vector<std::wstring> GetStringQualifiers(IWbemQualifierSet* qualifiers, PCWSTR name) {
+		std::vector<std::wstring> values;
+		if (qualifiers == nullptr)
+			return values;
+
+		CComVariant value;
+		if (S_OK != qualifiers->Get(name, 0, &value, nullptr))
+			return values;
+
+		if (value.vt == VT_BSTR) {
+			values.push_back(value.bstrVal);
+		}
+		else if (value.vt == (VT_ARRAY | VT_BSTR)) {
+			LONG lower, upper;
+			if (SUCCEEDED(::SafeArrayGetLBound(value.parray, 1, &lower)) &&
+				SUCCEEDED(::SafeArrayGetUBound(value.parray, 1, &upper))) {
+				for (LONG i = lower; i <= upper; i++) {
+					BSTR item = nullptr;
+					if (SUCCEEDED(::SafeArrayGetElement(value.parray, &i, &item))) {
+						CComBSTR owned;
+						owned.Attach(item);
+						values.push_back(owned.m_str ? owned.m_str : L"");
 					}
 				}
 			}
 		}
+		return values;
 	}
-	return 0;
+
+	std::vector<MofClass> EnumSubClasses(IWbemServices* wmi, PCWSTR superClass) {
+		std::vector<MofClass> classes;
+
+		auto query = L"SELECT * FROM meta_class WHERE __superclass = '" + std::wstring(superClass) + L"'";
+		wil::com_ptr<IEnumWbemClassObject> spEnum;
+		if (FAILED(wmi->ExecQuery(CComBSTR(L"WQL"), CComBSTR(query.c_str()),
+			WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, nullptr, spEnum.put())) || !spEnum)
+			return classes;
+
+		for (;;) {
+			// a fresh com_ptr per iteration - put() releases, addressof() would leak
+			wil::com_ptr<IWbemClassObject> spClass;
+			ULONG returned = 0;
+			if (S_OK != spEnum->Next(WBEM_INFINITE, 1, spClass.put(), &returned) || returned == 0)
+				break;
+
+			MofClass mc;
+			mc.Name = WMIHelper::GetStringProperty(spClass.get(), L"__CLASS");
+			mc.Object = std::move(spClass);
+			classes.push_back(std::move(mc));
+		}
+		return classes;
+	}
+
+	void MapMofPropertyType(CIMTYPE cimType, IWbemQualifierSet* qualifiers, EtwEventProperty& prop) {
+		USHORT inType = TDH_INTYPE_BINARY, outType = TDH_OUTTYPE_NULL;
+
+		switch (cimType & ~CIM_FLAG_ARRAY) {
+			case CIM_SINT8:   inType = TDH_INTYPE_INT8; break;
+			case CIM_UINT8:   inType = TDH_INTYPE_UINT8; break;
+			case CIM_SINT16:  inType = TDH_INTYPE_INT16; break;
+			case CIM_UINT16:  inType = TDH_INTYPE_UINT16; break;
+			case CIM_SINT32:  inType = TDH_INTYPE_INT32; break;
+			case CIM_UINT32:  inType = TDH_INTYPE_UINT32; break;
+			case CIM_SINT64:  inType = TDH_INTYPE_INT64; break;
+			case CIM_UINT64:  inType = TDH_INTYPE_UINT64; break;
+			case CIM_REAL32:  inType = TDH_INTYPE_FLOAT; break;
+			case CIM_REAL64:  inType = TDH_INTYPE_DOUBLE; break;
+			case CIM_BOOLEAN: inType = TDH_INTYPE_BOOLEAN; break;
+			case CIM_CHAR16:  inType = TDH_INTYPE_UNICODECHAR; break;
+			case CIM_DATETIME: inType = TDH_INTYPE_FILETIME; break;
+			case CIM_STRING:
+			{
+				auto wide = _wcsicmp(GetStringQualifier(qualifiers, L"format").c_str(), L"w") == 0;
+				auto termination = GetStringQualifier(qualifiers, L"StringTermination");
+				if (_wcsicmp(termination.c_str(), L"Counted") == 0)
+					inType = wide ? TDH_INTYPE_COUNTEDSTRING : TDH_INTYPE_COUNTEDANSISTRING;
+				else if (_wcsicmp(termination.c_str(), L"ReverseCounted") == 0)
+					inType = wide ? TDH_INTYPE_REVERSEDCOUNTEDSTRING : TDH_INTYPE_REVERSEDCOUNTEDANSISTRING;
+				else if (_wcsicmp(termination.c_str(), L"NotCounted") == 0)
+					inType = wide ? TDH_INTYPE_NONNULLTERMINATEDSTRING : TDH_INTYPE_NONNULLTERMINATEDANSISTRING;
+				else
+					inType = wide ? TDH_INTYPE_UNICODESTRING : TDH_INTYPE_ANSISTRING;
+				break;
+			}
+			default: inType = TDH_INTYPE_BINARY; break;
+		}
+
+		// a "pointer" property is trace-pointer-sized, not host-pointer-sized
+		if (HasQualifier(qualifiers, L"pointer") || HasQualifier(qualifiers, L"PointerType"))
+			inType = TDH_INTYPE_POINTER;
+
+		// the "extension" qualifier is what MOF uses to say "this is really a GUID/SID/IP/..."
+		auto extension = GetStringQualifier(qualifiers, L"extension");
+		if (!extension.empty()) {
+			if (_wcsicmp(extension.c_str(), L"Guid") == 0)
+				inType = TDH_INTYPE_GUID;
+			else if (_wcsicmp(extension.c_str(), L"Sid") == 0)
+				inType = TDH_INTYPE_WBEMSID;
+			else if (_wcsicmp(extension.c_str(), L"SizeT") == 0)
+				inType = TDH_INTYPE_SIZET;
+			else if (_wcsicmp(extension.c_str(), L"Variant") == 0)
+				inType = TDH_INTYPE_BINARY;
+			else if (_wcsicmp(extension.c_str(), L"Port") == 0)
+				outType = TDH_OUTTYPE_PORT;
+			else if (_wcsicmp(extension.c_str(), L"IPAddr") == 0 || _wcsicmp(extension.c_str(), L"IPAddrV4") == 0)
+				outType = TDH_OUTTYPE_IPV4;
+			else if (_wcsicmp(extension.c_str(), L"IPAddrV6") == 0) {
+				inType = TDH_INTYPE_BINARY;
+				outType = TDH_OUTTYPE_IPV6;
+			}
+			else if (_wcsicmp(extension.c_str(), L"WmiTime") == 0)
+				outType = TDH_OUTTYPE_DATETIME;
+			else if (_wcsicmp(extension.c_str(), L"NoPrint") == 0)
+				outType = TDH_OUTTYPE_NOPRINT;
+		}
+
+		if (outType == TDH_OUTTYPE_NULL && _wcsicmp(GetStringQualifier(qualifiers, L"format").c_str(), L"x") == 0)
+			outType = (inType == TDH_INTYPE_UINT64 || inType == TDH_INTYPE_INT64) ? TDH_OUTTYPE_HEXINT64 : TDH_OUTTYPE_HEXINT32;
+
+		prop.InType = inType;
+		prop.OutType = outType;
+	}
+
+	std::vector<EtwEventProperty> GetMofProperties(IWbemClassObject* obj) {
+		struct OrderedProperty {
+			int32_t DataId;
+			EtwEventProperty Prop;
+		};
+		std::vector<OrderedProperty> ordered;
+
+		if (FAILED(obj->BeginEnumeration(WBEM_FLAG_NONSYSTEM_ONLY)))
+			return {};
+
+		for (;;) {
+			CComBSTR name;
+			CComVariant value;
+			CIMTYPE type = 0;
+			LONG flavor = 0;
+			if (S_OK != obj->Next(0, &name, &value, &type, &flavor))
+				break;
+
+			wil::com_ptr<IWbemQualifierSet> spQualifiers;
+			obj->GetPropertyQualifierSet(name, spQualifiers.put());
+
+			// only properties carrying WmiDataId are part of the on-the-wire payload;
+			// the qualifier is also what gives their order, which is not the enumeration order
+			auto dataId = GetIntQualifier(spQualifiers.get(), L"WmiDataId", 0);
+			if (dataId <= 0)
+				continue;
+
+			EtwEventProperty prop;
+			prop.Name = name.m_str ? name.m_str : L"";
+			prop.Flags = EtwPropertyFlags::None;
+			MapMofPropertyType(type, spQualifiers.get(), prop);
+			ordered.push_back({ dataId, std::move(prop) });
+		}
+		obj->EndEnumeration();
+
+		std::sort(ordered.begin(), ordered.end(), [](auto const& p1, auto const& p2) {
+			return p1.DataId < p2.DataId;
+			});
+
+		std::vector<EtwEventProperty> props;
+		props.reserve(ordered.size());
+		for (auto& o : ordered)
+			props.push_back(std::move(o.Prop));
+		return props;
+	}
+
+	std::vector<MofEvent> HarvestTypeGroup(MofClass const& group, UCHAR defaultVersion) {
+		std::vector<MofEvent> events;
+
+		wil::com_ptr<IWbemQualifierSet> spQualifiers;
+		group.Object->GetQualifierSet(spQualifiers.put());
+
+		auto types = GetInt32Qualifiers(spQualifiers.get(), L"EventType");
+		if (types.empty())
+			return events;
+
+		auto names = GetStringQualifiers(spQualifiers.get(), L"EventTypeName");
+		auto version = static_cast<UCHAR>(GetIntQualifier(spQualifiers.get(), L"EventVersion", defaultVersion));
+		auto properties = GetMofProperties(group.Object.get());
+
+		events.reserve(types.size());
+		for (size_t i = 0; i < types.size(); i++) {
+			MofEvent evt;
+			evt.Type = static_cast<UCHAR>(types[i]);
+			evt.Version = version;
+			// EventTypeName is parallel to EventType, but is allowed to be absent or short
+			evt.Name = i < names.size() ? names[i] : group.Name;
+			evt.Properties = properties;
+			events.push_back(std::move(evt));
+		}
+		return events;
+	}
+}
+
+bool EtwProvider::BuildMofSchema() const {
+	if (m_MofSchemaBuilt)
+		return !m_Events.empty();
+
+	m_MofSchemaBuilt = true;
+	m_EventCount = 0;
+
+	wil::com_ptr<IWbemServices> spWmi;
+	WMIHelper::Init(nullptr, L"root\\WMI", spWmi.put());
+	if (!spWmi)
+		return false;
+
+	//
+	// the provider class is the direct subclass of EventTrace whose Guid qualifier
+	// matches us. StringFromGUID2 and the MOF qualifier both use the braced form.
+	//
+	std::wstring providerClass;
+	for (auto& mc : EnumSubClasses(spWmi.get(), L"EventTrace")) {
+		wil::com_ptr<IWbemQualifierSet> spQualifiers;
+		mc.Object->GetQualifierSet(spQualifiers.put());
+		if (_wcsicmp(GetStringQualifier(spQualifiers.get(), L"Guid").c_str(), m_GuidString.c_str()) == 0) {
+			providerClass = mc.Name;
+			break;
+		}
+	}
+	if (providerClass.empty())
+		return false;
+
+	std::vector<MofEvent> events;
+	for (auto& sub : EnumSubClasses(spWmi.get(), providerClass.c_str())) {
+		wil::com_ptr<IWbemQualifierSet> spQualifiers;
+		sub.Object->GetQualifierSet(spQualifiers.put());
+
+		if (HasQualifier(spQualifiers.get(), L"EventType")) {
+			// unversioned provider: type groups sit directly under the provider class
+			auto harvested = HarvestTypeGroup(sub, 0);
+			events.insert(events.end(), harvested.begin(), harvested.end());
+		}
+		else {
+			auto version = static_cast<UCHAR>(GetIntQualifier(spQualifiers.get(), L"EventVersion", 0));
+			for (auto& group : EnumSubClasses(spWmi.get(), sub.Name.c_str())) {
+				auto harvested = HarvestTypeGroup(group, version);
+				events.insert(events.end(), harvested.begin(), harvested.end());
+			}
+		}
+	}
+
+	m_Events.reserve(events.size());
+	for (auto& evt : events) {
+		EVENT_DESCRIPTOR desc{};
+		// classic events have no id - opcode is the discriminator
+		desc.Opcode = evt.Type;
+		desc.Version = evt.Version;
+
+		EtwEventInfo info;
+		info.ProviderGuid = m_Guid;
+		info.EventGuid = m_Guid;
+		info.Descriptor = desc;
+		info.DescodingSource = EtwDecodingSource::Wbem;
+		info.ProviderName = m_name;
+		info.TaskName = providerClass;
+		info.EventName = evt.Name;
+		info.OpCodeName = evt.Name;
+		info.LevelName = L"Log Always";
+		info.Tags = 0;
+		info.Properties = std::move(evt.Properties);
+
+		m_EventInfo.insert({ MofEventKey(desc), std::move(info) });
+		m_Events.push_back(desc);
+	}
+	m_EventCount = static_cast<int32_t>(m_Events.size());
+	return !m_Events.empty();
 }

@@ -49,8 +49,17 @@ HRESULT WMIHelper::Init(PCWSTR computerName, PCWSTR ns, IWbemServices** ppWmi) {
 	if (FAILED(hr))
 		return hr;
 
-	return spLocator->ConnectServer(CComBSTR(ns),
+	hr = spLocator->ConnectServer(CComBSTR(ns),
 		nullptr, nullptr, nullptr, WBEM_FLAG_CONNECT_USE_MAX_WAIT, nullptr, nullptr, ppWmi);
+	if (FAILED(hr))
+		return hr;
+
+	// without this the proxy inherits process-wide defaults and calls can fail with
+	// E_ACCESSDENIED depending on how (or whether) the host called CoInitializeSecurity
+	::CoSetProxyBlanket(*ppWmi, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, nullptr,
+		RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE);
+
+	return hr;
 }
 
 std::vector<WMIObject> WMIHelper::EnumNamespaces(IWbemServices* pWmi) {
