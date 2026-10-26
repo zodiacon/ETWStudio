@@ -47,6 +47,9 @@ private:
 	CListViewCtrl m_List;
 	std::vector<EventData*> const& m_Events;
 	EventData* m_Data;
+	// stack frames are shown as extra rows after the properties
+	std::vector<ULONG64> m_Stack;
+	mutable std::vector<CString> m_StackText;
 	int m_Index;
 	HICON m_hIcon;
 };

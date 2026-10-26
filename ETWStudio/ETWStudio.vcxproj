@@ -295,7 +295,7 @@
       <DllDataFileName />
     </Midl>
     <PostBuildEvent>
-      <Command>signtool sign /sha1 72747c7bcc50d4d109b76f70db640909746144b5 /fd sha256 $(TargetPath)</Command>
+      <Command>signtool sign /a /sha1 005e539186924dedb83c0aecd2aeeea3044b88b7 /fd sha256 $(TargetPath)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSigned|Win32'">
@@ -333,7 +333,7 @@
       </DllDataFileName>
     </Midl>
     <PostBuildEvent>
-      <Command>signtool sign /sha1 72747c7bcc50d4d109b76f70db640909746144b5 /fd sha256 $(TargetPath)</Command>
+      <Command>signtool sign /a /sha1 005e539186924dedb83c0aecd2aeeea3044b88b7 /fd sha256 $(TargetPath)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -444,7 +444,7 @@
       </DllDataFileName>
     </Midl>
     <PostBuildEvent>
-      <Command>signtool sign /sha1 72747c7bcc50d4d109b76f70db640909746144b5 /t http://timestamp.digicert.com /fd sha256 $(TargetPath)</Command>
+      <Command>signtool sign /a /sha1 005e539186924dedb83c0aecd2aeeea3044b88b7 /t http://timestamp.digicert.com /fd sha256 $(TargetPath)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSigned|ARM64'">
@@ -481,7 +481,7 @@
       </DllDataFileName>
     </Midl>
     <PostBuildEvent>
-      <Command>signtool sign /sha1 72747c7bcc50d4d109b76f70db640909746144b5 /t http://timestamp.digicert.com /fd sha256 $(TargetPath)</Command>
+      <Command>signtool sign /a /sha1 005e539186924dedb83c0aecd2aeeea3044b88b7 /t http://timestamp.digicert.com /fd sha256 $(TargetPath)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -506,6 +506,7 @@
     </ClCompile>
     <ClCompile Include="PropertiesDlg.cpp" />
     <ClCompile Include="PropertyFilter.cpp" />
+    <ClCompile Include="StackSymbolizer.cpp" />
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
     <ClCompile Include="SecurityHelper.cpp" />
@@ -525,6 +526,7 @@
     <ClInclude Include="MainFrm.h" />
     <ClInclude Include="PropertiesDlg.h" />
     <ClInclude Include="PropertyFilter.h" />
+    <ClInclude Include="StackSymbolizer.h" />
     <ClInclude Include="ProvidersDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />

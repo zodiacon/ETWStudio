@@ -43,6 +43,19 @@ FilterManager& TraceSession::GetFilterManager() noexcept {
 	return m_FilterMgr;
 }
 
+void TraceSession::SetFilterManager(FilterManager mgr) {
+	std::lock_guard locker(m_FilterLock);
+	m_FilterMgr = std::move(mgr);
+}
+
+void TraceSession::ClearEvents(std::function<void()> const& onClear) {
+	std::lock_guard locker(m_EventsLock);
+	if (onClear)
+		onClear();
+	m_RecentByThread.clear();
+	m_Events.clear();
+}
+
 bool TraceSession::SetSessionName(std::wstring name) noexcept {
 	if (m_hTrace)
 		return false;
@@ -89,16 +102,32 @@ bool TraceSession::SetKernelEventStacks(std::initializer_list<std::wstring> cate
 	return true;
 }
 
-bool TraceSession::AddProvider(GUID const& guid, int level) {
+bool TraceSession::SetKernelEventStacks(std::span<std::wstring const> categories) {
+	m_KernelEventStacks = std::unordered_set<std::wstring>(categories.begin(), categories.end());
+	return true;
+}
+
+bool TraceSession::HasStacks() const noexcept {
+	return !m_KernelEventStacks.empty() || !m_StackProviders.empty();
+}
+
+bool TraceSession::AddProvider(GUID const& guid, int level, bool stacks) {
 	if (m_Providers.contains(guid))
 		return true;
 
 	m_Providers.insert({ guid, level });
-	if (m_hTrace) {
-		auto error = ::EnableTraceEx(&guid, nullptr, m_hTrace, TRUE, (UCHAR)level, 0, 0, 0, nullptr);
-		return error == ERROR_SUCCESS;
-	}
+	if (stacks)
+		m_StackProviders.insert(guid);
+	if (m_hTrace)
+		return EnableProvider(guid, level) == ERROR_SUCCESS;
 	return true;
+}
+
+ULONG TraceSession::EnableProvider(GUID const& guid, int level) {
+	ENABLE_TRACE_PARAMETERS params{ ENABLE_TRACE_PARAMETERS_VERSION_2 };
+	params.EnableProperty = EVENT_ENABLE_PROPERTY_STACK_TRACE;
+	return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)level, 0, 0, 0,
+		m_StackProviders.contains(guid) ? &params : nullptr);
 }
 
 bool TraceSession::AddProvider(std::wstring const& name, int level) {
@@ -199,13 +228,13 @@ void TraceSession::EnumProcesses() {
 	s_Processes.clear();
 	s_Processes.reserve(512);
 
-	while (::Process32Next(hSnapshot.get(), &pe)) {
+	do {
 		ProcessInfo pi;
 		pi.Id = pe.th32ProcessID;
 		pi.ImageName = pe.szExeFile;
 		pi.FullPath = GetProcessFullPath(pi.Id);
 		s_Processes.insert({ pe.th32ProcessID, std::move(pi) });
-	}
+	} while (::Process32Next(hSnapshot.get(), &pe));
 }
 
 bool TraceSession::ParseProcessStartStop(EventData* data) {
@@ -216,12 +245,13 @@ bool TraceSession::ParseProcessStartStop(EventData* data) {
 		case 1:		// process created
 		{
 			auto prop = data->GetProperty(L"ImageFileName");
-			if (prop) {
+			auto pidProp = data->GetProperty(L"ProcessId");
+			if (prop && pidProp) {
 				auto name = prop->GetAnsiString();
 				if (name) {
 					std::wstring pname;
 					pname.assign(name, name + strlen(name));
-					AddProcessName(data->GetProperty(L"ProcessId")->GetValue<DWORD>(), pname);
+					AddProcessName(pidProp->GetValue<DWORD>(), pname);
 					assert(!pname.empty());
 					//data->SetProcessName(pname);
 				}
@@ -286,6 +316,11 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 			return;
 	}
 
+	if (m_TrackStacks && rec->EventHeader.ProviderId == StackWalkGuid && rec->EventHeader.EventDescriptor.Opcode == 32) {
+		AttachKernelStack(rec);
+		return;
+	}
+
 	auto pid = rec->EventHeader.ProcessId;
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
@@ -299,12 +334,22 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 	}
 	if ((m_Callback || m_CallbackNoOwn) && (!processEvent || m_IsTraceProcesses)) {
-		if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
-			return;
+		{
+			std::lock_guard locker(m_FilterLock);
+			if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
+				return;
+		}
 
 		if (m_StoreEvents) {
 			auto evt = data.get();
+			std::lock_guard locker(m_EventsLock);
 			m_Events.push_back(std::move(data));
+			if (m_TrackStacks) {
+				auto& history = m_RecentByThread[evt->GetThreadId()];
+				history.push_back({ evt });
+				if (history.size() > 16)
+					history.pop_front();
+			}
 			m_CallbackNoOwn(evt);
 		}
 		else {
@@ -380,6 +425,96 @@ void TraceSession::HandleNoProcessId(EventData* data) {
 	}
 }
 
+int64_t TraceSession::RawToEventTime(ULONG64 raw) const noexcept {
+	// exact integer math (FILETIME values exceed double precision); split to avoid overflow
+	constexpr ULONG64 units = 10000000;
+	auto freq = m_StackTimeFrequency;
+	return (int64_t)(raw / freq * units + raw % freq * units / freq);
+}
+
+void TraceSession::AttachKernelStack(PEVENT_RECORD rec) {
+	//
+	// The kernel logger reports stacks as separate StackWalk events. Payload: EventTimeStamp (UINT64),
+	// StackProcess, StackThread, then addresses. EventTimeStamp is the owner event's raw timestamp,
+	// while header times are converted, so match via a linear conversion whose offset is learned from
+	// the common case of a stack immediately following its event. Notes:
+	// - some stacks arrive after later events of the same thread (hence the per-thread history)
+	// - a stack may be split into two StackWalk events (kernel part, user part) with the same EventTimeStamp
+	//
+	constexpr USHORT headerSize = sizeof(ULONG64) + 2 * sizeof(ULONG);
+	if (rec->UserDataLength <= headerSize)
+		return;
+
+	auto data = static_cast<const BYTE*>(rec->UserData);
+	ULONG64 timeStamp;
+	::memcpy(&timeStamp, data, sizeof(timeStamp));
+	ULONG tid;
+	::memcpy(&tid, data + sizeof(ULONG64) + sizeof(ULONG), sizeof(tid));
+
+	std::vector<ULONG64> stack;
+	auto frames = data + headerSize;
+	if (rec->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) {
+		auto count = (rec->UserDataLength - headerSize) / sizeof(ULONG);
+		stack.resize(count);
+		for (size_t i = 0; i < count; i++) {
+			ULONG address;
+			::memcpy(&address, frames + i * sizeof(ULONG), sizeof(address));
+			stack[i] = address;
+		}
+	}
+	else {
+		auto count = (rec->UserDataLength - headerSize) / sizeof(ULONG64);
+		stack.resize(count);
+		::memcpy(stack.data(), frames, count * sizeof(ULONG64));
+	}
+
+	std::lock_guard locker(m_EventsLock);
+	auto it = m_RecentByThread.find(tid);
+	if (it == m_RecentByThread.end() || it->second.empty())
+		return;
+
+	auto& history = it->second;
+	StackOwner* owner = nullptr;
+	constexpr int CalibrationSamples = 3;
+	// conversion rounding
+	constexpr int64_t Tolerance = 2;
+	if (m_StackTimeSamples >= CalibrationSamples) {
+		auto expected = RawToEventTime(timeStamp) + m_StackTimeOffset;
+		for (auto& candidate : history) {
+			if (std::abs((int64_t)candidate.Event->GetTimeStamp() - expected) <= Tolerance) {
+				owner = &candidate;
+				break;
+			}
+		}
+	}
+	else {
+		// not calibrated yet: assume the stack belongs to the latest event of the thread
+		auto& last = history.back();
+		if (last.Event->HasStackTrace() && last.StackTimeStamp != timeStamp)
+			return;
+		owner = &last;
+		if (!last.Event->HasStackTrace()) {
+			auto offset = (int64_t)last.Event->GetTimeStamp() - RawToEventTime(timeStamp);
+			if (m_StackTimeSamples > 0 && std::abs(offset - m_StackTimeOffset) <= Tolerance)
+				m_StackTimeSamples++;
+			else {
+				m_StackTimeOffset = offset;
+				m_StackTimeSamples = 1;
+			}
+		}
+	}
+	if (!owner)
+		return;
+
+	if (!owner->Event->HasStackTrace())
+		owner->Event->SetStackTrace(std::move(stack));
+	else if (owner->StackTimeStamp == timeStamp)
+		owner->Event->AppendStackTrace(stack);
+	else
+		return;
+	owner->StackTimeStamp = timeStamp;
+}
+
 bool TraceSession::EnumProviders() {
 	if (!s_Providers.empty())
 		return true;
@@ -401,6 +536,8 @@ bool TraceSession::EnumProviders() {
 
 bool TraceSession::StartCommon(bool cont) {
 	m_Continue = cont;
+	// log files may contain StackWalk events; real-time sessions only when stacks were requested
+	m_TrackStacks = m_StoreEvents && (!IsRealTimeSession() || !m_KernelEventStacks.empty());
 
 	//error = UpdateEventConfig();
 	//if (error != ERROR_SUCCESS) {
@@ -431,6 +568,17 @@ bool TraceSession::StartCommon(bool cont) {
 	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
 	if (m_hOpenTrace == INVALID_PROCESSTRACE_HANDLE)
 		return false;
+
+	// scale from the raw clock (as in StackWalk's EventTimeStamp) to 100nsec units
+	LARGE_INTEGER freq{};
+	if (IsRealTimeSession())
+		::QueryPerformanceFrequency(&freq);		// session clock is QPC (ClientContext == 1)
+	else if (m_TraceLog.LogfileHeader.ReservedFlags == 1)
+		freq = m_TraceLog.LogfileHeader.PerfFreq;
+	else if (m_TraceLog.LogfileHeader.ReservedFlags == 3)
+		freq.QuadPart = m_TraceLog.LogfileHeader.CpuSpeedInMHz * 1000000LL;
+	m_StackTimeFrequency = freq.QuadPart > 0 ? freq.QuadPart : 10000000;
+	m_StackTimeSamples = 0;
 
 	// create a dedicated thread to process the trace
 	m_hProcessThread.reset(::CreateThread(nullptr, 0, [](auto param) {
@@ -557,7 +705,7 @@ bool TraceSession::Init() {
 				break;
 		}
 		for (auto& [p, level] : m_Providers) {
-			error = ::EnableTraceEx2(m_hTrace, &p, EVENT_CONTROL_CODE_ENABLE_PROVIDER, level, 0, 0, 0, nullptr);
+			error = EnableProvider(p, level);
 			if (error != ERROR_SUCCESS)
 				break;
 		}

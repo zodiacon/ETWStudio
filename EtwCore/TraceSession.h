@@ -2,6 +2,7 @@
 
 #include "KernelEvents.h"
 #include <FilterManager.h>
+#include <deque>
 
 class EventData;
 
@@ -29,6 +30,11 @@ public:
 	}
 
 	FilterManager& GetFilterManager() noexcept;
+	// safe to call while the session is running
+	void SetFilterManager(FilterManager mgr);
+	// deletes all stored events; onClear runs under the events lock, so the caller can drop
+	// any borrowed pointers it holds without racing the trace thread
+	void ClearEvents(std::function<void()> const& onClear = nullptr);
 
 	bool SetSessionName(std::wstring name) noexcept;
 	std::wstring const& SessionName() const noexcept;
@@ -42,7 +48,10 @@ public:
 	bool SetKernelEventTypes(std::span<KernelEventTypes const> types);
 	std::vector<KernelEventTypes> GetKernelEventTypes() const noexcept;
 	bool SetKernelEventStacks(std::initializer_list<std::wstring> categories);
-	bool AddProvider(GUID const& guid, int level = TRACE_LEVEL_INFORMATION);
+	bool SetKernelEventStacks(std::span<std::wstring const> categories);
+	// true if stacks were requested for any kernel category or provider
+	bool HasStacks() const noexcept;
+	bool AddProvider(GUID const& guid, int level = TRACE_LEVEL_INFORMATION, bool stacks = false);
 	bool AddProvider(std::wstring const& name, int level = TRACE_LEVEL_INFORMATION);
 	bool AddEventsForProvider(GUID const& guid, std::span<USHORT> ids);
 	void SetLogFileName(PCWSTR path);
@@ -65,6 +74,7 @@ public:
 
 private:
 	bool StartCommon(bool cont);
+	ULONG EnableProvider(GUID const& guid, int level);
 	static std::wstring GetProcessFullPath(DWORD pid);
 	static void AddProcessName(DWORD pid, std::wstring name);
 	static bool RemoveProcessName(DWORD pid);
@@ -73,6 +83,7 @@ private:
 	void OnEventRecord(PEVENT_RECORD rec);
 	DWORD Run();
 	void HandleNoProcessId(EventData* data);
+	void AttachKernelStack(PEVENT_RECORD rec);
 
 private:
 	static bool EnumProviders();
@@ -84,6 +95,20 @@ private:
 	};
 
 	std::vector<std::unique_ptr<EventData>> m_Events;
+	// guards m_Events and m_RecentByThread, and is held while invoking the callback
+	std::mutex m_EventsLock;
+	// recent stored events per thread, used to attach kernel StackWalk events to their owners
+	struct StackOwner {
+		EventData* Event;
+		ULONG64 StackTimeStamp{ 0 };	// raw EventTimeStamp of the StackWalk event(s) attached
+	};
+	std::unordered_map<DWORD, std::deque<StackOwner>> m_RecentByThread;
+	// raw StackWalk EventTimeStamp -> converted event time: raw * 10^7 / Frequency + Offset (Offset learned at runtime)
+	int64_t RawToEventTime(ULONG64 raw) const noexcept;
+	ULONG64 m_StackTimeFrequency{ 10000000 };
+	int64_t m_StackTimeOffset{ 0 };
+	int m_StackTimeSamples{ 0 };
+	bool m_TrackStacks{ false };
 	TRACEHANDLE m_hTrace{ 0 };
 	TRACEHANDLE m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
 	EVENT_TRACE_PROPERTIES* m_Properties{};
@@ -107,9 +132,11 @@ private:
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
 	std::unordered_map<GUID, int> m_Providers;
+	std::unordered_set<GUID> m_StackProviders;
 	std::wstring m_LogFileName;
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
+	std::mutex m_FilterLock;
 	TRACE_LOGFILE_HEADER m_LogFileHeader;
 	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };

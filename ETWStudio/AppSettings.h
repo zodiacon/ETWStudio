@@ -18,6 +18,6 @@ public:
 	DEF_SETTING(AlwaysOnTop, bool)
 	DEF_SETTING(ViewStatusBar, bool)
 	DEF_SETTING(MainWindowPlacement, WINDOWPLACEMENT)
-	DEF_SETTING(SymbolPath, CString)
+	DEF_SETTING_STRING(SymbolPath)
 };
 

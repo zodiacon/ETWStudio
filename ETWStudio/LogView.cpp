@@ -124,6 +124,15 @@ void CLogView::ShowProperties(int index) const {
 	auto dlg = new CPropertiesDlg(m_Events, index, m_List.GetImageList(LVSIL_SMALL).GetIcon(GetRowImage(m_List, index, 0)));
 	dlg->Create(m_hWnd);
 	dlg->ShowWindow(SW_SHOW);
+	std::erase_if(m_PropertiesDialogs, [](auto h) { return !::IsWindow(h); });
+	m_PropertiesDialogs.push_back(dlg->m_hWnd);
+}
+
+void CLogView::CloseProperties() {
+	for (auto h : m_PropertiesDialogs)
+		if (::IsWindow(h))
+			::DestroyWindow(h);
+	m_PropertiesDialogs.clear();
 }
 
 void CLogView::UpdateUI() {
@@ -268,6 +277,7 @@ LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
 
 LRESULT CLogView::OnDestroy(UINT, WPARAM, LPARAM, BOOL&) {
 	KillTimer(1);
+	CloseProperties();
 	m_Session->Stop(true);
 	m_Events.clear();
 
@@ -328,6 +338,7 @@ LRESULT CLogView::OnEditFilter(WORD, WORD, HWND, BOOL&) {
 	CFilterDlg dlg(mgr);
 	if (IDOK == dlg.DoModal()) {
 		m_FilterMgr = std::move(mgr);
+		m_Session->SetFilterManager(m_FilterMgr.Clone());
 	}
 
 	return 0;
@@ -340,8 +351,15 @@ LRESULT CLogView::OnViewProperties(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
-	m_Events.clear();
+	CloseProperties();
+	m_Session->ClearEvents([&] {
+		std::lock_guard locker(m_EventsLock);
+		m_TempEvents.clear();
+		m_Events.clear();
+		});
 	m_List.SetItemCount(0);
+	Frame()->SetStatusText(2, L"0 Events");
+	UpdateUI();
 
 	return 0;
 }

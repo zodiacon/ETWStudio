@@ -4,6 +4,7 @@
 #include "StringHelper.h"
 #include <EtwProvider.h>
 #include "AppSettings.h"
+#include "StackSymbolizer.h"
 
 CPropertiesDlg::CPropertiesDlg(std::vector<EventData*> const& events, int index, HICON hIcon) :
     m_Events(events), m_Index(index), m_hIcon(hIcon) {
@@ -15,6 +16,17 @@ void CPropertiesDlg::OnFinalMessage(HWND) {
 
 CString CPropertiesDlg::GetColumnText(HWND, int row, int col) const {
     auto& props = m_Data->GetProperties();
+    if (row >= (int)props.size()) {
+        auto frame = row - (int)props.size();
+        switch (col) {
+            case 0: return std::format(L"Stack [{}]", frame).c_str();
+            case 1:
+                if (m_StackText[frame].IsEmpty())
+                    m_StackText[frame] = StackSymbolizer::Get().GetSymbol(m_Data->GetProcessId(), m_Stack[frame]).c_str();
+                return m_StackText[frame];
+        }
+        return CString();
+    }
     switch (col) {
         case 0: return props[row].Name.c_str();
         case 1: return m_Data->FormatProperty(props[row]).c_str();
@@ -49,7 +61,9 @@ void CPropertiesDlg::UpdateEvent() {
     SetDlgItemText(IDC_PROVIDER, StringHelper::ProviderGuidToName(m_Data->GetProviderId()).c_str());
     SetDlgItemInt(IDC_VERSION, m_Data->GetEventDescriptor().Version);
 
-    m_List.SetItemCount((int)m_Data->GetProperties().size());
+    m_Stack = m_Data->GetStackTrace();
+    m_StackText.assign(m_Stack.size(), CString());
+    m_List.SetItemCount((int)(props.size() + m_Stack.size()));
 }
 
 CString CPropertiesDlg::GetFullMessage() const {

@@ -78,13 +78,20 @@ public:
 	const std::vector<EventProperty>& GetProperties() const;
 	const EventProperty* GetProperty(PCWSTR name) const noexcept;
 	std::wstring FormatProperty(const EventProperty& prop) const;
+	std::vector<ULONG64> GetStackTrace() const;
+	bool HasStackTrace() const noexcept;
 
 	mutable std::wstring UserText;
 
 protected:
 	void SetProcessName(std::wstring name);
+	void SetStackTrace(std::vector<ULONG64> stack);
+	void AppendStackTrace(std::span<ULONG64 const> frames);
 
 private:
+	static PTRACE_EVENT_INFO GetCachedEventInfo(PEVENT_RECORD rec, ULONG& error);
+	void CopyRecordData(PEVENT_RECORD rec);
+
 	inline static HANDLE s_hHeap = ::HeapCreate(0, 1 << 24, 0);
 
 	EVENT_HEADER m_Header;
@@ -95,6 +102,11 @@ private:
 	mutable EventStrings m_Strings;
 	PTRACE_EVENT_INFO m_EventInfo{};
 	EVENT_RECORD m_Record;
+	// UserData and extended data items copied out of the ETW buffer (m_Record points here)
+	BYTE* m_RecordData{};
+	std::vector<ULONG64> m_Stack;
 	mutable std::mutex m_Lock;
+	mutable bool m_PropertiesParsed{ false };
+	bool m_OwnsEventInfo{ false };
 };
 

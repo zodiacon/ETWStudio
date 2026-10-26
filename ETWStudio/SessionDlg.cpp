@@ -77,6 +77,7 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 		for (auto type : m_Session.GetKernelEventTypes())
 			m_Providers.push_back(MakeKernelProvider(type));
 		m_List.SetItemCount((int)m_Providers.size());
+		CheckDlgButton(IDC_STACKS, m_Session.HasStacks() ? BST_CHECKED : BST_UNCHECKED);
 		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
 		if (!m_Session.LogFileName().empty()) {
 			SetDlgItemText(IDC_PATH, m_Session.LogFileName().c_str());
@@ -96,14 +97,24 @@ LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 				IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
+		bool stacks = IsDlgButtonChecked(IDC_STACKS);
 		std::vector<KernelEventTypes> kernelTypes;
 		for (auto& p : m_Providers) {
 			if (p.Kernel)
 				kernelTypes.push_back(p.KernelType);
 			else
-				m_Session.AddProvider(p.Guid);
+				m_Session.AddProvider(p.Guid, TRACE_LEVEL_INFORMATION, stacks);
 		}
 		m_Session.SetKernelEventTypes(kernelTypes);
+
+		// stacks for every event of the selected kernel categories
+		std::vector<std::wstring> stackCategories;
+		if (stacks) {
+			for (auto& cat : KernelEventCategory::GetAllCategories())
+				if (std::ranges::find(kernelTypes, cat.EnableFlag) != kernelTypes.end())
+					stackCategories.push_back(cat.Name);
+		}
+		m_Session.SetKernelEventStacks(stackCategories);
 		if (IsDlgButtonChecked(IDC_FILELOG)) {
 			CString path;
 			GetDlgItemText(IDC_PATH, path);

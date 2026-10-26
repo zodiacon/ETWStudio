@@ -60,6 +60,9 @@
     <ClCompile Include="SecurityHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="StackSymbolizer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FullFindDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
@@ -121,6 +124,9 @@
     </ClInclude>
     <ClInclude Include="FullFindDlg.h">
       <Filter>Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="StackSymbolizer.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PropertyFilter.h">
       <Filter>Filters</Filter>

@@ -249,6 +249,7 @@ BEGIN
     PUSHBUTTON      "...",IDC_BROWSE,418,180,20,14
     PUSHBUTTON      "Remove Provider",IDC_REMOVE,92,144,69,14
     CONTROL         "Add Provider",IDC_ADD,"Button",BS_SPLITBUTTON | WS_TABSTOP,7,144,77,14
+    CONTROL         "Collect call stacks",IDC_STACKS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,92,165,79,10
 END
 
 IDD_PROVIDERS DIALOGEX 0, 0, 377, 249
@@ -309,7 +310,7 @@ BEGIN
 END
 
 IDD_PROPERTIES DIALOGEX 0, 0, 381, 271
-STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "Dialog"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
@@ -519,6 +520,7 @@ BEGIN
     0, 100, 100, 0,
     100, 100, 0, 0,
     0, 100, 0, 0,
+    0, 100, 0, 0,
     0, 100, 0, 0
 END
 
@@ -584,23 +586,23 @@ BEGIN
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0,
+    0, 0, 50, 0,
+    50, 0, 0, 0,
+    50, 0, 50, 0,
     0, 0, 0, 0,
+    0, 0, 50, 0,
+    50, 0, 0, 0,
+    50, 0, 0, 0,
     0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 100, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
+    0, 0, 50, 0,
     0, 0, 0, 0,
     0, 0, 100, 0,
+    50, 0, 0, 0,
+    50, 0, 50, 0,
     0, 0, 0, 0,
-    0, 0, 0, 0,
+    0, 0, 100, 0,
+    100, 0, 0, 0,
+    100, 0, 0, 0,
     50, 100, 0, 0,
     50, 100, 0, 0
 END

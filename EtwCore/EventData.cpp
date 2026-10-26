@@ -22,27 +22,172 @@ PCSTR EventProperty::GetAnsiString() const {
 
 // EventData
 
+namespace {
+	struct EventInfoKey {
+		GUID Provider;
+		EVENT_DESCRIPTOR Descriptor;
+		USHORT Flags;
+
+		bool operator==(EventInfoKey const& other) const noexcept {
+			return Provider == other.Provider && Flags == other.Flags &&
+				::memcmp(&Descriptor, &other.Descriptor, sizeof(Descriptor)) == 0;
+		}
+	};
+
+	struct EventInfoKeyHash {
+		size_t operator()(EventInfoKey const& key) const noexcept {
+			auto p = reinterpret_cast<const uint64_t*>(&key.Provider);
+			uint64_t d;
+			static_assert(sizeof(d) <= sizeof(key.Descriptor));
+			::memcpy(&d, &key.Descriptor, sizeof(d));
+			return std::hash<uint64_t>()(p[0] ^ (p[1] * 31) ^ (d * 131) ^ key.Descriptor.Keyword ^ key.Flags);
+		}
+	};
+
+	struct CachedEventInfo {
+		std::unique_ptr<BYTE[]> Buffer;
+		ULONG Error;
+	};
+
+	std::shared_mutex s_EventInfoLock;
+	std::unordered_map<EventInfoKey, CachedEventInfo, EventInfoKeyHash> s_EventInfoCache;
+
+	bool IsEventInfoCacheable(PEVENT_RECORD rec) {
+		//
+		// WPP events need TMF info, TraceLogging events carry their own schema per event
+		//
+		if (rec->EventHeader.Flags & EVENT_HEADER_FLAG_TRACE_MESSAGE)
+			return false;
+		for (USHORT i = 0; i < rec->ExtendedDataCount; i++)
+			if (rec->ExtendedData[i].ExtType == EVENT_HEADER_EXT_TYPE_EVENT_SCHEMA_TL)
+				return false;
+		return true;
+	}
+}
+
 EventData::EventData(PEVENT_RECORD rec, std::wstring processName, uint32_t index) : 
 	m_Record(*rec), m_Header(rec->EventHeader), m_ProcessName(std::move(processName)), m_Index(index) {
-	//
-	// parse event specific data
-	//
-	ULONG size = 0;
-	auto error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
-	if (error == ERROR_INSUFFICIENT_BUFFER) {
-		auto buffer = ::HeapAlloc(s_hHeap, 0, size);
-		auto info = reinterpret_cast<PTRACE_EVENT_INFO>(buffer);
-		error = ::TdhGetEventInformation(rec, 0, nullptr, info, &size);
-		m_EventInfo = info;
+	ULONG error = ERROR_SUCCESS;
+	if (IsEventInfoCacheable(rec)) {
+		m_EventInfo = GetCachedEventInfo(rec, error);
 	}
-	if (error == ERROR_SUCCESS)
-		GetProperties();
+	else {
+		ULONG size = 0;
+		error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
+		if (error == ERROR_INSUFFICIENT_BUFFER) {
+			auto info = reinterpret_cast<PTRACE_EVENT_INFO>(::HeapAlloc(s_hHeap, 0, size));
+			error = ::TdhGetEventInformation(rec, 0, nullptr, info, &size);
+			if (error == ERROR_SUCCESS) {
+				m_EventInfo = info;
+				m_OwnsEventInfo = true;
+			}
+			else {
+				::HeapFree(s_hHeap, 0, info);
+			}
+		}
+	}
+	CopyRecordData(rec);
+	//
+	// properties are decoded lazily (GetProperties)
+	//
 	::SetLastError(error);
 }
 
+PTRACE_EVENT_INFO EventData::GetCachedEventInfo(PEVENT_RECORD rec, ULONG& error) {
+	EventInfoKey key{ rec->EventHeader.ProviderId, rec->EventHeader.EventDescriptor,
+		(USHORT)(rec->EventHeader.Flags & (EVENT_HEADER_FLAG_32_BIT_HEADER | EVENT_HEADER_FLAG_64_BIT_HEADER | EVENT_HEADER_FLAG_CLASSIC_HEADER)) };
+	{
+		std::shared_lock locker(s_EventInfoLock);
+		if (auto it = s_EventInfoCache.find(key); it != s_EventInfoCache.end()) {
+			error = it->second.Error;
+			return reinterpret_cast<PTRACE_EVENT_INFO>(it->second.Buffer.get());
+		}
+	}
+
+	CachedEventInfo cached;
+	ULONG size = 0;
+	error = ::TdhGetEventInformation(rec, 0, nullptr, nullptr, &size);
+	if (error == ERROR_INSUFFICIENT_BUFFER) {
+		cached.Buffer = std::make_unique<BYTE[]>(size);
+		error = ::TdhGetEventInformation(rec, 0, nullptr, reinterpret_cast<PTRACE_EVENT_INFO>(cached.Buffer.get()), &size);
+		if (error != ERROR_SUCCESS)
+			cached.Buffer.reset();
+	}
+	cached.Error = error;
+
+	std::lock_guard locker(s_EventInfoLock);
+	auto [it, _] = s_EventInfoCache.try_emplace(key, std::move(cached));
+	error = it->second.Error;
+	return reinterpret_cast<PTRACE_EVENT_INFO>(it->second.Buffer.get());
+}
+
+void EventData::CopyRecordData(PEVENT_RECORD rec) {
+	//
+	// UserData and ExtendedData point into the ETW buffer, which is only valid during the callback.
+	// Copy them into a single block (stack traces go to m_Stack instead).
+	//
+	auto align = [](size_t n) { return (n + 7) & ~size_t(7); };
+
+	USHORT extCount = 0;
+	size_t size = align(rec->UserDataLength);
+	for (USHORT i = 0; i < rec->ExtendedDataCount; i++) {
+		auto& item = rec->ExtendedData[i];
+		if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE64) {
+			auto count = (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG64);
+			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE64>(item.DataPtr);
+			m_Stack.assign(stack->Address, stack->Address + count);
+		}
+		else if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE32) {
+			auto count = (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG);
+			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE32>(item.DataPtr);
+			m_Stack.assign(stack->Address, stack->Address + count);
+		}
+		else {
+			extCount++;
+			size += sizeof(EVENT_HEADER_EXTENDED_DATA_ITEM) + align(item.DataSize);
+		}
+	}
+
+	m_Record.UserData = nullptr;
+	m_Record.ExtendedData = nullptr;
+	m_Record.ExtendedDataCount = 0;
+	if (size == 0)
+		return;
+
+	m_RecordData = static_cast<BYTE*>(::HeapAlloc(s_hHeap, 0, size));
+	if (!m_RecordData) {
+		m_Record.UserDataLength = 0;
+		return;
+	}
+
+	auto items = reinterpret_cast<PEVENT_HEADER_EXTENDED_DATA_ITEM>(m_RecordData);
+	auto p = m_RecordData + extCount * sizeof(EVENT_HEADER_EXTENDED_DATA_ITEM);
+	USHORT n = 0;
+	for (USHORT i = 0; i < rec->ExtendedDataCount; i++) {
+		auto& item = rec->ExtendedData[i];
+		if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE64 || item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE32)
+			continue;
+		items[n] = item;
+		::memcpy(p, (const void*)item.DataPtr, item.DataSize);
+		items[n].DataPtr = (ULONGLONG)p;
+		p += align(item.DataSize);
+		n++;
+	}
+	if (extCount) {
+		m_Record.ExtendedData = items;
+		m_Record.ExtendedDataCount = extCount;
+	}
+	if (rec->UserDataLength) {
+		::memcpy(p, rec->UserData, rec->UserDataLength);
+		m_Record.UserData = p;
+	}
+}
+
 EventData::~EventData() {
-	if (m_EventInfo)
+	if (m_OwnsEventInfo)
 		::HeapFree(s_hHeap, 0, m_EventInfo);
+	if (m_RecordData)
+		::HeapFree(s_hHeap, 0, m_RecordData);
 }
 
 void* EventData::operator new(size_t size) {
@@ -84,9 +229,10 @@ const EVENT_DESCRIPTOR& EventData::GetEventDescriptor() const {
 const std::vector<EventProperty>& EventData::GetProperties() const {
 	std::lock_guard locker(m_Lock);
 	{
-		if (!m_Properties.empty() || m_EventInfo == nullptr)
+		if (m_PropertiesParsed || m_EventInfo == nullptr)
 			return m_Properties;
 
+		m_PropertiesParsed = true;
 		auto info = m_EventInfo;
 		m_Properties.reserve(info->TopLevelPropertyCount);
 		auto userDataLength = m_Record.UserDataLength;
@@ -180,11 +326,13 @@ void EventData::SetProcessName(std::wstring name) {
 }
 
 EventStrings const& EventData::GetEventStrings() const {
-	if (!m_Strings._HasValue) {
-		m_Strings._HasValue = true;
+	if (!m_Strings._HasValue.load(std::memory_order_acquire)) {
+		std::lock_guard locker(m_Lock);
+		if (m_Strings._HasValue.load(std::memory_order_relaxed))
+			return m_Strings;
+
 		auto info = m_EventInfo;
 		if (info) {
-			EventStrings str;
 			if (info->EventNameOffset) {
 				m_Strings.Name = (PCWSTR)((PBYTE)info + info->EventNameOffset);
 			}
@@ -216,10 +364,31 @@ EventStrings const& EventData::GetEventStrings() const {
 				m_Strings.RelatedActivity = (PCWSTR)((PBYTE)info + info->RelatedActivityIDNameOffset);
 			}
 		}
+		m_Strings._HasValue.store(true, std::memory_order_release);
 	}
 	return m_Strings;
 }
 
 int EventData::GetCPU() const noexcept {
 	return GetEventProcessorIndex(&m_Record);
+}
+
+std::vector<ULONG64> EventData::GetStackTrace() const {
+	std::lock_guard locker(m_Lock);
+	return m_Stack;
+}
+
+bool EventData::HasStackTrace() const noexcept {
+	std::lock_guard locker(m_Lock);
+	return !m_Stack.empty();
+}
+
+void EventData::SetStackTrace(std::vector<ULONG64> stack) {
+	std::lock_guard locker(m_Lock);
+	m_Stack = std::move(stack);
+}
+
+void EventData::AppendStackTrace(std::span<ULONG64 const> frames) {
+	std::lock_guard locker(m_Lock);
+	m_Stack.insert(m_Stack.end(), frames.begin(), frames.end());
 }

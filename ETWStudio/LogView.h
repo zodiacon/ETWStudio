@@ -55,6 +55,7 @@ public:
 
 private:
 	void UpdateUI();
+	void CloseProperties();
 	bool DoSave(PCWSTR path) const;
 	static std::wstring GetProperties(EventData const& evt);
 	static std::wstring GetDetails(EventData const& evt);
@@ -95,6 +96,8 @@ private:
 	std::vector<EventData*> m_TempEvents;
 	std::mutex m_EventsLock;
 	FilterManager m_FilterMgr;
+	// properties dialogs hold borrowed event pointers; close them before events are freed
+	mutable std::vector<HWND> m_PropertiesDialogs;
 	bool m_AutoScroll{ false };
 	bool m_Running{ false };
 	bool m_Active{ false };
