@@ -435,6 +435,9 @@ std::wstring CSessionDlg::GetSummary() {
 		for (auto& k : preset.KernelTypes)
 			text += std::format(L"  {}{}\n", MakeKernelProvider(k.Type).Name, k.Stacks ? L" (call stacks)" : L"");
 	}
+	if (std::ranges::any_of(preset.Providers, [](auto& p) { return p.Config.Stacks; }) ||
+		std::ranges::any_of(preset.KernelTypes, [](auto& k) { return k.Stacks; }))
+		text += L"\nImage loads are also traced (not listed unless selected), to show symbols for processes that exit.\n";
 
 	std::vector<std::wstring> warnings;
 	if (preset.Providers.empty() && preset.KernelTypes.empty())

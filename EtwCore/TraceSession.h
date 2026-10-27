@@ -130,8 +130,12 @@ private:
 	static bool RemoveProcessName(DWORD pid);
 	static void EnumProcesses();
 	bool ParseProcessStartStop(EventData* data);
-	// image load/unload/rundown events into m_Images
-	void ParseImageEvent(EventData* data);
+	// image load/unload/rundown events into m_Images; true if it was one
+	bool ParseImageEvent(EventData* data);
+	// with stacks, a non-kernel session also enables Microsoft-Windows-Kernel-Process's image events
+	// (kernel sessions get the kernel's Image Load flag in UpdateEventConfig), so frames of processes
+	// that exit can still be symbolized; image events nobody asked for aren't shown
+	void UpdateImageTracking();
 	void OnEventRecord(PEVENT_RECORD rec);
 	DWORD Run();
 	void CloseOpenTrace() noexcept;
@@ -151,6 +155,8 @@ private:
 	// process ID -> its images, in the order seen (written on the trace thread, read by the UI)
 	std::unordered_map<DWORD, std::vector<ImageInfo>> m_Images;
 	mutable std::shared_mutex m_ImagesLock;
+	std::atomic<bool> m_HideImageEvents{ false };	// enabled only for symbols: parsed, not stored
+	bool m_ImageProviderAdded{ false };				// Kernel-Process enabled only for its image events
 
 	std::vector<std::unique_ptr<EventData>> m_Events;
 	// guards m_Events and m_RecentByThread, and is held while invoking the callback

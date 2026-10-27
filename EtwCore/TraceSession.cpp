@@ -146,8 +146,11 @@ bool TraceSession::AddProvider(GUID const& guid, int level, bool stacks) {
 
 bool TraceSession::AddProvider(GUID const& guid, ProviderConfig const& config) {
 	m_Providers.insert_or_assign(guid, config);
-	if (m_hTrace)
-		return EnableProvider(guid, config) == ERROR_SUCCESS;
+	if (m_hTrace) {
+		auto ok = EnableProvider(guid, config) == ERROR_SUCCESS;
+		UpdateImageTracking();
+		return ok;
+	}
 	return true;
 }
 
@@ -155,12 +158,50 @@ bool TraceSession::RemoveProvider(GUID const& guid) {
 	if (!m_Providers.erase(guid))
 		return false;
 	m_EventIds.erase(guid);
-	if (m_hTrace)
-		return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr) == ERROR_SUCCESS;
+	if (m_hTrace) {
+		auto ok = ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr) == ERROR_SUCCESS;
+		UpdateImageTracking();
+		return ok;
+	}
 	return true;
 }
 
-ULONG TraceSession::EnableProvider(GUID const& guid, ProviderConfig const& config) {
+namespace {
+	const ULONGLONG KernelProcessImageKeyword = 0x40;	// WINEVENT_KEYWORD_IMAGE
+}
+
+void TraceSession::UpdateImageTracking() {
+	if (!m_hTrace || m_KernelSession)
+		return;		// a kernel session has the Image Load flag (UpdateEventConfig)
+
+	auto images = HasStacks();
+	if (auto it = m_Providers.find(KernelProcessProviderGuid); it != m_Providers.end()) {
+		// the user's own: EnableProvider adds the image keyword
+		if (m_ImageProviderAdded)
+			m_ImageProviderAdded = false;
+		auto any = it->second.MatchAnyKeyword;
+		m_HideImageEvents = images && any != 0 && !(any & KernelProcessImageKeyword);
+		EnableProvider(it->first, it->second);
+	}
+	else if (images) {
+		ProviderConfig config{ TRACE_LEVEL_INFORMATION, KernelProcessImageKeyword };
+		m_ImageProviderAdded = EnableProvider(KernelProcessProviderGuid, config) == ERROR_SUCCESS;
+		m_HideImageEvents = true;
+	}
+	else {
+		if (m_ImageProviderAdded)
+			::EnableTraceEx2(m_hTrace, &KernelProcessProviderGuid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+		m_ImageProviderAdded = false;
+		m_HideImageEvents = false;
+	}
+}
+
+ULONG TraceSession::EnableProvider(GUID const& guid, ProviderConfig const& cfg) {
+	auto config = cfg;
+	// stacks: the user's Kernel-Process also delivers image events (see UpdateImageTracking)
+	if (guid == KernelProcessProviderGuid && !m_KernelSession && config.MatchAnyKeyword && HasStacks())
+		config.MatchAnyKeyword |= 0x40;		// WINEVENT_KEYWORD_IMAGE
+
 	ENABLE_TRACE_PARAMETERS params{ ENABLE_TRACE_PARAMETERS_VERSION_2 };
 	if (config.Stacks)
 		params.EnableProperty = EVENT_ENABLE_PROPERTY_STACK_TRACE;
@@ -415,7 +456,7 @@ namespace {
 	}
 }
 
-void TraceSession::ParseImageEvent(EventData* data) {
+bool TraceSession::ParseImageEvent(EventData* data) {
 	auto& provider = data->GetProviderId();
 	auto& desc = data->GetEventDescriptor();
 	enum class Kind { None, Load, Rundown, Unload } kind = Kind::None;
@@ -431,11 +472,11 @@ void TraceSession::ParseImageEvent(EventData* data) {
 		fileName = L"ImageName";
 	}
 	if (kind == Kind::None)
-		return;
+		return provider == ImageLoadGuid;	// the kernel's other image events (e.g. KernelBase) count as image events too
 
 	auto base = GetPointerProperty(data, L"ImageBase");
 	if (!base)
-		return;
+		return true;
 	auto pid = GetDwordProperty(data, pidName);
 	auto time = (LONGLONG)data->GetTimeStamp();
 
@@ -446,10 +487,10 @@ void TraceSession::ParseImageEvent(EventData* data) {
 	if (kind == Kind::Unload) {
 		if (loaded != images.end())
 			loaded->UnloadTime = time;
-		return;
+		return true;
 	}
 	if (kind == Kind::Rundown && loaded != images.end())
-		return;		// already known (a load, or the other rundown)
+		return true;		// already known (a load, or the other rundown)
 
 	ImageInfo image;
 	image.Base = base;
@@ -462,6 +503,7 @@ void TraceSession::ParseImageEvent(EventData* data) {
 	if (loaded != images.end())
 		loaded->UnloadTime = time;		// a load over a loaded image: the unload was missed
 	images.push_back(std::move(image));
+	return true;
 }
 
 std::optional<ImageInfo> TraceSession::FindImage(DWORD pid, ULONG64 address, LONGLONG time) const {
@@ -490,6 +532,12 @@ int TraceSession::UpdateEventConfig() {
 	for (auto type : m_KernelEventTypes) {
 		gm.Masks[((uint64_t)type) >> 32] |= (ULONG)type;
 	}
+	// image loads (and the rundown of the running processes' images) symbolize the stacks
+	// of processes that exit; shown only when asked for
+	auto images = HasStacks();
+	if (images)
+		gm.Masks[0] |= EVENT_TRACE_FLAG_IMAGE_LOAD;
+	m_HideImageEvents = images && !m_KernelEventTypes.contains(KernelEventTypes::ImageLoad);
 	auto error = ::TraceSetInformation(m_hTrace, TraceSystemTraceEnableFlagsInfo, &gm, sizeof(gm));
 	if (error != ERROR_SUCCESS)
 		return error;
@@ -549,7 +597,10 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
 	if (::GetLastError() == ERROR_SUCCESS) {
-		ParseImageEvent(data.get());
+		if (ParseImageEvent(data.get()) && m_HideImageEvents && IsRealTimeSession()) {
+			--m_Index;		// enabled only for symbols
+			return;
+		}
 		// process start/stop events update the process names, and are displayed like any other event
 		if (!ParseProcessStartStop(data.get()) && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
 			HandleNoProcessId(data.get());
@@ -999,6 +1050,8 @@ bool TraceSession::Init() {
 			if (error != ERROR_SUCCESS)
 				break;
 		}
+		if (error == ERROR_SUCCESS)
+			UpdateImageTracking();
 		break;
 	}
 	return error == ERROR_SUCCESS;
