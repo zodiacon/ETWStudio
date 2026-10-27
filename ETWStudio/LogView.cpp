@@ -173,7 +173,8 @@ CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
 			lvc.pszText = name;
 			lvc.cchTextMax = _countof(name);
 			m_List.GetColumn(col, &lvc);
-			columns.push_back({ name, cm->GetColumnTag<ColumnType>(col) });
+			// header indices skip hidden columns; the column manager's don't
+			columns.push_back({ name, cm->GetColumnTag<ColumnType>(cm->GetRealColumn(col)) });
 		}
 	}
 
@@ -323,6 +324,8 @@ LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
 		ui.UIEnable(ID_VIEW_AUTOSCROLL, true);
 		ui.UIEnable(ID_EDIT_CLEAR_ALL, true);
 		ui.UIEnable(ID_EDIT_FIND, true);
+		ui.UIEnable(ID_EDIT_FIND_NEXT, true);
+		ui.UIEnable(ID_EDIT_FIND_PREVIOUS, true);
 		ui.UIEnable(ID_EDIT_HIGHLIGHT, true);
 		ui.UIEnable(ID_EDIT_FILTER, true);
 		Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
@@ -336,6 +339,8 @@ LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
 LRESULT CLogView::OnDestroy(UINT, WPARAM, LPARAM, BOOL&) {
 	KillTimer(1);
 	CloseProperties();
+	if (m_FindDlg.IsWindow())
+		m_FindDlg.DestroyWindow();
 	m_Session->Stop(true);
 	StackSymbolizer::Get().Forget(m_Session.get());
 	m_Events.clear();
@@ -403,6 +408,114 @@ namespace {
 	}
 }
 
+namespace {
+	bool IsWordChar(wchar_t ch) {
+		return ::iswalnum(ch) || ch == L'_';
+	}
+
+	bool TextMatches(std::wstring_view text, CFindDlg::Options const& options) {
+		auto& needle = options.Text;
+		auto equal = options.MatchCase ? [](wchar_t a, wchar_t b) { return a == b; } :
+			[](wchar_t a, wchar_t b) { return ::towupper(a) == ::towupper(b); };
+		for (auto it = text.begin(); ; ++it) {
+			it = std::search(it, text.end(), needle.begin(), needle.end(), equal);
+			if (it == text.end())
+				return false;
+			if (!options.WholeWord)
+				return true;
+			auto end = it + needle.size();
+			if ((it == text.begin() || !IsWordChar(*(it - 1))) && (end == text.end() || !IsWordChar(*end)))
+				return true;
+		}
+	}
+}
+
+bool CLogView::EventMatches(EventData* evt, std::span<ColumnType const> columns, CFindDlg::Options const& options) const {
+	for (auto type : columns) {
+		if (TextMatches((PCWSTR)GetEventText(*evt, type), options))
+			return true;
+	}
+	if (options.Properties) {
+		for (auto& prop : evt->GetProperties()) {
+			if (TextMatches(prop.Name, options) || TextMatches(evt->FormatProperty(prop), options))
+				return true;
+		}
+	}
+	return false;
+}
+
+std::wstring CLogView::Find(CFindDlg::Action action, CFindDlg::Options const& options) {
+	int count = (int)m_Events.size();
+	if (options.Text.empty() || count == 0)
+		return L"";
+
+	auto cm = GetColumnManager(m_List);
+	std::vector<ColumnType> columns;
+	for (int col = 0; col < m_List.GetHeader().GetItemCount(); col++)
+		columns.push_back(cm->GetColumnTag<ColumnType>(cm->GetRealColumn(col)));	// header index -> column manager's
+
+	CWaitCursor wait;
+	std::wstring result;
+	if (action == CFindDlg::Action::SelectAll) {
+		m_List.SetItemState(-1, 0, LVIS_SELECTED);
+		int found = 0, first = -1;
+		for (int row = 0; row < count; row++) {
+			if (EventMatches(m_Events[row], columns, options)) {
+				m_List.SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
+				if (found++ == 0)
+					first = row;
+			}
+		}
+		if (first >= 0) {
+			m_List.SetItemState(first, LVIS_FOCUSED, LVIS_FOCUSED);
+			m_List.EnsureVisible(first, FALSE);
+		}
+		result = found ? std::format(L"{} events selected", found) : L"Not found";
+	}
+	else {
+		// from the event after (or before) the focused one, wrapping around
+		int current = m_List.GetNextItem(-1, LVNI_FOCUSED);
+		int start = current < 0 ? (options.Forward ? 0 : count - 1) : current + (options.Forward ? 1 : -1);
+		for (int n = 0; n < count && result.empty(); n++) {
+			int row = ((start + (options.Forward ? n : -n)) % count + count) % count;
+			if (EventMatches(m_Events[row], columns, options)) {
+				m_List.SetItemState(-1, 0, LVIS_SELECTED);
+				m_List.SelectItem(row);
+				bool wrapped = current >= 0 && (options.Forward ? row <= current : row >= current);
+				result = std::format(L"Found in event #{}{}", m_Events[row]->GetIndex(), wrapped ? L" (wrapped around)" : L"");
+			}
+		}
+		if (result.empty())
+			result = L"Not found";
+	}
+	if (result == L"Not found")
+		::MessageBeep(MB_ICONWARNING);
+	Frame()->SetStatusText(3, result.c_str());
+	return result;
+}
+
+LRESULT CLogView::OnFind(WORD, WORD, HWND, BOOL&) {
+	m_FindDlg.Show(GetTopLevelParent());
+	return 0;
+}
+
+LRESULT CLogView::OnFindNext(WORD, WORD id, HWND, BOOL&) {
+	bool forward = id == ID_EDIT_FIND_NEXT;
+	// the accelerators get F3 before the QuickFind box does
+	if (m_QuickFind.IsWindowVisible() && ::GetFocus() == m_QuickFind) {
+		QuickFind(forward, false);
+		return 0;
+	}
+	auto options = m_FindDlg.GetOptions();
+	if (options.Text.empty()) {
+		m_FindDlg.Show(GetTopLevelParent());
+		return 0;
+	}
+	options.Forward = forward;
+	Find(CFindDlg::Action::FindNext, options);
+	return 0;
+}
+
 void CLogView::QuickFind(bool forward, bool includeCurrent) {
 	CString text;
 	m_QuickFind.GetWindowText(text);
@@ -421,11 +534,12 @@ void CLogView::QuickFind(bool forward, bool includeCurrent) {
 		start = includeCurrent ? current : current + (forward ? 1 : -1);
 
 	CWaitCursor wait;
+	auto cm = GetColumnManager(m_List);
 	int columns = m_List.GetHeader().GetItemCount();
 	for (int n = 0; n < count; n++) {
 		int row = ((start + (forward ? n : -n)) % count + count) % count;
 		for (int col = 0; col < columns; col++) {
-			if (ContainsNoCase(GetColumnText(m_List, row, col), needle)) {
+			if (ContainsNoCase(GetColumnText(m_List, row, cm->GetRealColumn(col)), needle)) {
 				m_List.SetItemState(-1, 0, LVIS_SELECTED);
 				m_List.SelectItem(row);
 				Frame()->SetStatusText(3, std::format(L"Found in event #{}", m_Events[row]->GetIndex()).c_str());

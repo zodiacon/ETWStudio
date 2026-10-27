@@ -6,6 +6,7 @@
 
 #include "Interfaces.h"
 #include "ProgressDlg.h"
+#include "FindDlg.h"
 #include <FrameView.h>
 #include <VirtualListView.h>
 #include <QuickFindEdit.h>
@@ -85,8 +86,9 @@ public:
 		COMMAND_ID_HANDLER(ID_EDIT_FILTER, OnEditFilter)
 		COMMAND_ID_HANDLER(ID_EDIT_HIGHLIGHT, OnEditHighlight)
 		COMMAND_ID_HANDLER(ID_VIEW_QUICKFIND, OnQuickFind)
-		COMMAND_ID_HANDLER(ID_VIEW_FIND, OnQuickFind)
-		COMMAND_ID_HANDLER(ID_EDIT_FIND, OnQuickFind)
+		COMMAND_ID_HANDLER(ID_EDIT_FIND, OnFind)
+		COMMAND_ID_HANDLER(ID_EDIT_FIND_NEXT, OnFindNext)
+		COMMAND_ID_HANDLER(ID_EDIT_FIND_PREVIOUS, OnFindNext)
 		COMMAND_ID_HANDLER(ID_FILE_SAVE, OnFileSave)
 		COMMAND_ID_HANDLER(ID_FILE_SAVESESSION, OnSaveSession)
 		COMMAND_ID_HANDLER(ID_EDIT_COPY, OnCopy)
@@ -116,6 +118,10 @@ private:
 	};
 	CString GetEventText(EventData const& evt, ColumnType type) const;
 
+	// the Find dialog's search: returns the text it shows
+	std::wstring Find(CFindDlg::Action action, CFindDlg::Options const& options);
+	bool EventMatches(EventData* evt, std::span<ColumnType const> columns, CFindDlg::Options const& options) const;
+
 	enum class SaveFormat { Csv, Json };
 	// exports on a worker thread, with a progress dialog; a failed or canceled export leaves no file
 	CProgressDlg::Result DoSave(PCWSTR path, SaveFormat format) const;
@@ -135,6 +141,8 @@ private:
 	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnQuickFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnQuickFindNotify(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnFindNext(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnEditHighlight(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnListCustomDraw(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
@@ -152,6 +160,7 @@ private:
 	CListViewCtrl m_List;
 	enum { QuickFindId = 0x5001 };
 	CQuickFindBox m_QuickFind;
+	CFindDlg m_FindDlg{ [this](auto action, auto const& options) { return Find(action, options); } };
 	std::unique_ptr<TraceSession> m_Session;
 	std::vector<EventData*> m_Events;
 	std::vector<EventData*> m_TempEvents;

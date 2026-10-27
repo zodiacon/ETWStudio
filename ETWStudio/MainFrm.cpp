@@ -349,6 +349,8 @@ void CMainFrame::UpdateUI() {
 	UIEnable(ID_SESSION_STOP, false);
 	UIEnable(ID_VIEW_AUTOSCROLL, false);
 	UIEnable(ID_EDIT_FIND, false);
+	UIEnable(ID_EDIT_FIND_NEXT, false);
+	UIEnable(ID_EDIT_FIND_PREVIOUS, false);
 	UIEnable(ID_EDIT_CLEAR_ALL, false);
 	UISetCheck(ID_SESSION_RUN, false);
 	UISetCheck(ID_SESSION_STOP, false);
