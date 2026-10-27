@@ -226,53 +226,107 @@ const EVENT_DESCRIPTOR& EventData::GetEventDescriptor() const {
 	return m_Header.EventDescriptor;
 }
 
+namespace {
+	// in-types whose element size is EVENT_PROPERTY_INFO::length bytes
+	bool IsFixedSize(USHORT inType) {
+		switch (inType) {
+			case TDH_INTYPE_INT8: case TDH_INTYPE_UINT8:
+			case TDH_INTYPE_INT16: case TDH_INTYPE_UINT16:
+			case TDH_INTYPE_INT32: case TDH_INTYPE_UINT32:
+			case TDH_INTYPE_INT64: case TDH_INTYPE_UINT64:
+			case TDH_INTYPE_FLOAT: case TDH_INTYPE_DOUBLE:
+			case TDH_INTYPE_BOOLEAN: case TDH_INTYPE_BINARY:
+			case TDH_INTYPE_HEXINT32: case TDH_INTYPE_HEXINT64:
+			case TDH_INTYPE_FILETIME: case TDH_INTYPE_SYSTEMTIME:
+			case TDH_INTYPE_GUID:
+			case TDH_INTYPE_POINTER: case TDH_INTYPE_SIZET:
+				return true;
+		}
+		return false;
+	}
+
+	// longest array shown by FormatProperty
+	const ULONG MaxFormattedElements = 64;
+}
+
+ULONG EventData::GetPropertyValueAsCount(ULONG index) const noexcept {
+	if (index >= m_Properties.size())
+		return 0;
+	auto& prop = m_Properties[index];
+	ULONG value = 0;
+	memcpy(&value, prop.GetData(), (std::min)(prop.GetLength(), (ULONG)sizeof(value)));
+	return value;
+}
+
 const std::vector<EventProperty>& EventData::GetProperties() const {
 	std::lock_guard locker(m_Lock);
-	{
-		if (m_PropertiesParsed || m_EventInfo == nullptr)
-			return m_Properties;
+	if (m_PropertiesParsed || m_EventInfo == nullptr)
+		return m_Properties;
 
-		m_PropertiesParsed = true;
-		auto info = m_EventInfo;
-		m_Properties.reserve(info->TopLevelPropertyCount);
-		auto userDataLength = m_Record.UserDataLength;
-		auto data = (BYTE*)m_Record.UserData;
+	m_PropertiesParsed = true;
+	auto info = m_EventInfo;
+	m_Properties.reserve(info->TopLevelPropertyCount);
+	ULONG remaining = m_Record.UserDataLength;
+	auto data = (BYTE const*)m_Record.UserData;
+	ULONG pointerSize = (m_Header.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) ? 4 : 8;
 
-		for (ULONG i = 0; i < info->TopLevelPropertyCount && userDataLength > 0; i++) {
-			auto& prop = info->EventPropertyInfoArray[i];
-			EventProperty property(prop);
-			property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
-			ULONG len = prop.length;
-			if (prop.Flags & PropertyParamLength) {
-				auto p = m_Properties[len].GetData();
-				auto plen = m_Properties[len].GetLength();
-				assert(plen <= sizeof(ULONG) && plen > 0);
-				if (plen > sizeof(ULONG))
-					plen = sizeof(ULONG);
-				len = 0;
-				memcpy(&len, p, plen);
-				if (len > userDataLength)
-					len = userDataLength;
-			}
+	for (ULONG i = 0; i < info->TopLevelPropertyCount; i++) {
+		auto& prop = info->EventPropertyInfoArray[i];
+		EventProperty property(prop);
+		property.Name.assign((WCHAR*)((BYTE*)info + prop.NameOffset));
 
-			if (len == 0) {
-				PROPERTY_DATA_DESCRIPTOR desc;
-				desc.PropertyName = (ULONGLONG)property.Name.c_str();
-				desc.ArrayIndex = ULONG_MAX;
-				::TdhGetPropertySize((PEVENT_RECORD)&m_Record, 0, nullptr, 1, &desc, &len);
-			}
-			if (len) {
-				auto d = property.Allocate(len);
-				if (d) {
-					::memcpy(d, data, len);
-				}
-				data += len;
-				if (userDataLength < len)
-					break;
-				userDataLength -= (USHORT)len;
-			}
-			m_Properties.push_back(std::move(property));
+		// count and length may be the values of earlier properties
+		property.Count = (prop.Flags & PropertyParamCount) ? GetPropertyValueAsCount(prop.countPropertyIndex) : prop.count;
+		property.IsArray = (prop.Flags & (PropertyParamCount | PropertyParamFixedCount)) || property.Count > 1;
+		bool isStruct = property.IsStruct();
+		if (!isStruct) {
+			property.ElementLength = (prop.Flags & PropertyParamLength) ? GetPropertyValueAsCount(prop.lengthPropertyIndex) : prop.length;
+			if (prop.nonStructType.InType == TDH_INTYPE_POINTER || prop.nonStructType.InType == TDH_INTYPE_SIZET)
+				property.ElementLength = pointerSize;
 		}
+
+		ULONG size = 0;
+		bool known = false;
+		if (!isStruct && property.ElementLength > 0 && IsFixedSize(prop.nonStructType.InType)) {
+			size = property.ElementLength * property.Count;
+			known = true;
+		}
+		else {
+			// strings, SIDs, structs...: let TDH compute the size (of the whole array)
+			PROPERTY_DATA_DESCRIPTOR desc{};
+			desc.PropertyName = (ULONGLONG)property.Name.c_str();
+			desc.ArrayIndex = ULONG_MAX;
+			known = ::TdhGetPropertySize((PEVENT_RECORD)&m_Record, 0, nullptr, 1, &desc, &size) == ERROR_SUCCESS;
+		}
+		if (!known) {
+			// fall back to walking the elements by formatting them
+			auto p = data;
+			auto left = remaining;
+			auto map = GetMapInfo(prop);
+			std::wstring text;
+			known = true;
+			for (ULONG e = 0; e < property.Count && known; e++) {
+				if (isStruct)
+					known = FormatStruct(prop, p, left, text);
+				else {
+					USHORT consumed = 0;
+					known = FormatValue(prop, (PEVENT_MAP_INFO)map.get(), property.ElementLength, p, left, text, consumed);
+					p += consumed;
+					left -= consumed;
+				}
+			}
+			size = remaining - left;
+		}
+		if (!known || (size > 0 && remaining == 0))
+			break;		// the rest of the data can't be located reliably, or there is none (older event version)
+
+		size = (std::min)(size, remaining);		// truncated event
+		if (size) {
+			::memcpy(property.Allocate(size), data, size);
+			data += size;
+			remaining -= size;
+		}
+		m_Properties.push_back(std::move(property));
 	}
 	return m_Properties;
 }
@@ -288,37 +342,135 @@ uint32_t EventData::GetIndex() const noexcept {
 	return m_Index;
 }
 
-std::wstring EventData::FormatProperty(const EventProperty& property) const {
+std::unique_ptr<BYTE[]> EventData::GetMapInfo(EVENT_PROPERTY_INFO const& prop) const {
+	if ((prop.Flags & PropertyStruct) || prop.nonStructType.MapNameOffset == 0)
+		return nullptr;
+
+	auto mapName = (PWSTR)((PBYTE)m_EventInfo + prop.nonStructType.MapNameOffset);
 	ULONG size = 0;
-	PEVENT_MAP_INFO eventMap = nullptr;
-	std::unique_ptr<BYTE[]> mapBuffer;
-	auto& prop = property.Info;
-	WCHAR buffer[1024];
+	if (ERROR_INSUFFICIENT_BUFFER != ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, nullptr, &size))
+		return nullptr;
+	auto buffer = std::make_unique<BYTE[]>(size);
+	if (ERROR_SUCCESS != ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, (PEVENT_MAP_INFO)buffer.get(), &size))
+		return nullptr;
+	return buffer;
+}
+
+bool EventData::FormatValue(EVENT_PROPERTY_INFO const& prop, PEVENT_MAP_INFO map, ULONG length, BYTE const* data, ULONG size, std::wstring& text, USHORT& consumed) const {
+	consumed = 0;
+	text.clear();
+	if (size == 0)
+		return true;
+
+	auto inType = prop.nonStructType.InType;
+	auto outType = prop.nonStructType.OutType;
+	// length special case for IPV6
+	if (inType == TDH_INTYPE_BINARY && outType == TDH_OUTTYPE_IPV6)
+		length = sizeof(IN6_ADDR);
+
+	ULONG bufferSize = 128 * sizeof(WCHAR);
+	for (int i = 0; i < 4; i++) {
+		text.resize(bufferSize / sizeof(WCHAR));
+		auto status = ::TdhFormatProperty(m_EventInfo, map, (m_Header.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) ? 4 : 8,
+			inType, outType, (USHORT)length, (USHORT)(std::min)(size, (ULONG)USHRT_MAX), (PBYTE)data, &bufferSize, text.data(), &consumed);
+		if (status == ERROR_INSUFFICIENT_BUFFER)
+			continue;		// bufferSize now has the required size
+		if (status != ERROR_SUCCESS)
+			break;
+		text.resize(::wcsnlen(text.c_str(), text.size()));
+		return consumed <= size;
+	}
+	text.clear();
+	consumed = 0;
+	return false;
+}
+
+bool EventData::FormatStruct(EVENT_PROPERTY_INFO const& prop, BYTE const*& data, ULONG& size, std::wstring& text) const {
 	auto info = m_EventInfo;
-	if (prop.nonStructType.MapNameOffset) {
-		auto mapName = (PWSTR)((PBYTE)info + prop.nonStructType.MapNameOffset);
-		if (ERROR_INSUFFICIENT_BUFFER == ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, nullptr, &size)) {
-			mapBuffer = std::make_unique<BYTE[]>(size);
-			eventMap = reinterpret_cast<PEVENT_MAP_INFO>(mapBuffer.get());
-			if (ERROR_SUCCESS != ::TdhGetEventMapInformation((PEVENT_RECORD)&m_Record, mapName, eventMap, &size))
-				eventMap = nullptr;
+	auto first = prop.structType.StructStartIndex;
+	auto members = prop.structType.NumOfStructMembers;
+	if ((ULONG)first + members > info->PropertyCount)
+		return false;
+
+	// numeric member values, for members whose count/length refers to a sibling
+	std::vector<ULONG> values(members);
+	auto valueOf = [&](USHORT index) {
+		return index >= first && index < first + members ? values[index - first] : GetPropertyValueAsCount(index);
+	};
+
+	std::wstring value;
+	text += L"{";
+	for (USHORT m = 0; m < members; m++) {
+		auto& member = info->EventPropertyInfoArray[first + m];
+		if (member.Flags & PropertyStruct)
+			return false;
+		if (m)
+			text += L", ";
+		text += (PCWSTR)((BYTE*)info + member.NameOffset);
+		text += L": ";
+
+		ULONG count = (member.Flags & PropertyParamCount) ? valueOf(member.countPropertyIndex) : member.count;
+		bool isArray = (member.Flags & (PropertyParamCount | PropertyParamFixedCount)) || count > 1;
+		ULONG length = (member.Flags & PropertyParamLength) ? valueOf(member.lengthPropertyIndex) : member.length;
+		auto map = GetMapInfo(member);
+		if (isArray)
+			text += L"[";
+		for (ULONG e = 0; e < count; e++) {
+			USHORT consumed;
+			if (!FormatValue(member, (PEVENT_MAP_INFO)map.get(), length, data, size, value, consumed))
+				return false;
+			if (e < MaxFormattedElements)
+				text += (e ? L", " : L"") + value;
+			else if (e == MaxFormattedElements)
+				text += L", ...";
+			if (e == 0 && consumed <= sizeof(ULONG))
+				memcpy(&values[m], data, consumed);
+			data += consumed;
+			size -= consumed;
+		}
+		if (isArray)
+			text += L"]";
+	}
+	text += L"}";
+	return true;
+}
+
+std::wstring EventData::FormatProperty(const EventProperty& property) const {
+	if (m_EventInfo == nullptr)
+		return L"";
+
+	auto& prop = property.Info;
+	BYTE const* data = property.GetData();
+	auto size = property.GetLength();
+	auto map = GetMapInfo(prop);
+	std::wstring text, value;
+	if (property.IsArray)
+		text = L"[";
+	for (ULONG i = 0; i < property.Count && size > 0; i++) {
+		if (i == MaxFormattedElements) {
+			text += L", ...";
+			break;
+		}
+		if (i)
+			text += L", ";
+		if (property.IsStruct()) {
+			if (!FormatStruct(prop, data, size, text))
+				break;
+		}
+		else {
+			USHORT consumed;
+			if (!FormatValue(prop, (PEVENT_MAP_INFO)map.get(), property.ElementLength, data, size, value, consumed))
+				break;
+			text += value;
+			if (consumed == 0)
+				break;
+			data += consumed;
+			size -= consumed;
 		}
 	}
-	size = sizeof(buffer);
-
-	// length special case for IPV6
-	auto len = prop.length;
-	if (prop.nonStructType.InType == TDH_INTYPE_BINARY && prop.nonStructType.OutType == TDH_OUTTYPE_IPV6)
-		len = sizeof(IN6_ADDR);
-
-	USHORT consumed;
-	auto status = ::TdhFormatProperty(info, eventMap, (m_Header.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) ? 4 : 8,
-		prop.nonStructType.InType, prop.nonStructType.OutType, len, (USHORT)property.GetLength(), (PBYTE)property.GetData(),
-		&size, buffer, &consumed);
-	if (status == ERROR_SUCCESS)
-		return std::wstring(buffer);
-
-	return L"";
+	if (property.IsArray)
+		text += L"]";
+	return text;
 }
 
 void EventData::SetProcessName(std::wstring name) {

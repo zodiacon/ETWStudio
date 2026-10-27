@@ -98,6 +98,15 @@ DEFINE_GUID( /* 3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c */
 	0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c
 );
 
+// Microsoft-Windows-Kernel-Process (manifest provider)
+DEFINE_GUID( /* 22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716 */
+	KernelProcessProviderGuid,
+	0x22fb2cd6,
+	0x0e7b,
+	0x422b,
+	0xa0, 0xc7, 0x2f, 0xad, 0x1f, 0xd0, 0xe7, 0x16
+);
+
 DEFINE_GUID( /* 45d8cccd-539f-4b72-a8b7-5c683142609a */
 	ALPCGuid,
 	0x45d8cccd,

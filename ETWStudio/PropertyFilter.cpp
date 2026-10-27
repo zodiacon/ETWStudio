@@ -131,6 +131,10 @@ std::optional<FilterValue> PropertyFilter::GetFieldValue(EventData const& evt) c
 	if (!prop || prop->GetLength() == 0)
 		return {};
 
+	// arrays and structs: compare as displayed
+	if (prop->IsArray || prop->IsStruct())
+		return evt.FormatProperty(*prop);
+
 	auto data = prop->GetData();
 	auto len = prop->GetLength();
 	switch (prop->Info.nonStructType.InType) {

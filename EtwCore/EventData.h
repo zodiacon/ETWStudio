@@ -25,6 +25,12 @@ struct EventProperty {
 
 	std::wstring Name;
 	EVENT_PROPERTY_INFO const& Info;
+	ULONG Count{ 1 };			// number of elements; Data holds all of them
+	bool IsArray{ false };
+
+	bool IsStruct() const noexcept {
+		return Info.Flags & PropertyStruct;
+	}
 
 	ULONG GetLength() const {
 		return (ULONG)Data.size();
@@ -50,6 +56,7 @@ struct EventProperty {
 
 private:
 	std::vector<BYTE> Data;
+	ULONG ElementLength{ 0 };	// Info.length, or the value of the length property (PropertyParamLength)
 	void* Allocate(ULONG size);
 };
 
@@ -90,6 +97,12 @@ protected:
 
 private:
 	static PTRACE_EVENT_INFO GetCachedEventInfo(PEVENT_RECORD rec, ULONG& error);
+	ULONG GetPropertyValueAsCount(ULONG index) const noexcept;
+	std::unique_ptr<BYTE[]> GetMapInfo(EVENT_PROPERTY_INFO const& prop) const;
+	// formats one value (not a struct) starting at data; returns false if it can't be decoded
+	bool FormatValue(EVENT_PROPERTY_INFO const& prop, PEVENT_MAP_INFO map, ULONG length, BYTE const* data, ULONG size, std::wstring& text, USHORT& consumed) const;
+	// formats all members of one struct element, advancing data/size
+	bool FormatStruct(EVENT_PROPERTY_INFO const& prop, BYTE const*& data, ULONG& size, std::wstring& text) const;
 	void CopyRecordData(PEVENT_RECORD rec);
 
 	inline static HANDLE s_hHeap = ::HeapCreate(0, 1 << 24, 0);

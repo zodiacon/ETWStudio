@@ -307,35 +307,53 @@ void TraceSession::EnumProcesses() {
 	s_Processes.swap(processes);
 }
 
-bool TraceSession::ParseProcessStartStop(EventData* data) {
-	if (data->GetEventStrings().Task != L"Process")
-		return false;
-
-	switch (data->GetEventDescriptor().Opcode) {
-		case 1:		// process created
-		{
-			auto prop = data->GetProperty(L"ImageFileName");
-			auto pidProp = data->GetProperty(L"ProcessId");
-			if (prop && pidProp) {
-				auto name = prop->GetAnsiString();
-				if (name) {
-					std::wstring pname;
-					pname.assign(name, name + strlen(name));
-					AddProcessName(pidProp->GetValue<DWORD>(), pname);
-					assert(!pname.empty());
-					//data->SetProcessName(pname);
-				}
-			}
-			break;
-		}
-
-		case 12:		// process end
-			RemoveProcessName(data->GetProcessId());
-			break;
-
+namespace {
+	DWORD GetDwordProperty(EventData const* data, PCWSTR name) {
+		auto prop = data->GetProperty(name);
+		return prop && prop->GetLength() == sizeof(DWORD) ? prop->GetValue<DWORD>() : 0;
 	}
+}
 
-	return true;
+bool TraceSession::ParseProcessStartStop(EventData* data) {
+	auto& provider = data->GetProviderId();
+	auto& desc = data->GetEventDescriptor();
+	if (provider == ProcessGuid) {
+		// NT kernel logger (MOF) process events
+		switch (desc.Opcode) {
+			case 1:		// Start
+			case 3:		// DCStart (rundown of existing processes)
+				if (auto pid = GetDwordProperty(data, L"ProcessId"); pid) {
+					auto prop = data->GetProperty(L"ImageFileName");
+					if (auto name = prop ? prop->GetAnsiString() : nullptr; name && *name)
+						AddProcessName(pid, std::wstring(name, name + strlen(name)));
+				}
+				return true;
+
+			case 2:		// End
+				if (auto pid = GetDwordProperty(data, L"ProcessId"); pid)
+					RemoveProcessName(pid);
+				return true;
+		}
+	}
+	else if (provider == KernelProcessProviderGuid) {
+		switch (desc.Id) {
+			case 1:		// ProcessStart
+				if (auto pid = GetDwordProperty(data, L"ProcessID"); pid) {
+					auto prop = data->GetProperty(L"ImageName");
+					if (auto path = prop ? prop->GetUnicodeString() : nullptr; path && *path) {
+						auto name = wcsrchr(path, L'\\');
+						AddProcessName(pid, name ? name + 1 : path);
+					}
+				}
+				return true;
+
+			case 2:		// ProcessStop
+				if (auto pid = GetDwordProperty(data, L"ProcessID"); pid)
+					RemoveProcessName(pid);
+				return true;
+		}
+	}
+	return false;
 }
 
 void TraceSession::ResetIndex(uint32_t index) {
@@ -405,16 +423,13 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 	auto pid = rec->EventHeader.ProcessId;
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
-	bool processEvent = true;
 	if (::GetLastError() == ERROR_SUCCESS) {
-		processEvent = ParseProcessStartStop(data.get());
-
-		if (!processEvent && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
+		// process start/stop events update the process names, and are displayed like any other event
+		if (!ParseProcessStartStop(data.get()) && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
 			HandleNoProcessId(data.get());
 		}
-
 	}
-	if ((m_Callback || m_CallbackNoOwn) && (!processEvent || m_IsTraceProcesses)) {
+	if (m_Callback || m_CallbackNoOwn) {
 		{
 			std::lock_guard locker(m_FilterLock);
 			if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
@@ -705,12 +720,12 @@ std::wstring TraceSession::GetProcessFullPath(DWORD pid) {
 }
 
 void TraceSession::AddProcessName(DWORD pid, std::wstring name) {
-	std::lock_guard locker(s_ProcessesLock);
 	ProcessInfo pi;
 	pi.Id = pid;
 	pi.ImageName = std::move(name);
 	pi.FullPath = GetProcessFullPath(pid);
-	s_Processes.insert({ pid, std::move(pi) });
+	std::lock_guard locker(s_ProcessesLock);
+	s_Processes.insert_or_assign(pid, std::move(pi));	// process IDs are reused
 }
 
 bool TraceSession::RemoveProcessName(DWORD pid) {

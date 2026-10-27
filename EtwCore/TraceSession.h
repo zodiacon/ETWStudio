@@ -157,7 +157,6 @@ private:
 	std::shared_ptr<EventData> m_LastExcluded;
 	uint32_t m_Index{ 0 };
 	wil::unique_handle m_hMemMap;
-	bool m_IsTraceProcesses{ false };
 	bool m_DumpUnnamedEvents{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
