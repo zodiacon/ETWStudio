@@ -46,10 +46,13 @@ std::wstring EventExport::CsvField(std::wstring_view text) {
 	return field + L'"';
 }
 
-void EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> events) {
+bool EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress) {
 	writer << L"[";
 	bool first = true;
+	size_t count = 0;
 	for (auto evt : events) {
+		if (progress && count++ % 256 == 0 && !progress(count - 1))
+			return false;
 		auto& desc = evt->GetEventDescriptor();
 		auto& strings = evt->GetEventStrings();
 		writer << (first ? L"\n  {" : L",\n  {");
@@ -81,4 +84,5 @@ void EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> even
 		writer << L" }";
 	}
 	writer << L"\n]\n";
+	return writer.Ok();
 }

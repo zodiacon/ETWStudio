@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Interfaces.h"
+#include "ProgressDlg.h"
 #include <FrameView.h>
 #include <VirtualListView.h>
 #include <QuickFindEdit.h>
@@ -97,9 +98,6 @@ private:
 	void CloseProperties();
 	// re-evaluates the current filters against all events stored so far
 	void ApplyFilterToExisting();
-	enum class SaveFormat { Csv, Json };
-	bool DoSave(PCWSTR path, SaveFormat format) const;
-	void SaveCsv(class Utf8Writer& writer) const;
 	// moves events not yet picked up by the timer into the list
 	void AddPendingEvents();
 	// searches the displayed text of all columns, wrapping around
@@ -116,6 +114,13 @@ private:
 		Keyword, Task, OpCode, Level, Message, Id, 
 		Source, Channel, Version, EventName, Properties, Details,
 	};
+	CString GetEventText(EventData const& evt, ColumnType type) const;
+
+	enum class SaveFormat { Csv, Json };
+	// exports on a worker thread, with a progress dialog; a failed or canceled export leaves no file
+	CProgressDlg::Result DoSave(PCWSTR path, SaveFormat format) const;
+	bool SaveCsv(class Utf8Writer& writer, std::span<std::pair<std::wstring, ColumnType> const> columns,
+		std::function<bool(size_t)> const& progress) const;
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)

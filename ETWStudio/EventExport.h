@@ -43,6 +43,7 @@ private:
 namespace EventExport {
 	// quotes a CSV field if needed
 	std::wstring CsvField(std::wstring_view text);
-	// all event data (header fields, properties, stack) as a JSON array
-	void WriteJson(Utf8Writer& writer, std::span<EventData* const> events);
+	// all event data (header fields, properties, stack) as a JSON array.
+	// progress (optional) gets the number of events written so far; returning false stops (returns false)
+	bool WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress = nullptr);
 }

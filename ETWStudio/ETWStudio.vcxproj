@@ -515,6 +515,7 @@
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
     <ClCompile Include="SymbolSettingsDlg.cpp" />
+    <ClCompile Include="ProgressDlg.cpp" />
     <ClCompile Include="StringHelper.cpp" />
     <ClCompile Include="TraceSessionsView.cpp" />
   </ItemGroup>
@@ -540,6 +541,7 @@
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />
     <ClInclude Include="SymbolSettingsDlg.h" />
+    <ClInclude Include="ProgressDlg.h" />
     <ClInclude Include="StringHelper.h" />
     <ClInclude Include="TraceSessionsView.h" />
   </ItemGroup>

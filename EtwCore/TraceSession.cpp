@@ -766,6 +766,10 @@ bool TraceSession::StartCommon(bool cont) {
 	m_hProcessThread.reset(::CreateThread(nullptr, 0, [](auto param) {
 		return ((TraceSession*)param)->Run();
 	}, this, 0, nullptr));
+	if (!m_hProcessThread) {
+		CloseOpenTrace();
+		return false;
+	}
 	::SetThreadPriority(m_hProcessThread.get(), THREAD_PRIORITY_HIGHEST);
 	::SetThreadDescription(m_hProcessThread.get(), L"ETW Processing Thread");
 	if (::WaitForSingleObject(m_hProcessThread.get(), 100) == WAIT_OBJECT_0) {

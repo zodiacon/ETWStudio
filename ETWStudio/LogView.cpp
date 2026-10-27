@@ -30,8 +30,12 @@ bool CLogView::OpenLogFile(PCWSTR path) {
 }
 
 CString CLogView::GetColumnText(HWND h, int row, int col) const {
-	auto& evt = *m_Events[row];
-	switch (GetColumnManager(h)->GetColumnTag<ColumnType>(col)) {
+	return GetEventText(*m_Events[row], GetColumnManager(h)->GetColumnTag<ColumnType>(col));
+}
+
+// doesn't touch the list, so an export can call it from its worker thread
+CString CLogView::GetEventText(EventData const& evt, ColumnType type) const {
+	switch (type) {
 		case ColumnType::ProcessName: return (evt.GetProcessName()).c_str();
 		case ColumnType::PID:
 		{
@@ -150,46 +154,57 @@ void CLogView::UpdateUI() {
 	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
 }
 
-bool CLogView::DoSave(PCWSTR path, SaveFormat format) const {
-	// m_Events is only changed on the UI thread, so the session keeps running while saving
-	Utf8Writer writer(path);
-	if (!writer.IsOpen())
-		return false;
+CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
+	auto writer = std::make_unique<Utf8Writer>(path);
+	if (!writer->IsOpen())
+		return CProgressDlg::Result::Failed;
 
-	CWaitCursor wait;
-	if (format == SaveFormat::Csv)
-		SaveCsv(writer);
-	else
-		EventExport::WriteJson(writer, m_Events);
-	return writer.Flush();
+	// the CSV columns: the visible ones, in display order, as displayed
+	std::vector<std::pair<std::wstring, ColumnType>> columns;
+	if (format == SaveFormat::Csv) {
+		auto cm = GetColumnManager(m_List);
+		int count = m_List.GetHeader().GetItemCount();
+		std::vector<int> order(count);
+		m_List.GetColumnOrderArray(count, order.data());
+		for (auto col : order) {
+			WCHAR name[128]{};
+			LVCOLUMN lvc{ LVCF_TEXT };
+			lvc.pszText = name;
+			lvc.cchTextMax = _countof(name);
+			m_List.GetColumn(col, &lvc);
+			columns.push_back({ name, cm->GetColumnTag<ColumnType>(col) });
+		}
+	}
+
+	// the dialog is modal, so the events stay as they are meanwhile
+	CProgressDlg dlg(L"Export", L"Exported", m_Events.size(), [&](auto const& report) {
+		bool ok = format == SaveFormat::Csv ? SaveCsv(*writer, columns, report) : EventExport::WriteJson(*writer, m_Events, report);
+		return ok && writer->Flush();
+	});
+	auto result = dlg.Run(m_hWnd);
+	if (result != CProgressDlg::Result::Done) {
+		writer.reset();		// closes the file
+		::DeleteFile(path);
+	}
+	return result;
 }
 
-void CLogView::SaveCsv(Utf8Writer& writer) const {
+bool CLogView::SaveCsv(Utf8Writer& writer, std::span<std::pair<std::wstring, ColumnType> const> columns,
+	std::function<bool(size_t)> const& progress) const {
 	writer << L"\xFEFF";	// BOM, so Excel detects UTF-8
 
-	// the visible columns, in display order, as displayed
-	auto header = m_List.GetHeader();
-	int count = header.GetItemCount();
-	std::vector<int> order(count);
-	m_List.GetColumnOrderArray(count, order.data());
-	for (int i = 0; i < count; i++) {
-		WCHAR name[128]{};
-		LVCOLUMN lvc{ LVCF_TEXT };
-		lvc.pszText = name;
-		lvc.cchTextMax = _countof(name);
-		m_List.GetColumn(order[i], &lvc);
-		writer << (i ? L"," : L"") << EventExport::CsvField(name);
-	}
+	for (size_t i = 0; i < columns.size(); i++)
+		writer << (i ? L"," : L"") << EventExport::CsvField(columns[i].first);
 	writer << L"\r\n";
 
-	CString text;
-	for (int row = 0; row < (int)m_Events.size(); row++) {
-		for (int i = 0; i < count; i++) {
-			m_List.GetItemText(row, order[i], text);
-			writer << (i ? L"," : L"") << EventExport::CsvField((PCWSTR)text);
-		}
+	for (size_t row = 0; row < m_Events.size(); row++) {
+		if (row % 256 == 0 && !progress(row))
+			return false;
+		for (size_t i = 0; i < columns.size(); i++)
+			writer << (i ? L"," : L"") << EventExport::CsvField((PCWSTR)GetEventText(*m_Events[row], columns[i].second));
 		writer << L"\r\n";
 	}
+	return writer.Ok();
 }
 
 std::wstring CLogView::GetProperties(EventData const& evt) {
@@ -272,6 +287,7 @@ LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 	}
 	if (!m_Done && m_Session->IsDone()) {
 		m_Done = true;
+		AddPendingEvents();		// the last ones (all of them, for a file processed before the first tick)
 		LRESULT result;
 		Frame()->SetStatusText(3, L"Log file processing complete");
 		return ProcessWindowMessage(m_hWnd, WM_COMMAND, ID_SESSION_STOP, 0, result, 1);
@@ -581,10 +597,17 @@ LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) {
 		auto ext = dot ? dot : L"";
 		auto format = ::_wcsicmp(ext, L".json") == 0 ? SaveFormat::Json :
 			::_wcsicmp(ext, L".csv") == 0 ? SaveFormat::Csv : dlg.m_ofn.nFilterIndex == 2 ? SaveFormat::Json : SaveFormat::Csv;
-		if (!DoSave(dlg.m_szFileName, format))
-			AtlMessageBox(m_hWnd, L"Failed to save the file", IDS_TITLE, MB_ICONERROR);
-		else
-			Frame()->SetStatusText(3, std::format(L"Saved {} events to {}", m_Events.size(), dlg.m_szFileName).c_str());
+		switch (DoSave(dlg.m_szFileName, format)) {
+			case CProgressDlg::Result::Failed:
+				AtlMessageBox(m_hWnd, L"Failed to save the file", IDS_TITLE, MB_ICONERROR);
+				break;
+			case CProgressDlg::Result::Canceled:
+				Frame()->SetStatusText(3, L"Export canceled");
+				break;
+			default:
+				Frame()->SetStatusText(3, std::format(L"Saved {} events to {}", m_Events.size(), dlg.m_szFileName).c_str());
+				break;
+		}
 	}
 	return 0;
 }
