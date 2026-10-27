@@ -6,8 +6,8 @@
 #include "AppSettings.h"
 #include "StackSymbolizer.h"
 
-CPropertiesDlg::CPropertiesDlg(std::vector<EventData*> const& events, int index, HICON hIcon) :
-    m_Events(events), m_Index(index), m_hIcon(hIcon) {
+CPropertiesDlg::CPropertiesDlg(TraceSession const* session, std::vector<EventData*> const& events, int index, HICON hIcon) :
+    m_Session(session), m_Events(events), m_Index(index), m_hIcon(hIcon) {
 }
 
 void CPropertiesDlg::OnFinalMessage(HWND) {
@@ -23,7 +23,7 @@ CString CPropertiesDlg::GetColumnText(HWND, int row, int col) const {
             case 1: return std::format(L"0x{:X}", m_Stack[frame]).c_str();
             case 2:
                 if (!m_StackSymbols[frame])
-                    m_StackSymbols[frame] = StackSymbolizer::Get().GetSymbol(m_Data->GetProcessId(), m_Stack[frame]).c_str();
+                    m_StackSymbols[frame] = StackSymbolizer::Get().GetSymbol(m_Session, m_Data->GetProcessId(), m_Stack[frame], (LONGLONG)m_Data->GetTimeStamp()).c_str();
                 return *m_StackSymbols[frame];
         }
         return CString();

@@ -3,6 +3,7 @@
 #include "KernelEvents.h"
 #include <FilterManager.h>
 #include <deque>
+#include <optional>
 
 class EventData;
 
@@ -24,6 +25,16 @@ struct BufferSettings {
 	ULONG FlushTimerSec{ 1 };
 };
 using EventCallbackNoOwn = std::function<void(EventData*)>;
+
+// an image (exe, DLL, driver) loaded in a process, from the trace's image events
+struct ImageInfo {
+	ULONG64 Base;
+	ULONG Size;
+	ULONG TimeDateStamp;	// of the PE header; 0 if the event didn't have it
+	std::wstring FileName;	// as in the event (an NT path)
+	LONGLONG LoadTime;		// LLONG_MIN: loaded before the trace started
+	LONGLONG UnloadTime{ LLONG_MAX };
+};
 
 namespace std {
 	template<>
@@ -107,6 +118,10 @@ public:
 	static std::wstring GetProcessImageById(DWORD pid);
 	static std::wstring GetDosNameFromNtName(PCWSTR name);
 
+	// the image holding the address in the process at that time, from the trace's image load/unload
+	// and rundown events (drivers are in process 0); nullopt if the trace has none for it
+	std::optional<ImageInfo> FindImage(DWORD pid, ULONG64 address, LONGLONG time) const;
+
 private:
 	bool StartCommon(bool cont);
 	ULONG EnableProvider(GUID const& guid, ProviderConfig const& config);
@@ -115,6 +130,8 @@ private:
 	static bool RemoveProcessName(DWORD pid);
 	static void EnumProcesses();
 	bool ParseProcessStartStop(EventData* data);
+	// image load/unload/rundown events into m_Images
+	void ParseImageEvent(EventData* data);
 	void OnEventRecord(PEVENT_RECORD rec);
 	DWORD Run();
 	void CloseOpenTrace() noexcept;
@@ -130,6 +147,10 @@ private:
 		std::wstring ImageName;
 		std::wstring FullPath;
 	};
+
+	// process ID -> its images, in the order seen (written on the trace thread, read by the UI)
+	std::unordered_map<DWORD, std::vector<ImageInfo>> m_Images;
+	mutable std::shared_mutex m_ImagesLock;
 
 	std::vector<std::unique_ptr<EventData>> m_Events;
 	// guards m_Events and m_RecentByThread, and is held while invoking the callback

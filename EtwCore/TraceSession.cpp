@@ -402,6 +402,80 @@ bool TraceSession::ParseProcessStartStop(EventData* data) {
 	return false;
 }
 
+namespace {
+	ULONG64 GetPointerProperty(EventData const* data, PCWSTR name) {
+		auto prop = data->GetProperty(name);
+		if (!prop)
+			return 0;
+		switch (prop->GetLength()) {
+			case sizeof(ULONG64): return prop->GetValue<ULONG64>();
+			case sizeof(ULONG): return prop->GetValue<ULONG>();
+		}
+		return 0;
+	}
+}
+
+void TraceSession::ParseImageEvent(EventData* data) {
+	auto& provider = data->GetProviderId();
+	auto& desc = data->GetEventDescriptor();
+	enum class Kind { None, Load, Rundown, Unload } kind = Kind::None;
+	PCWSTR pidName = L"ProcessId", fileName = L"FileName";
+	if (provider == ImageLoadGuid) {
+		// NT kernel logger (MOF): Load, DCStart/DCEnd (rundown), Unload
+		kind = desc.Opcode == 10 ? Kind::Load : desc.Opcode == 3 || desc.Opcode == 4 ? Kind::Rundown : desc.Opcode == 2 ? Kind::Unload : Kind::None;
+	}
+	else if (provider == KernelProcessProviderGuid) {
+		// Microsoft-Windows-Kernel-Process: ImageLoad, ImageUnload
+		kind = desc.Id == 5 ? Kind::Load : desc.Id == 6 ? Kind::Unload : Kind::None;
+		pidName = L"ProcessID";
+		fileName = L"ImageName";
+	}
+	if (kind == Kind::None)
+		return;
+
+	auto base = GetPointerProperty(data, L"ImageBase");
+	if (!base)
+		return;
+	auto pid = GetDwordProperty(data, pidName);
+	auto time = (LONGLONG)data->GetTimeStamp();
+
+	std::lock_guard locker(m_ImagesLock);
+	auto& images = m_Images[pid];
+	// the image at this base that is still loaded
+	auto loaded = std::ranges::find_if(images, [&](auto& image) { return image.Base == base && image.UnloadTime == LLONG_MAX; });
+	if (kind == Kind::Unload) {
+		if (loaded != images.end())
+			loaded->UnloadTime = time;
+		return;
+	}
+	if (kind == Kind::Rundown && loaded != images.end())
+		return;		// already known (a load, or the other rundown)
+
+	ImageInfo image;
+	image.Base = base;
+	image.Size = (ULONG)GetPointerProperty(data, L"ImageSize");		// pointer sized
+	image.TimeDateStamp = GetDwordProperty(data, L"TimeDateStamp");
+	auto name = data->GetProperty(fileName);
+	if (auto text = name ? name->GetUnicodeString() : nullptr; text)
+		image.FileName = text;
+	image.LoadTime = kind == Kind::Rundown ? LLONG_MIN : time;
+	if (loaded != images.end())
+		loaded->UnloadTime = time;		// a load over a loaded image: the unload was missed
+	images.push_back(std::move(image));
+}
+
+std::optional<ImageInfo> TraceSession::FindImage(DWORD pid, ULONG64 address, LONGLONG time) const {
+	std::shared_lock locker(m_ImagesLock);
+	auto it = m_Images.find(pid);
+	if (it == m_Images.end())
+		return {};
+	for (auto& image : it->second) {
+		if (address >= image.Base && address < image.Base + image.Size && time >= image.LoadTime && time < image.UnloadTime)
+			return image;
+	}
+	return {};
+}
+
 void TraceSession::ResetIndex(uint32_t index) {
 	m_Index = index;
 }
@@ -475,6 +549,7 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
 	if (::GetLastError() == ERROR_SUCCESS) {
+		ParseImageEvent(data.get());
 		// process start/stop events update the process names, and are displayed like any other event
 		if (!ParseProcessStartStop(data.get()) && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
 			HandleNoProcessId(data.get());
@@ -722,6 +797,11 @@ bool TraceSession::StartCommon(bool cont) {
 	if (cont && m_Done)
 		return true;	// nothing left to resume
 	m_ResumePos = cont ? m_FilePos : FilePosition{};
+	if (!cont) {
+		// a log file read again from the start sees its image events again
+		std::lock_guard locker(m_ImagesLock);
+		m_Images.clear();
+	}
 	m_FilePos = {};
 	m_Done = false;
 	m_Stopped = false;

@@ -11,7 +11,8 @@ class CPropertiesDlg :
 	public CVirtualListView<CPropertiesDlg>,
 	public CDialogHelper<CPropertiesDlg> {
 public:
-	CPropertiesDlg(std::vector<EventData*> const& events, int index, HICON hIcon);
+	// session: whose image events resolve the stack frames' symbols
+	CPropertiesDlg(TraceSession const* session, std::vector<EventData*> const& events, int index, HICON hIcon);
 
 	void OnFinalMessage(HWND) override;
 
@@ -46,6 +47,7 @@ private:
 	LRESULT OnPrevEvent(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
+	TraceSession const* m_Session;
 	std::vector<EventData*> const& m_Events;
 	EventData* m_Data;
 	// stack frames are shown as extra rows after the properties
