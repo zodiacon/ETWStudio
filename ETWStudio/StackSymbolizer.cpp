@@ -13,6 +13,23 @@ namespace {
 	bool IsKernelAddress(ULONG64 address) {
 		return address >= 0xFFFF800000000000ULL;
 	}
+
+	// SizeOfImage from the file's PE header: with deferred loads, a module loaded without a size
+	// covers no addresses, so nothing in it was ever found
+	DWORD GetImageSize(std::wstring const& path) {
+		wil::unique_hfile hFile(::CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
+		if (!hFile)
+			return 0;
+		BYTE buffer[4096];
+		DWORD read = 0;
+		if (!::ReadFile(hFile.get(), buffer, sizeof(buffer), &read, nullptr))
+			return 0;
+		auto dos = reinterpret_cast<IMAGE_DOS_HEADER const*>(buffer);
+		if (read < sizeof(*dos) || dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < 0 || dos->e_lfanew + sizeof(IMAGE_NT_HEADERS64) > read)
+			return 0;
+		auto nt = reinterpret_cast<IMAGE_NT_HEADERS64 const*>(buffer + dos->e_lfanew);
+		return nt->Signature == IMAGE_NT_SIGNATURE ? nt->OptionalHeader.SizeOfImage : 0;
+	}
 }
 
 StackSymbolizer& StackSymbolizer::Get() {
@@ -79,7 +96,7 @@ HANDLE StackSymbolizer::GetKernelContext() {
 		if (!::GetDeviceDriverFileName(base, path, _countof(path)))
 			continue;
 		auto dosPath = DriverPathToDosPath(path);
-		::SymLoadModuleExW(KernelContext, nullptr, dosPath.c_str(), nullptr, (DWORD64)base, 0, nullptr, 0);
+		::SymLoadModuleExW(KernelContext, nullptr, dosPath.c_str(), nullptr, (DWORD64)base, GetImageSize(dosPath), nullptr, 0);
 	}
 	return KernelContext;
 }
@@ -112,9 +129,9 @@ std::wstring StackSymbolizer::GetSymbol(DWORD pid, ULONG64 address) {
 			symbol->MaxNameLen = MAX_SYM_NAME;
 			DWORD64 displacement = 0;
 			if (::SymFromAddrW(hContext, address, &displacement, symbol))
-				return std::format(L"0x{:X} {}!{}+0x{:X}", address, module.ModuleName, symbol->Name, displacement);
-			return std::format(L"0x{:X} {}+0x{:X}", address, module.ModuleName, address - module.BaseOfImage);
+				return std::format(L"{}!{}+0x{:X}", module.ModuleName, symbol->Name, displacement);
+			return std::format(L"{}+0x{:X}", module.ModuleName, address - module.BaseOfImage);
 		}
 	}
-	return std::format(L"0x{:X}", address);
+	return L"";
 }

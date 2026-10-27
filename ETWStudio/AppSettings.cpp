@@ -17,6 +17,11 @@ void AppSettings::Upgrade() {
 		SymbolUseEnvPath(false);
 		SymbolPath(L"");
 	}
+	// an earlier build saved the defaults' pointers instead of their text
+	if (auto url = SymbolServerUrl(); _wcsnicmp(url.c_str(), L"http://", 7) != 0 && _wcsnicmp(url.c_str(), L"https://", 8) != 0)
+		SymbolServerUrl(DefaultSymbolServerUrl);
+	if (auto cache = SymbolCache(); !cache.empty() && cache.find_first_of(L":\\%") == std::wstring::npos)
+		SymbolCache(DefaultSymbolCache);
 }
 
 std::wstring AppSettings::BuildSymbolSearchPath() const {

@@ -9,7 +9,7 @@ LRESULT CKernelProviderDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     SetDialogIcon(IDI_KERNEL);
 
     const int cols = 3;
-    const int x0 = 15, y0 = 15, width = 160, height = 20, xgap = 8, ygap = 8;
+    const int x0 = 15, y0 = 15, width = 160, height = 20, xgap = 8, ygap = 6;
     int x = x0, y = y0, n = 0;
     auto font = GetFont();
 

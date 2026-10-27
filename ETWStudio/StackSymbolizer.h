@@ -9,6 +9,7 @@ public:
 	static StackSymbolizer& Get();
 	~StackSymbolizer();
 
+	// module!symbol+offset, module+offset without symbols, empty when no module is known
 	std::wstring GetSymbol(DWORD pid, ULONG64 address);
 	// drops all symbol contexts, e.g. after the symbol path changed
 	void Reset();

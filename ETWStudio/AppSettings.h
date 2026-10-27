@@ -12,9 +12,10 @@ public:
 		SETTING(DarkMode, 0, SettingType::Bool);
 		SETTING(SymbolPath, L"", SettingType::String);		// before the symbol settings below; moved to SymbolExtraPaths
 		SETTING(SymbolServerEnabled, 0, SettingType::Bool);
-		SETTING(SymbolServerUrl, DefaultSymbolServerUrl, SettingType::String);
-		SETTING(SymbolCache, DefaultSymbolCache, SettingType::String);
-		SETTING(SymbolExtraPaths, L"", SettingType::String);
+		// SETTING_STRING copies the text; SETTING with a PCWSTR would store the pointer's bytes
+		SETTING_STRING(SymbolServerUrl, DefaultSymbolServerUrl);
+		SETTING_STRING(SymbolCache, DefaultSymbolCache);
+		SETTING_STRING(SymbolExtraPaths, L"");
 		SETTING(SymbolUseEnvPath, 1, SettingType::Bool);
 		END_SETTINGS
 

@@ -3,6 +3,7 @@
 #include <DialogHelper.h>
 #include <VirtualListView.h>
 #include <EventData.h>
+#include <optional>
 
 class CPropertiesDlg :
 	public CDialogImpl<CPropertiesDlg>,
@@ -49,7 +50,8 @@ private:
 	EventData* m_Data;
 	// stack frames are shown as extra rows after the properties
 	std::vector<ULONG64> m_Stack;
-	mutable std::vector<CString> m_StackText;
+	// symbols looked up so far (empty: no module known)
+	mutable std::vector<std::optional<CString>> m_StackSymbols;
 	int m_Index;
 	HICON m_hIcon;
 };

@@ -20,10 +20,11 @@ CString CPropertiesDlg::GetColumnText(HWND, int row, int col) const {
         auto frame = row - (int)props.size();
         switch (col) {
             case 0: return std::format(L"Stack [{}]", frame).c_str();
-            case 1:
-                if (m_StackText[frame].IsEmpty())
-                    m_StackText[frame] = StackSymbolizer::Get().GetSymbol(m_Data->GetProcessId(), m_Stack[frame]).c_str();
-                return m_StackText[frame];
+            case 1: return std::format(L"0x{:X}", m_Stack[frame]).c_str();
+            case 2:
+                if (!m_StackSymbols[frame])
+                    m_StackSymbols[frame] = StackSymbolizer::Get().GetSymbol(m_Data->GetProcessId(), m_Stack[frame]).c_str();
+                return *m_StackSymbols[frame];
         }
         return CString();
     }
@@ -62,7 +63,7 @@ void CPropertiesDlg::UpdateEvent() {
     SetDlgItemInt(IDC_VERSION, m_Data->GetEventDescriptor().Version);
 
     m_Stack = m_Data->GetStackTrace();
-    m_StackText.assign(m_Stack.size(), CString());
+    m_StackSymbols.assign(m_Stack.size(), std::nullopt);
     m_List.SetItemCount((int)(props.size() + m_Stack.size()));
 }
 
@@ -89,7 +90,8 @@ LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 
     auto cm = GetColumnManager(m_List);
     cm->AddColumn(L"Property", 0, 150);
-    cm->AddColumn(L"Value", 0, 340);
+    cm->AddColumn(L"Value", 0, 200);
+    cm->AddColumn(L"Details", 0, 300);	// the symbol of a stack frame
 
     UpdateEvent();
 
