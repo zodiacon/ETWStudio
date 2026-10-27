@@ -117,6 +117,7 @@ private:
 	bool ParseProcessStartStop(EventData* data);
 	void OnEventRecord(PEVENT_RECORD rec);
 	DWORD Run();
+	void CloseOpenTrace() noexcept;
 	void HandleNoProcessId(EventData* data);
 	void AttachKernelStack(PEVENT_RECORD rec);
 	void AttachUserStack(PEVENT_RECORD rec);
@@ -149,7 +150,8 @@ private:
 	int m_StackTimeSamples{ 0 };
 	bool m_TrackStacks{ false };
 	TRACEHANDLE m_hTrace{ 0 };
-	TRACEHANDLE m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
+	// closed by whoever gets to it first: Stop (to cut ProcessTrace short) or Run (when it ends)
+	std::atomic<TRACEHANDLE> m_hOpenTrace{ INVALID_PROCESSTRACE_HANDLE };
 	EVENT_TRACE_PROPERTIES* m_Properties{};
 	std::unique_ptr<BYTE[]> m_PropertiesBuffer;
 	EVENT_TRACE_LOGFILE m_TraceLog { nullptr };
@@ -186,7 +188,7 @@ private:
 	TRACE_LOGFILE_HEADER m_LogFileHeader;
 	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };
-	bool m_Quit{ false };
+	std::atomic<bool> m_Quit{ false };
 	std::atomic<bool> m_Done{ false };
 	std::atomic<bool> m_Stopped{ false };
 	bool m_StoreEvents{ true };

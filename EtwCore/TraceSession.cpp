@@ -162,9 +162,37 @@ bool TraceSession::RemoveProvider(GUID const& guid) {
 
 ULONG TraceSession::EnableProvider(GUID const& guid, ProviderConfig const& config) {
 	ENABLE_TRACE_PARAMETERS params{ ENABLE_TRACE_PARAMETERS_VERSION_2 };
-	params.EnableProperty = EVENT_ENABLE_PROPERTY_STACK_TRACE;
-	return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)config.Level,
-		config.MatchAnyKeyword, config.MatchAllKeyword, 0, config.Stacks ? &params : nullptr);
+	if (config.Stacks)
+		params.EnableProperty = EVENT_ENABLE_PROPERTY_STACK_TRACE;
+
+	// let ETW drop unselected event IDs, so they never reach the session (or its log file);
+	// OnEventRecord still filters, which covers more IDs than the ETW filter can hold
+	std::vector<BYTE> buffer;
+	EVENT_FILTER_DESCRIPTOR filter{};
+	if (auto it = m_EventIds.find(guid); it != m_EventIds.end() && it->second.size() <= MAX_EVENT_FILTER_EVENT_ID_COUNT) {
+		auto& ids = it->second;
+		buffer.resize(FIELD_OFFSET(EVENT_FILTER_EVENT_ID, Events[ids.size()]));
+		auto eventIds = (EVENT_FILTER_EVENT_ID*)buffer.data();
+		eventIds->FilterIn = TRUE;
+		eventIds->Count = (USHORT)ids.size();
+		std::ranges::copy(ids, eventIds->Events);
+		filter.Ptr = (ULONGLONG)buffer.data();
+		filter.Size = (ULONG)buffer.size();
+		filter.Type = EVENT_FILTER_TYPE_EVENT_ID;
+		params.EnableFilterDesc = &filter;
+		params.FilterDescCount = 1;
+	}
+
+	auto error = ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)config.Level,
+		config.MatchAnyKeyword, config.MatchAllKeyword, 0, &params);
+	if (error != ERROR_SUCCESS && params.FilterDescCount) {
+		// event ID filtering not supported here: filter in OnEventRecord only
+		params.EnableFilterDesc = nullptr;
+		params.FilterDescCount = 0;
+		error = ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)config.Level,
+			config.MatchAnyKeyword, config.MatchAllKeyword, 0, &params);
+	}
+	return error;
 }
 
 bool TraceSession::AddProvider(std::wstring const& name, int level) {
@@ -182,11 +210,13 @@ bool TraceSession::AddProvider(std::wstring const& name, int level) {
 }
 
 bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT const> ids) {
-	if (ids.empty()) {
+	if (ids.empty())
 		m_EventIds.erase(guid);
-		return true;
-	}
-	m_EventIds.insert_or_assign(guid, std::unordered_set<USHORT>(ids.begin(), ids.end()));
+	else
+		m_EventIds.insert_or_assign(guid, std::unordered_set<USHORT>(ids.begin(), ids.end()));
+	// a live session: re-enable with the new event ID filter
+	if (auto it = m_Providers.find(guid); m_hTrace && it != m_Providers.end())
+		return EnableProvider(guid, it->second) == ERROR_SUCCESS;
 	return true;
 }
 
@@ -265,17 +295,23 @@ bool TraceSession::Stop(bool quit) noexcept {
 		::CloseTrace(m_hTrace);
 		m_hTrace = 0;
 	}
-	if (m_hOpenTrace != INVALID_PROCESSTRACE_HANDLE) {
-		::CloseTrace(m_hOpenTrace);
-		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
-	}
+	CloseOpenTrace();
 	if (m_hProcessThread) {
-		if (WAIT_TIMEOUT == ::WaitForSingleObject(m_hProcessThread.get(), 30000))
-			::TerminateThread(m_hProcessThread.get(), 1);
+		// ProcessTrace returns once the current buffer is done; OnEventRecord drops the rest of it,
+		// so this is quick. Killing the thread instead could leave a heap or a lock held.
+		assert(::GetThreadId(m_hProcessThread.get()) != ::GetCurrentThreadId());
+		if (::GetThreadId(m_hProcessThread.get()) == ::GetCurrentThreadId())
+			return false;
+		::WaitForSingleObject(m_hProcessThread.get(), INFINITE);
 		m_hProcessThread.reset();
 	}
 
 	return true;
+}
+
+void TraceSession::CloseOpenTrace() noexcept {
+	if (auto h = m_hOpenTrace.exchange(INVALID_PROCESSTRACE_HANDLE); h != INVALID_PROCESSTRACE_HANDLE)
+		::CloseTrace(h);
 }
 
 bool TraceSession::IsRunning() const noexcept {
@@ -402,7 +438,7 @@ int TraceSession::UpdateEventConfig() {
 }
 
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
-	if (m_Quit || m_Paused)
+	if (m_Quit || m_Paused || m_Stopped)
 		return;
 
 	if (!IsRealTimeSession()) {
@@ -484,11 +520,12 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 DWORD TraceSession::Run() {
 	assert(m_hTrace != INVALID_PROCESSTRACE_HANDLE);
 	DWORD err;
+	TRACEHANDLE hTrace = m_hOpenTrace;
 	if (m_LogFileName.empty()) {
 		EnumProcesses();
 		FILETIME now;
 		::GetSystemTimeAsFileTime(&now);
-		err = ::ProcessTrace(&m_hOpenTrace, 1, &now, nullptr);
+		err = ::ProcessTrace(&hTrace, 1, &now, nullptr);
 	}
 	else {
 		FILETIME ft;
@@ -498,12 +535,9 @@ DWORD TraceSession::Run() {
 			*(LONGLONG*)&ft = m_ResumePos.Time;
 			start = &ft;
 		}
-		err = ::ProcessTrace(&m_hOpenTrace, 1, start, nullptr);
+		err = ::ProcessTrace(&hTrace, 1, start, nullptr);
 	}
-	if (m_hOpenTrace != INVALID_PROCESSTRACE_HANDLE) {
-		::CloseTrace(m_hOpenTrace);
-		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
-	}
+	CloseOpenTrace();
 	// ProcessTrace also succeeds when CloseTrace cut it short
 	if (err == ERROR_SUCCESS && !m_Stopped)
 		m_Done = true;
@@ -740,9 +774,8 @@ bool TraceSession::StartCommon(bool cont) {
 		::GetExitCodeThread(m_hProcessThread.get(), &code);
 		if (code == ERROR_SUCCESS)
 			return true;
+		// Run closed the consumer handle; m_hTrace is the session itself, which Stop shuts down
 		m_hProcessThread.reset();
-		::CloseTrace(m_hTrace);
-		m_hTrace = 0;
 		return false;
 	}
 

@@ -446,8 +446,9 @@ std::wstring CSessionDlg::GetSummary() {
 	if (!m_Edit && !preset.OutputFile.empty()) {
 		if (::GetFileAttributes(preset.OutputFile.c_str()) != INVALID_FILE_ATTRIBUTES)
 			warnings.push_back(L"The log file exists and will be overwritten.");
-		if (std::ranges::any_of(preset.Providers, [](auto& p) { return !p.EventIds.empty(); }))
-			warnings.push_back(L"Event ID selections are applied to the display only; the log file gets all events of these providers.");
+		if (std::ranges::any_of(preset.Providers, [](auto& p) { return p.EventIds.size() > MAX_EVENT_FILTER_EVENT_ID_COUNT; }))
+			warnings.push_back(std::format(L"ETW can filter up to {} event IDs per provider; with more, the selection is applied to the display only and the log file gets all events of that provider.",
+				MAX_EVENT_FILTER_EVENT_ID_COUNT));
 	}
 	if (!warnings.empty()) {
 		text += L"\nWarnings:\n";
