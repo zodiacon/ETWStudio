@@ -12,7 +12,9 @@ class CFilterDlg :
 	public CVirtualListView<CFilterDlg>,
 	public CDialogHelper<CFilterDlg> {
 public:
-	explicit CFilterDlg(FilterManager& fm);
+	// Highlight: the same rules, with a row color instead of include/exclude
+	enum class Mode { Filter, Highlight };
+	explicit CFilterDlg(FilterManager& fm, Mode mode = Mode::Filter);
 
 	// "Apply to captured events" checkbox
 	void SetApplyToExisting(bool apply) noexcept;
@@ -37,6 +39,7 @@ public:
 		COMMAND_ID_HANDLER(IDC_SAVE, OnSave)
 		COMMAND_ID_HANDLER(IDC_LOAD, OnLoad)
 		NOTIFY_HANDLER(IDC_LIST, LVN_KEYDOWN, OnListKeyDown)
+		NOTIFY_HANDLER(IDC_LIST, NM_CUSTOMDRAW, OnListCustomDraw)
 		CHAIN_MSG_MAP(CVirtualListView<CFilterDlg>)
 		CHAIN_MSG_MAP(CDynamicDialogLayout<CFilterDlg>)
 	END_MSG_MAP()
@@ -56,6 +59,7 @@ private:
 	LRESULT OnSave(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnLoad(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnListKeyDown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
+	LRESULT OnListCustomDraw(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 
 	PropertyFilter* GetFilter(int index) const;
 	void ToggleFilter(int index);
@@ -70,4 +74,5 @@ private:
 	FilterManager& m_FilterMgr;
 	CComboBox m_PropCB, m_CompCB, m_ValueCB, m_ActionCB;
 	bool m_ApplyToExisting{ true };
+	Mode m_Mode;
 };

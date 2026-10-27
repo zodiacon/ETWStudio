@@ -32,6 +32,10 @@ namespace {
 CSessionDlg::CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit) : m_pFrame(frame), m_Session(session), m_Edit(edit) {
 }
 
+void CSessionDlg::SetPreset(SessionPreset const& preset) {
+	m_Preset = preset;
+}
+
 static CSessionDlg::ProviderInfo MakeKernelProvider(KernelEventTypes type) {
 	CSessionDlg::ProviderInfo pi;
 	pi.Kernel = true;
@@ -136,7 +140,9 @@ CString CSessionDlg::GetColumnText(HWND h, int row, int col) const {
 		case 3:
 			if (pi.Kernel)
 				return L"";
-			return pi.Config.MatchAnyKeyword ? std::format(L"0x{:X}", pi.Config.MatchAnyKeyword).c_str() : L"All";
+			if (pi.Config.MatchAnyKeyword == 0)
+				return L"All";
+			return std::format(L"{}0x{:X}", pi.Config.MatchAllKeyword ? L"All of " : L"", pi.Config.MatchAnyKeyword).c_str();
 		case 4: return pi.Config.Stacks ? L"Yes" : L"";
 		case 5: return pi.Kernel ? L"" : (pi.EventIds.empty() ? L"All" : pi.EventIds.c_str());
 	}
@@ -209,6 +215,8 @@ void CSessionDlg::UpdateSettings() {
 
 	m_LevelCB.EnableWindow(provider);
 	m_KeywordList.EnableWindow(provider);
+	GetDlgItem(IDC_MATCHALL).EnableWindow(provider);
+	CheckDlgButton(IDC_MATCHALL, provider && pi->MatchAll ? BST_CHECKED : BST_UNCHECKED);
 	GetDlgItem(IDC_EVENTIDS).EnableWindow(provider);
 	GetDlgItem(IDC_STACKS).EnableWindow(pi != nullptr);
 
@@ -240,6 +248,7 @@ void CSessionDlg::ToggleKeyword(int index) {
 	if (!pi || pi->Kernel)
 		return;
 	pi->Config.MatchAnyKeyword ^= (*m_Keywords)[index].Value;
+	pi->Config.MatchAllKeyword = pi->MatchAll ? pi->Config.MatchAnyKeyword : 0;
 	m_KeywordList.RedrawItems(0, m_KeywordList.GetItemCount());	// keywords may share bits
 	SetDlgItemText(IDC_KEYWORDMASK, std::format(L"0x{:016X}", pi->Config.MatchAnyKeyword).c_str());
 	RefreshSelectedRow();
@@ -283,7 +292,7 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 		((CEdit)GetDlgItem(id)).SetCueBannerText(L"Default");
 
 	// a new session starts with the session's (default) buffer settings
-	LoadPreset(SessionPreset::FromSession(m_Session), true);
+	LoadPreset(m_Preset ? *m_Preset : SessionPreset::FromSession(m_Session), true);
 	if (m_Edit) {
 		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
 		((CEdit)GetDlgItem(IDC_NAME)).SetReadOnly(TRUE);
@@ -327,6 +336,7 @@ void CSessionDlg::LoadPreset(SessionPreset const& preset, bool sessionSettings) 
 		pi.Guid = p.Guid;
 		pi.Name = p.Name.empty() ? StringHelper::ProviderGuidToName(p.Guid) : p.Name;
 		pi.Config = p.Config;
+		pi.MatchAll = p.Config.MatchAllKeyword != 0;
 		pi.EventIds = FormatEventIds(p.EventIds);
 		m_Providers.push_back(std::move(pi));
 	}
@@ -410,7 +420,10 @@ std::wstring CSessionDlg::GetSummary() {
 				for (auto& kw : GetKeywords(p.Guid, p.Name))
 					if (kw.Value && (kw.Value & p.Config.MatchAnyKeyword) == kw.Value)
 						names += (names.empty() ? L"" : L", ") + kw.Name;
-				text += std::format(L"      Keywords: 0x{:X}{}\n", p.Config.MatchAnyKeyword, names.empty() ? L"" : L" (" + names + L")");
+				text += std::format(L"      Keywords: {} of 0x{:X}{}\n", p.Config.MatchAllKeyword ? L"all" : L"any", p.Config.MatchAnyKeyword,
+					names.empty() ? L"" : L" (" + names + L")");
+				if (p.Config.MatchAllKeyword && p.Config.MatchAllKeyword != p.Config.MatchAnyKeyword)
+					text += std::format(L"      Required keywords: 0x{:X}\n", p.Config.MatchAllKeyword);
 			}
 			text += std::format(L"      Events: {}\n", p.EventIds.empty() ? L"all" : FormatEventIds(p.EventIds));
 			if (p.Config.Stacks)
@@ -711,6 +724,16 @@ LRESULT CSessionDlg::OnStacksChanged(WORD, WORD, HWND, BOOL&) {
 	if (m_Updating || !pi)
 		return 0;
 	pi->Config.Stacks = IsDlgButtonChecked(IDC_STACKS) == BST_CHECKED;
+	RefreshSelectedRow();
+	return 0;
+}
+
+LRESULT CSessionDlg::OnMatchAllChanged(WORD, WORD, HWND, BOOL&) {
+	auto pi = GetSelectedProvider();
+	if (m_Updating || !pi || pi->Kernel)
+		return 0;
+	pi->MatchAll = IsDlgButtonChecked(IDC_MATCHALL) == BST_CHECKED;
+	pi->Config.MatchAllKeyword = pi->MatchAll ? pi->Config.MatchAnyKeyword : 0;
 	RefreshSelectedRow();
 	return 0;
 }

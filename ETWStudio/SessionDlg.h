@@ -19,6 +19,8 @@ public:
 	enum { IDD = IDD_SESSION };
 
 	CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit = false);
+	// a new session dialog starts with this preset instead of the session's settings
+	void SetPreset(SessionPreset const& preset);
 
 	CString GetColumnText(HWND, int row, int col) const;
 	ListViewRowCheck IsRowChecked(HWND, int row) const;
@@ -29,6 +31,7 @@ public:
 		GUID Guid;
 		std::wstring Name;
 		ProviderConfig Config;		// for kernel rows, only Stacks is used
+		bool MatchAll{ false };		// Config.MatchAllKeyword follows the checked keywords
 		std::wstring EventIds;		// as entered (empty: all events)
 		bool Kernel{ false };
 		KernelEventTypes KernelType{ KernelEventTypes::None };
@@ -51,6 +54,7 @@ public:
 		COMMAND_ID_HANDLER(IDC_REMOVE, OnRemoveProvider)
 		COMMAND_HANDLER(IDC_LEVEL, CBN_SELCHANGE, OnLevelChanged)
 		COMMAND_HANDLER(IDC_STACKS, BN_CLICKED, OnStacksChanged)
+		COMMAND_HANDLER(IDC_MATCHALL, BN_CLICKED, OnMatchAllChanged)
 		COMMAND_HANDLER(IDC_EVENTIDS, EN_CHANGE, OnEventIdsChanged)
 		COMMAND_HANDLER(IDC_FILELOG, BN_CLICKED, OnFileLogChanged)
 		COMMAND_ID_HANDLER(IDC_LOADSESSION, OnLoadPreset)
@@ -81,6 +85,7 @@ private:
 	LRESULT OnRemoveProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnLevelChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnStacksChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnMatchAllChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnEventIdsChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFileLogChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnLoadPreset(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
@@ -112,6 +117,7 @@ private:
 	std::vector<EtwFieldInfo> const* m_Keywords{ nullptr };	// of the selected provider
 	CListViewCtrl m_List, m_KeywordList;
 	CComboBox m_LevelCB;
+	std::optional<SessionPreset> m_Preset;
 	bool m_Edit;
 	bool m_Updating{ false };
 };

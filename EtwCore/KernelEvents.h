@@ -98,6 +98,16 @@ DEFINE_GUID( /* 3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c */
 	0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c
 );
 
+// Microsoft-Windows-Kernel-EventTracing: its "User Mode Stack Trace" event (18) carries
+// the user-mode part of another event's call stack, matched by STACK_TRACE MatchId
+DEFINE_GUID( /* b675ec37-bdb6-4648-bc92-f3fdc74d3ca2 */
+	KernelEventTracingProviderGuid,
+	0xb675ec37,
+	0xbdb6,
+	0x4648,
+	0xbc, 0x92, 0xf3, 0xfd, 0xc7, 0x4d, 0x3c, 0xa2
+);
+
 // Microsoft-Windows-Kernel-Process (manifest provider)
 DEFINE_GUID( /* 22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716 */
 	KernelProcessProviderGuid,

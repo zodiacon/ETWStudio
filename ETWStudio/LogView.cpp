@@ -6,6 +6,7 @@
 #include <WTLHelper.h>
 #include "StringHelper.h"
 #include "FilterDlg.h"
+#include "PropertyFilter.h"
 #include "PropertiesDlg.h"
 #include "SessionDlg.h"
 #include "SessionPreset.h"
@@ -145,6 +146,7 @@ void CLogView::UpdateUI() {
 	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
 	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
 	ui.UIEnable(ID_SESSION_PROPERTIES, !m_Running);
+	ui.UIEnable(ID_FILE_SAVE, !m_Running);		// export a stopped session only
 	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
 }
 
@@ -206,7 +208,8 @@ std::wstring CLogView::GetDetails(EventData const& evt) {
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
-	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA);
+	// clip siblings: the quick find box sits on top of the list
+	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_REPORT | LVS_OWNERDATA);
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP);
 
 	CImageList images;
@@ -243,6 +246,12 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 	if (auto hFont = Frame()->GetFont())
 		m_List.SetFont(hFont);
 
+	CEdit edit;
+	edit.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_BORDER | ES_AUTOHSCROLL, 0, QuickFindId);
+	m_QuickFind.SubclassWindow(edit);
+	m_QuickFind.SetFont(m_List.GetFont());
+	m_QuickFind.SetWatermark(L"Find (Enter: next, Shift+Enter: previous)");
+
 	SetTimer(1, 1400, nullptr);
 
 	return 0;
@@ -251,6 +260,8 @@ LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
 LRESULT CLogView::OnUpdateFont(UINT, WPARAM wParam, LPARAM, BOOL&) {
 	// a null font reverts the list to the default font
 	m_List.SetFont((HFONT)wParam);
+	m_QuickFind.SetFont(m_List.GetFont());
+	PositionQuickFind();
 	return 0;
 }
 
@@ -265,23 +276,25 @@ LRESULT CLogView::OnTimer(UINT, WPARAM id, LPARAM, BOOL&) {
 		Frame()->SetStatusText(3, L"Log file processing complete");
 		return ProcessWindowMessage(m_hWnd, WM_COMMAND, ID_SESSION_STOP, 0, result, 1);
 	}
-	std::unique_lock locker(m_EventsLock);
-	if (m_TempEvents.empty()) {
-		return 0;
-	}
-	else {
+	AddPendingEvents();
+	return 0;
+}
+
+void CLogView::AddPendingEvents() {
+	{
+		std::lock_guard locker(m_EventsLock);
+		if (m_TempEvents.empty())
+			return;
 		m_Events.insert(m_Events.end(), m_TempEvents.begin(), m_TempEvents.end());
 		m_TempEvents.clear();
-		locker.unlock();
-
-		m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
-		if (m_Active) {
-			if (m_AutoScroll)
-				m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
-			Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
-		}
 	}
-	return 0;
+
+	m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+	if (m_Active) {
+		if (m_AutoScroll)
+			m_List.EnsureVisible(m_List.GetItemCount() - 1, FALSE);
+		Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
+	}
 }
 
 LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
@@ -318,7 +331,133 @@ LRESULT CLogView::OnSetFocus(UINT, WPARAM, LPARAM, BOOL&) {
 }
 
 LRESULT CLogView::OnQuickFind(WORD, WORD, HWND, BOOL&) {
-	return LRESULT();
+	if (m_QuickFind.IsWindowVisible() && ::GetFocus() == m_QuickFind) {
+		m_QuickFind.ShowWindow(SW_HIDE);
+		m_List.SetFocus();
+	}
+	else {
+		PositionQuickFind();
+		m_QuickFind.SetWindowPos(HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+		m_QuickFind.SetFocus();
+	}
+	return 0;
+}
+
+LRESULT CLogView::OnQuickFindNotify(WORD code, WORD, HWND, BOOL&) {
+	switch (code) {
+		case EN_DELAYCHANGE: QuickFind(true, true); break;		// typing: the current row may match the longer text
+		case CQuickFindBox::FindNext: QuickFind(true, false); break;
+		case CQuickFindBox::FindPrevious: QuickFind(false, false); break;
+		case CQuickFindBox::Close:
+			m_QuickFind.ShowWindow(SW_HIDE);
+			m_List.SetFocus();
+			break;
+	}
+	return 0;
+}
+
+void CLogView::PositionQuickFind() {
+	if (!m_QuickFind)
+		return;
+	CRect rc, header;
+	GetClientRect(&rc);
+	m_List.GetHeader().GetWindowRect(&header);
+	CClientDC dc(m_QuickFind);
+	dc.SelectFont(m_QuickFind.GetFont());
+	TEXTMETRIC tm;
+	dc.GetTextMetrics(&tm);
+	int width = tm.tmAveCharWidth * 40, height = tm.tmHeight + 8;
+	m_QuickFind.MoveWindow(rc.right - width - ::GetSystemMetrics(SM_CXVSCROLL) - 8, header.Height() + 6, width, height);
+}
+
+LRESULT CLogView::OnSize(UINT, WPARAM, LPARAM, BOOL& handled) {
+	handled = FALSE;	// the frame view sizes the list
+	if (m_QuickFind && m_QuickFind.IsWindowVisible())
+		PositionQuickFind();
+	return 0;
+}
+
+namespace {
+	bool ContainsNoCase(PCWSTR text, std::wstring const& lowerNeedle) {
+		std::wstring_view view(text);
+		return std::search(view.begin(), view.end(), lowerNeedle.begin(), lowerNeedle.end(),
+			[](wchar_t a, wchar_t b) { return ::towlower(a) == b; }) != view.end();
+	}
+}
+
+void CLogView::QuickFind(bool forward, bool includeCurrent) {
+	CString text;
+	m_QuickFind.GetWindowText(text);
+	int count = (int)m_Events.size();
+	if (text.IsEmpty() || count == 0) {
+		Frame()->SetStatusText(3, L"");
+		return;
+	}
+	std::wstring needle((PCWSTR)text.MakeLower());
+
+	int current = m_List.GetNextItem(-1, LVNI_FOCUSED);
+	int start;
+	if (current < 0)
+		start = forward ? 0 : count - 1;
+	else
+		start = includeCurrent ? current : current + (forward ? 1 : -1);
+
+	CWaitCursor wait;
+	int columns = m_List.GetHeader().GetItemCount();
+	for (int n = 0; n < count; n++) {
+		int row = ((start + (forward ? n : -n)) % count + count) % count;
+		for (int col = 0; col < columns; col++) {
+			if (ContainsNoCase(GetColumnText(m_List, row, col), needle)) {
+				m_List.SetItemState(-1, 0, LVIS_SELECTED);
+				m_List.SelectItem(row);
+				Frame()->SetStatusText(3, std::format(L"Found in event #{}", m_Events[row]->GetIndex()).c_str());
+				return;
+			}
+		}
+	}
+	::MessageBeep(MB_ICONWARNING);
+	Frame()->SetStatusText(3, std::format(L"\"{}\" not found", (PCWSTR)text).c_str());
+}
+
+COLORREF CLogView::GetHighlightColor(EventData* evt) const {
+	for (auto filter : m_Highlights.GetFilters()) {
+		if (filter->IsEnabled() && filter->Eval(evt) == FilterResult::Include)
+			return static_cast<PropertyFilter*>(filter)->GetColor();
+	}
+	return CLR_INVALID;
+}
+
+LRESULT CLogView::OnListCustomDraw(int, LPNMHDR hdr, BOOL& handled) {
+	if (hdr->hwndFrom != m_List || m_Highlights.GetFilterCount() == 0) {
+		handled = FALSE;
+		return 0;
+	}
+	auto cd = (NMLVCUSTOMDRAW*)hdr;
+	switch (cd->nmcd.dwDrawStage) {
+		case CDDS_PREPAINT:
+			return CDRF_NOTIFYITEMDRAW;
+
+		case CDDS_ITEMPREPAINT:
+			if (cd->nmcd.dwItemSpec < m_Events.size()) {
+				if (auto color = GetHighlightColor(m_Events[cd->nmcd.dwItemSpec]); color != CLR_INVALID) {
+					cd->clrTextBk = color;
+					cd->clrText = RGB(0, 0, 0);
+					return CDRF_NEWFONT;
+				}
+			}
+			break;
+	}
+	return CDRF_DODEFAULT;
+}
+
+LRESULT CLogView::OnEditHighlight(WORD, WORD, HWND, BOOL&) {
+	auto rules = m_Highlights.Clone();
+	CFilterDlg dlg(rules, CFilterDlg::Mode::Highlight);
+	if (IDOK == dlg.DoModal()) {
+		m_Highlights = std::move(rules);
+		m_List.Invalidate();
+	}
+	return 0;
 }
 
 LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
@@ -423,7 +562,14 @@ LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
 	return 0;
 }
 
-LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) const {
+LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) {
+	// the menu item is disabled while running, but the accelerator still gets here
+	if (m_Running) {
+		AtlMessageBox(m_hWnd, L"Stop the session before saving", IDS_TITLE, MB_ICONINFORMATION);
+		return 0;
+	}
+	AddPendingEvents();		// everything received before stopping
+
 	WTLHelper::SuspendHook();
 	CSimpleFileDialog dlg(FALSE, L"csv", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
 		L"CSV Files - displayed columns (*.csv)\0*.csv\0JSON Files - all event data (*.json)\0*.json\0", m_hWnd);

@@ -136,11 +136,13 @@ void EventData::CopyRecordData(PEVENT_RECORD rec) {
 			auto count = (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG64);
 			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE64>(item.DataPtr);
 			m_Stack.assign(stack->Address, stack->Address + count);
+			m_StackMatchId = stack->MatchId;
 		}
 		else if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE32) {
 			auto count = (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG);
 			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE32>(item.DataPtr);
 			m_Stack.assign(stack->Address, stack->Address + count);
+			m_StackMatchId = stack->MatchId;
 		}
 		else {
 			extCount++;
@@ -528,6 +530,10 @@ int EventData::GetCPU() const noexcept {
 std::vector<ULONG64> EventData::GetStackTrace() const {
 	std::lock_guard locker(m_Lock);
 	return m_Stack;
+}
+
+ULONG64 EventData::GetStackMatchId() const noexcept {
+	return m_StackMatchId;
 }
 
 bool EventData::HasStackTrace() const noexcept {

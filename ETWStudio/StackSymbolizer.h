@@ -10,6 +10,8 @@ public:
 	~StackSymbolizer();
 
 	std::wstring GetSymbol(DWORD pid, ULONG64 address);
+	// drops all symbol contexts, e.g. after the symbol path changed
+	void Reset();
 
 private:
 	StackSymbolizer() = default;

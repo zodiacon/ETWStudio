@@ -23,10 +23,34 @@ namespace {
 		return result == FilterResult::Include ? L"Include" : L"Exclude";
 	}
 
+	// light backgrounds, readable with black text in both light and dark mode
+	struct HighlightColor {
+		PCWSTR Name;
+		COLORREF Color;
+	};
+	const HighlightColor HighlightColors[] = {
+		{ L"Red", RGB(255, 190, 190) },
+		{ L"Orange", RGB(255, 215, 165) },
+		{ L"Yellow", RGB(255, 245, 160) },
+		{ L"Green", RGB(190, 240, 190) },
+		{ L"Cyan", RGB(180, 235, 245) },
+		{ L"Blue", RGB(190, 205, 255) },
+		{ L"Purple", RGB(225, 200, 250) },
+		{ L"Gray", RGB(215, 215, 215) },
+	};
+
+	std::wstring ColorToString(COLORREF color) {
+		for (auto& c : HighlightColors)
+			if (c.Color == color)
+				return c.Name;
+		return std::format(L"#{:02X}{:02X}{:02X}", GetRValue(color), GetGValue(color), GetBValue(color));
+	}
+
 	const PCWSTR FileHeader = L"ETWStudio Filters 1";
+	const PCWSTR HighlightFileHeader = L"ETWStudio Highlights 1";
 }
 
-CFilterDlg::CFilterDlg(FilterManager& fm) : m_FilterMgr(fm) {
+CFilterDlg::CFilterDlg(FilterManager& fm, Mode mode) : m_FilterMgr(fm), m_Mode(mode) {
 }
 
 void CFilterDlg::SetApplyToExisting(bool apply) noexcept {
@@ -47,7 +71,7 @@ CString CFilterDlg::GetColumnText(HWND, int row, int col) const {
 		case 0: return filter->GetName().c_str();
 		case 1: return CompareTypes[(int)filter->GetCompareType()];
 		case 2: return filter->GetText().c_str();
-		case 3: return ResultToString(filter->GetResult());
+		case 3: return m_Mode == Mode::Highlight ? ColorToString(filter->GetColor()).c_str() : ResultToString(filter->GetResult());
 	}
 	return CString();
 }
@@ -75,7 +99,7 @@ bool CFilterDlg::OnDoubleClickList(HWND, int row, int, POINT const&) {
 	m_PropCB.SetWindowText(filter->GetName().c_str());
 	m_CompCB.SetCurSel((int)filter->GetCompareType());
 	m_ValueCB.SetWindowText(filter->GetText().c_str());
-	m_ActionCB.SelectString(-1, ResultToString(filter->GetResult()));
+	m_ActionCB.SelectString(-1, m_Mode == Mode::Highlight ? ColorToString(filter->GetColor()).c_str() : ResultToString(filter->GetResult()));
 	return true;
 }
 
@@ -129,7 +153,12 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	((CButton)GetDlgItem(IDC_CLEAR)).SetIcon(AtlLoadIconImage(IDI_CLEAR, 0, 24, 24));
 	((CButton)GetDlgItem(IDC_ADD)).SetIcon(AtlLoadIconImage(IDI_FILTER_ADD, 0, 24, 24));
 
-	SetDialogIcon(IDI_FILTER);
+	bool highlight = m_Mode == Mode::Highlight;
+	SetDialogIcon(highlight ? IDI_HIGHLIGHT : IDI_FILTER);
+	if (highlight) {
+		SetWindowText(L"Highlight");
+		GetDlgItem(IDC_APPLYEXISTING).ShowWindow(SW_HIDE);	// highlighting always applies to all rows
+	}
 
 	m_List.Attach(GetDlgItem(IDC_LIST));
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP | LVS_EX_CHECKBOXES);
@@ -138,7 +167,7 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	cm->AddColumn(L"Property", 0, 120);
 	cm->AddColumn(L"Compare", 0, 110);
 	cm->AddColumn(L"Value", 0, 140);
-	cm->AddColumn(L"Action", 0, 60);
+	cm->AddColumn(highlight ? L"Color" : L"Action", 0, 60);
 
 	m_PropCB.Attach(GetDlgItem(IDC_PROPERTY));
 	for (auto& field : PropertyFilter::GetStandardFields())
@@ -153,9 +182,16 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	m_ValueCB.Attach(GetDlgItem(IDC_VALUE));
 
 	m_ActionCB.Attach(GetDlgItem(IDC_ACTION));
-	m_ActionCB.SetItemData(m_ActionCB.AddString(L"Include"), (DWORD_PTR)FilterResult::Include);
-	m_ActionCB.SetItemData(m_ActionCB.AddString(L"Exclude"), (DWORD_PTR)FilterResult::Exclude);
-	m_ActionCB.SelectString(-1, L"Include");
+	if (highlight) {
+		for (auto& c : HighlightColors)
+			m_ActionCB.SetItemData(m_ActionCB.AddString(c.Name), c.Color);
+		m_ActionCB.SelectString(-1, HighlightColors[0].Name);
+	}
+	else {
+		m_ActionCB.SetItemData(m_ActionCB.AddString(L"Include"), (DWORD_PTR)FilterResult::Include);
+		m_ActionCB.SetItemData(m_ActionCB.AddString(L"Exclude"), (DWORD_PTR)FilterResult::Exclude);
+		m_ActionCB.SelectString(-1, L"Include");
+	}
 
 	CheckDlgButton(IDC_APPLYEXISTING, m_ApplyToExisting ? BST_CHECKED : BST_UNCHECKED);
 
@@ -164,7 +200,7 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 }
 
 LRESULT CFilterDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
-	if (wID == IDOK) {
+	if (wID == IDOK && m_Mode == Mode::Filter) {
 		//
 		// with any Include filter, events not explicitly included are dropped
 		//
@@ -186,12 +222,17 @@ LRESULT CFilterDlg::OnAdd(WORD, WORD, HWND, BOOL&) {
 	name.Trim();
 
 	std::wstring error;
+	bool highlight = m_Mode == Mode::Highlight;
+	auto action = m_ActionCB.GetItemData(m_ActionCB.GetCurSel());
+	// a highlight rule "includes" the rows it colors
 	auto filter = PropertyFilter::Create((PCWSTR)name, (CompareType)m_CompCB.GetCurSel(), (PCWSTR)text,
-		(FilterResult)m_ActionCB.GetItemData(m_ActionCB.GetCurSel()), error);
+		highlight ? FilterResult::Include : (FilterResult)action, error);
 	if (!filter) {
 		AtlMessageBox(m_hWnd, error.c_str(), IDS_TITLE, MB_ICONWARNING);
 		return 0;
 	}
+	if (highlight)
+		filter->SetColor((COLORREF)action);
 	if (!text.IsEmpty() && m_ValueCB.FindStringExact(-1, text) < 0)
 		m_ValueCB.AddString(text);
 
@@ -211,7 +252,7 @@ LRESULT CFilterDlg::OnMoveDown(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CFilterDlg::OnClear(WORD, WORD, HWND, BOOL&) {
-	if (AtlMessageBox(m_hWnd, L"Remove all filters?", IDS_TITLE, MB_ICONQUESTION | MB_OKCANCEL) != IDOK)
+	if (AtlMessageBox(m_hWnd, m_Mode == Mode::Highlight ? L"Remove all highlight rules?" : L"Remove all filters?", IDS_TITLE, MB_ICONQUESTION | MB_OKCANCEL) != IDOK)
 		return 0;
 	m_FilterMgr.Clear();
 	UpdateList();
@@ -230,9 +271,40 @@ LRESULT CFilterDlg::OnListKeyDown(int, LPNMHDR hdr, BOOL&) {
 	return 0;
 }
 
+LRESULT CFilterDlg::OnListCustomDraw(int, LPNMHDR hdr, BOOL& handled) {
+	if (m_Mode != Mode::Highlight) {
+		handled = FALSE;
+		return 0;
+	}
+	// a swatch in the Color column
+	auto cd = (NMLVCUSTOMDRAW*)hdr;
+	switch (cd->nmcd.dwDrawStage) {
+		case CDDS_PREPAINT: return CDRF_NOTIFYITEMDRAW;
+		case CDDS_ITEMPREPAINT: return CDRF_NOTIFYSUBITEMDRAW;
+		case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
+			if (cd->iSubItem == 3 && cd->nmcd.dwItemSpec < m_FilterMgr.GetFilterCount()) {
+				// painted here: the dark mode list drawing ignores clrTextBk
+				auto color = GetFilter((int)cd->nmcd.dwItemSpec)->GetColor();
+				CRect rc;
+				m_List.GetSubItemRect((int)cd->nmcd.dwItemSpec, 3, LVIR_BOUNDS, &rc);
+				rc.DeflateRect(2, 1);
+				CDCHandle dc(cd->nmcd.hdc);
+				dc.FillSolidRect(&rc, color);
+				dc.SetBkMode(TRANSPARENT);
+				dc.SetTextColor(RGB(0, 0, 0));
+				rc.left += 4;
+				dc.DrawText(ColorToString(color).c_str(), -1, &rc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+				return CDRF_SKIPDEFAULT;
+			}
+			break;
+	}
+	return CDRF_DODEFAULT;
+}
+
 LRESULT CFilterDlg::OnSave(WORD, WORD, HWND, BOOL&) {
-	CSimpleFileDialog dlg(FALSE, L"etwfilter", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
-		L"Filter Files (*.etwfilter)\0*.etwfilter\0All Files\0*.*\0", m_hWnd);
+	bool highlight = m_Mode == Mode::Highlight;
+	CSimpleFileDialog dlg(FALSE, highlight ? L"etwhighlight" : L"etwfilter", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
+		highlight ? L"Highlight Files (*.etwhighlight)\0*.etwhighlight\0All Files\0*.*\0" : L"Filter Files (*.etwfilter)\0*.etwfilter\0All Files\0*.*\0", m_hWnd);
 	WTLHelper::SuspendHook();
 	auto ok = IDOK == dlg.DoModal();
 	WTLHelper::ResumeHook();
@@ -242,8 +314,9 @@ LRESULT CFilterDlg::OnSave(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CFilterDlg::OnLoad(WORD, WORD, HWND, BOOL&) {
-	CSimpleFileDialog dlg(TRUE, L"etwfilter", nullptr, OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_ENABLESIZING,
-		L"Filter Files (*.etwfilter)\0*.etwfilter\0All Files\0*.*\0", m_hWnd);
+	bool highlight = m_Mode == Mode::Highlight;
+	CSimpleFileDialog dlg(TRUE, highlight ? L"etwhighlight" : L"etwfilter", nullptr, OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_ENABLESIZING,
+		highlight ? L"Highlight Files (*.etwhighlight)\0*.etwhighlight\0All Files\0*.*\0" : L"Filter Files (*.etwfilter)\0*.etwfilter\0All Files\0*.*\0", m_hWnd);
 	WTLHelper::SuspendHook();
 	auto ok = IDOK == dlg.DoModal();
 	WTLHelper::ResumeHook();
@@ -255,16 +328,20 @@ LRESULT CFilterDlg::OnLoad(WORD, WORD, HWND, BOOL&) {
 //
 // file format (UTF-8): a header line, then one filter per line:
 // enabled <tab> property <tab> compare type <tab> action <tab> value
+// (highlights: a different header, and the color as RRGGBB hex instead of the action)
 //
 bool CFilterDlg::SaveFilters(PCWSTR path) const {
 	FILE* fp;
 	if (::_wfopen_s(&fp, path, L"w, ccs=UTF-8") != 0)
 		return false;
-	fwprintf(fp, L"%s\n", FileHeader);
+	bool highlight = m_Mode == Mode::Highlight;
+	fwprintf(fp, L"%s\n", highlight ? HighlightFileHeader : FileHeader);
 	for (size_t i = 0; i < m_FilterMgr.GetFilterCount(); i++) {
 		auto filter = GetFilter((int)i);
-		fwprintf(fp, L"%d\t%s\t%d\t%d\t%s\n", filter->IsEnabled() ? 1 : 0, filter->GetName().c_str(),
-			(int)filter->GetCompareType(), (int)filter->GetResult(), filter->GetText().c_str());
+		auto color = filter->GetColor();
+		auto action = highlight ? std::format(L"{:02X}{:02X}{:02X}", GetRValue(color), GetGValue(color), GetBValue(color)) : std::to_wstring((int)filter->GetResult());
+		fwprintf(fp, L"%d\t%s\t%d\t%s\t%s\n", filter->IsEnabled() ? 1 : 0, filter->GetName().c_str(),
+			(int)filter->GetCompareType(), action.c_str(), filter->GetText().c_str());
 	}
 	fclose(fp);
 	return true;
@@ -277,7 +354,8 @@ bool CFilterDlg::LoadFilters(PCWSTR path) {
 
 	FilterManager mgr;
 	WCHAR line[1024];
-	bool ok = fgetws(line, _countof(line), fp) && std::wstring_view(line).starts_with(FileHeader);
+	bool highlight = m_Mode == Mode::Highlight;
+	bool ok = fgetws(line, _countof(line), fp) && std::wstring_view(line).starts_with(highlight ? HighlightFileHeader : FileHeader);
 	while (ok && fgetws(line, _countof(line), fp)) {
 		std::wstring text(line);
 		while (!text.empty() && (text.back() == L'\n' || text.back() == L'\r'))
@@ -299,7 +377,7 @@ bool CFilterDlg::LoadFilters(PCWSTR path) {
 			break;
 		}
 		auto compare = _wtoi(parts[2].c_str());
-		auto result = (FilterResult)_wtoi(parts[3].c_str());
+		auto result = highlight ? FilterResult::Include : (FilterResult)_wtoi(parts[3].c_str());
 		if (compare < 0 || compare >= _countof(CompareTypes) || (result != FilterResult::Include && result != FilterResult::Exclude)) {
 			ok = false;
 			break;
@@ -309,6 +387,10 @@ bool CFilterDlg::LoadFilters(PCWSTR path) {
 		if (!filter) {
 			ok = false;
 			break;
+		}
+		if (highlight) {
+			auto rgb = std::wcstoul(parts[3].c_str(), nullptr, 16);
+			filter->SetColor(RGB(rgb >> 16, (rgb >> 8) & 0xff, rgb & 0xff));
 		}
 		filter->Enable(parts[0] == L"1");
 		mgr.AddFilter(std::move(filter));

@@ -87,6 +87,8 @@ public:
 	std::wstring FormatProperty(const EventProperty& prop) const;
 	std::vector<ULONG64> GetStackTrace() const;
 	bool HasStackTrace() const noexcept;
+	// non-zero: the user-mode part of the stack arrives in a separate event with this MatchId
+	ULONG64 GetStackMatchId() const noexcept;
 
 	mutable std::wstring UserText;
 
@@ -118,6 +120,7 @@ private:
 	// UserData and extended data items copied out of the ETW buffer (m_Record points here)
 	BYTE* m_RecordData{};
 	std::vector<ULONG64> m_Stack;
+	ULONG64 m_StackMatchId{ 0 };
 	mutable std::mutex m_Lock;
 	mutable bool m_PropertiesParsed{ false };
 	bool m_OwnsEventInfo{ false };

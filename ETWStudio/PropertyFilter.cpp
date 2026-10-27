@@ -108,6 +108,14 @@ std::wstring const& PropertyFilter::GetText() const noexcept {
 	return m_Text;
 }
 
+COLORREF PropertyFilter::GetColor() const noexcept {
+	return m_Color;
+}
+
+void PropertyFilter::SetColor(COLORREF color) noexcept {
+	m_Color = color;
+}
+
 std::optional<FilterValue> PropertyFilter::GetFieldValue(EventData const& evt) const {
 	auto& desc = evt.GetEventDescriptor();
 	switch (m_Field) {
@@ -193,5 +201,6 @@ std::unique_ptr<FilterBase> PropertyFilter::Clone() const {
 	auto filter = std::make_unique<PropertyFilter>(m_Name);
 	CopyStateTo(*filter);
 	filter->m_Text = m_Text;
+	filter->m_Color = m_Color;
 	return filter;
 }

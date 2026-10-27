@@ -3,6 +3,8 @@
 #include "AboutDlg.h"
 #include "ProvidersView.h"
 #include "MainFrm.h"
+#include "StackSymbolizer.h"
+#include "SimpleDlg.h"
 #include "SessionDlg.h"
 #include <ToolbarHelper.h>
 #include <TraceSession.h>
@@ -263,14 +265,39 @@ LRESULT CMainFrame::OnWindowActivate(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 }
 
 LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
+	NewSession(nullptr);
+	return 0;
+}
+
+LRESULT CMainFrame::OnLoadSession(WORD, WORD, HWND, BOOL&) {
+	CSimpleFileDialog dlg(TRUE, L"etwsession", nullptr, OFN_FILEMUSTEXIST | OFN_EXPLORER | OFN_ENABLESIZING,
+		L"ETW Studio Sessions (*.etwsession)\0*.etwsession\0All Files\0*.*\0", m_hWnd);
+	WTLHelper::SuspendHook();
+	auto ok = IDOK == dlg.DoModal();
+	WTLHelper::ResumeHook();
+	if (!ok)
+		return 0;
+
+	auto preset = SessionPreset::Load(dlg.m_szFileName);
+	if (!preset) {
+		AtlMessageBox(m_hWnd, L"Failed to load the session file", IDS_TITLE, MB_ICONERROR);
+		return 0;
+	}
+	NewSession(&*preset);
+	return 0;
+}
+
+void CMainFrame::NewSession(SessionPreset const* preset) {
 	auto name = std::format(L"ETWStudioSession{}", m_view.GetPageCount() + 1);
 	auto session = std::make_unique<TraceSession>(name);
 	CSessionDlg dlg(this, *session);
+	if (preset)
+		dlg.SetPreset(*preset);
 	if (IDOK == dlg.DoModal()) {
 		CWaitCursor wait;
 		if (!session->Init()) {
 			AtlMessageBox(m_hWnd, L"Failed to initialize trace session", IDS_TITLE, MB_ICONERROR);
-			return 0;
+			return;
 		}
 		// the dialog already configured the session's providers
 		auto title = session->SessionName();
@@ -280,7 +307,6 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 		m_view.AddPage(view->m_hWnd, title.c_str(), 1, view);
 		PostMessage(WM_COMMAND, ID_SESSION_RUN);
 	}
-	return 0;
 }
 
 UINT CMainFrame::DisplayContextMenu(HMENU hMenu, int x, int y, DWORD flags) {
@@ -328,6 +354,7 @@ void CMainFrame::UpdateUI() {
 	UISetCheck(ID_VIEW_AUTOSCROLL, false);
 	UIEnable(ID_EDIT_HIGHLIGHT, false);
 	UIEnable(ID_EDIT_FILTER, false);
+	UIEnable(ID_FILE_SAVE, false);
 	UIEnable(ID_VIEW_PROPERTIES, false);
 	SetStatusText(2, L"");
 	SetStatusIcon(1, nullptr);
@@ -372,6 +399,17 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	if (SecurityHelper::RunElevated(nullptr, true)) {
 		PostMessage(WM_CLOSE);
+	}
+	return 0;
+}
+
+LRESULT CMainFrame::OnSymbolPath(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+	auto& settings = AppSettings::Get();
+	CSimpleDlg dlg(L"Symbol Path", settings.SymbolPath().c_str(), L"Empty: use _NT_SYMBOL_PATH");
+	if (IDOK == dlg.DoModal()) {
+		CString path(dlg.GetText());
+		settings.SymbolPath((PCWSTR)path.Trim());
+		StackSymbolizer::Get().Reset();		// stacks shown from now on use the new path
 	}
 	return 0;
 }

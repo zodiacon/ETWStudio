@@ -21,12 +21,19 @@ StackSymbolizer& StackSymbolizer::Get() {
 }
 
 StackSymbolizer::~StackSymbolizer() {
+	Reset();
+}
+
+void StackSymbolizer::Reset() {
 	for (auto& [pid, hProcess] : m_Processes) {
 		::SymCleanup(hProcess);
 		::CloseHandle(hProcess);
 	}
+	m_Processes.clear();
+	m_FailedProcesses.clear();
 	if (m_KernelInit)
 		::SymCleanup(KernelContext);
+	m_KernelInit = false;
 }
 
 bool StackSymbolizer::InitContext(HANDLE hContext, bool invadeProcess) {

@@ -8,6 +8,9 @@ class CSimpleDlg :
 public:
 	enum { IDD = IDD_SIMPLE };
 
+	// a single-line text prompt
+	explicit CSimpleDlg(PCWSTR title = L"GUID", PCWSTR text = L"", PCWSTR cue = nullptr);
+
 	CString const& GetText() const;
 
 protected:
@@ -26,5 +29,5 @@ private:
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
-	CString m_Text;
+	CString m_Title, m_Text, m_Cue;
 };

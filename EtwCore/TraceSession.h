@@ -119,6 +119,7 @@ private:
 	DWORD Run();
 	void HandleNoProcessId(EventData* data);
 	void AttachKernelStack(PEVENT_RECORD rec);
+	void AttachUserStack(PEVENT_RECORD rec);
 
 private:
 	static bool EnumProviders();
@@ -138,6 +139,9 @@ private:
 		ULONG64 StackTimeStamp{ 0 };	// raw EventTimeStamp of the StackWalk event(s) attached
 	};
 	std::unordered_map<DWORD, std::deque<StackOwner>> m_RecentByThread;
+	// stored events whose user-mode stack is still to come, by MatchId (oldest dropped beyond a limit)
+	std::unordered_map<ULONG64, EventData*> m_PendingUserStacks;
+	std::deque<ULONG64> m_PendingUserStackOrder;
 	// raw StackWalk EventTimeStamp -> converted event time: raw * 10^7 / Frequency + Offset (Offset learned at runtime)
 	int64_t RawToEventTime(ULONG64 raw) const noexcept;
 	ULONG64 m_StackTimeFrequency{ 10000000 };

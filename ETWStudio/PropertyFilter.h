@@ -37,10 +37,15 @@ public:
 	std::wstring const& GetName() const noexcept;
 	std::wstring const& GetText() const noexcept;
 
+	// highlight rules: the row background color
+	COLORREF GetColor() const noexcept;
+	void SetColor(COLORREF color) noexcept;
+
 private:
 	std::optional<FilterValue> GetFieldValue(EventData const& evt) const;
 
 	std::wstring m_Name;
 	std::wstring m_Text;	// the value as entered
 	Field m_Field;
+	COLORREF m_Color{ CLR_INVALID };
 };

@@ -54,6 +54,8 @@ void TraceSession::ClearEvents(std::function<void()> const& onClear) {
 	if (onClear)
 		onClear();
 	m_RecentByThread.clear();
+	m_PendingUserStacks.clear();
+	m_PendingUserStackOrder.clear();
 	m_Events.clear();
 }
 
@@ -428,6 +430,11 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 		return;
 	}
 
+	if (m_StoreEvents && rec->EventHeader.ProviderId == KernelEventTracingProviderGuid && rec->EventHeader.EventDescriptor.Id == 18) {
+		AttachUserStack(rec);	// not an event of its own
+		return;
+	}
+
 	auto pid = rec->EventHeader.ProcessId;
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
@@ -448,6 +455,15 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 			auto evt = data.get();
 			std::lock_guard locker(m_EventsLock);
 			m_Events.push_back(std::move(data));
+			if (auto matchId = evt->GetStackMatchId(); matchId) {
+				m_PendingUserStacks[matchId] = evt;
+				m_PendingUserStackOrder.push_back(matchId);
+				// user parts that never come (e.g. the thread never returned to user mode)
+				if (m_PendingUserStackOrder.size() > 4096) {
+					m_PendingUserStacks.erase(m_PendingUserStackOrder.front());
+					m_PendingUserStackOrder.pop_front();
+				}
+			}
 			if (m_TrackStacks) {
 				auto& history = m_RecentByThread[evt->GetThreadId()];
 				history.push_back({ evt });
@@ -536,6 +552,33 @@ int64_t TraceSession::RawToEventTime(ULONG64 raw) const noexcept {
 	constexpr ULONG64 units = 10000000;
 	auto freq = m_StackTimeFrequency;
 	return (int64_t)(raw / freq * units + raw % freq * units / freq);
+}
+
+void TraceSession::AttachUserStack(PEVENT_RECORD rec) {
+	ULONG64 matchId = 0;
+	std::vector<ULONG64> frames;
+	for (USHORT i = 0; i < rec->ExtendedDataCount; i++) {
+		auto& item = rec->ExtendedData[i];
+		if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE64) {
+			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE64>(item.DataPtr);
+			matchId = stack->MatchId;
+			frames.assign(stack->Address, stack->Address + (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG64));
+		}
+		else if (item.ExtType == EVENT_HEADER_EXT_TYPE_STACK_TRACE32) {
+			auto stack = reinterpret_cast<PEVENT_EXTENDED_ITEM_STACK_TRACE32>(item.DataPtr);
+			matchId = stack->MatchId;
+			frames.assign(stack->Address, stack->Address + (item.DataSize - sizeof(ULONG64)) / sizeof(ULONG));
+		}
+	}
+	if (matchId == 0 || frames.empty())
+		return;
+
+	// the owner may have been filtered out: then there is nothing to attach to
+	std::lock_guard locker(m_EventsLock);
+	if (auto it = m_PendingUserStacks.find(matchId); it != m_PendingUserStacks.end()) {
+		it->second->AppendStackTrace(frames);
+		m_PendingUserStacks.erase(it);
+	}
 }
 
 void TraceSession::AttachKernelStack(PEVENT_RECORD rec) {
