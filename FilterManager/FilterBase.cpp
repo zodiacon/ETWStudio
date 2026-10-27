@@ -32,3 +32,11 @@ FilterValue const& FilterBase::GetValue() const noexcept {
 void FilterBase::SetValue(FilterValue value) noexcept {
 	m_Value = std::move(value);
 }
+
+void FilterBase::CopyStateTo(FilterBase& target) const {
+	target.m_Name = m_Name;
+	target.m_Result = m_Result;
+	target.m_Value = m_Value;
+	target.m_Compare = m_Compare;
+	target.m_IsEnabled = m_IsEnabled;
+}

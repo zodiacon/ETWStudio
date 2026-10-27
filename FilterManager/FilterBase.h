@@ -42,12 +42,14 @@ public:
 
 protected:
 	FilterBase() = default;
+	// copies the common state (compare type, value, result, enabled) - for Clone implementations
+	void CopyStateTo(FilterBase& target) const;
 
 private:
 	std::wstring m_Name;
 	FilterResult m_Result{ FilterResult::Passthrough };
 	FilterValue m_Value;
-	CompareType m_Compare;
+	CompareType m_Compare{ CompareType::Equal };
 	bool m_IsEnabled{ true };
 };
 

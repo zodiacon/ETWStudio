@@ -19,6 +19,8 @@ public:
 	int GetRowImage(HWND, int row, int col) const;
 	bool OnDoubleClickList(HWND, int row, int col, POINT const&);
 	EtwProvider const* GetSelectedProvider() const;
+	// all providers selected when OK was clicked (valid while the dialog object lives)
+	std::vector<EtwProvider const*> const& GetSelectedProviders() const;
 
 	BEGIN_MSG_MAP(CProvidersDlg)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -48,6 +50,7 @@ private:
 	CQuickFindEdit m_Edit;
 	SortedFilteredVector<EtwProvider> m_Providers;
 	EtwProvider* m_SelectedProvider{ nullptr };
+	std::vector<EtwProvider const*> m_SelectedProviders;
 	int m_OldSelected{ -1 };
 	CString m_FilterText;
 };

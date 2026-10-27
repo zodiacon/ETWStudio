@@ -128,12 +128,13 @@ namespace std {
 }
 
 std::wstring StringHelper::ProviderGuidToName(GUID const& guid) {
-	static std::unordered_map<GUID, EtwProvider> providers;
-	if (providers.empty()) {
-		for (auto& p : EtwProvider::EnumProviders()) {
-			providers.insert({ p.Guid(), std::move(p) });
-		}
-	}
+	// initialized once (thread-safe) - also called from the trace thread by filters
+	static const auto providers = [] {
+		std::unordered_map<GUID, EtwProvider> map;
+		for (auto& p : EtwProvider::EnumProviders())
+			map.insert({ p.Guid(), std::move(p) });
+		return map;
+	}();
 	auto it = providers.find(guid);
 	return it == providers.end() ? GuidToString(guid) : it->second.Name();
 }

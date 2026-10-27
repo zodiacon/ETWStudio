@@ -47,6 +47,10 @@ size_t FilterManager::GetFilterCount() const {
 	return m_Filters.size();
 }
 
+FilterBase* FilterManager::GetFilter(size_t index) const {
+	return index < m_Filters.size() ? m_Filters[index].get() : nullptr;
+}
+
 bool FilterManager::RemoveFilter(size_t index) {
 	if(index >= m_Filters.size())
 		return false;

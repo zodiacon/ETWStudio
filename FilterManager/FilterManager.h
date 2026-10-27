@@ -23,6 +23,7 @@ public:
 	void Clear();
 	bool SwapFilters(size_t index1, size_t index2);
 	size_t GetFilterCount() const;
+	FilterBase* GetFilter(size_t index) const;
 	bool RemoveFilter(size_t index);
 	auto GetFilters() const {
 		return m_Filters | std::views::transform([](auto& f) { return f.get(); });

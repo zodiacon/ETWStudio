@@ -7,6 +7,14 @@
 class EventData;
 
 using EventCallback = std::function<void(std::unique_ptr<EventData>)>;
+
+// how a (non-kernel) provider is enabled in a session
+struct ProviderConfig {
+	int Level{ TRACE_LEVEL_INFORMATION };
+	ULONGLONG MatchAnyKeyword{ 0 };	// 0: all keywords
+	ULONGLONG MatchAllKeyword{ 0 };
+	bool Stacks{ false };
+};
 using EventCallbackNoOwn = std::function<void(EventData*)>;
 
 namespace std {
@@ -49,14 +57,27 @@ public:
 	std::vector<KernelEventTypes> GetKernelEventTypes() const noexcept;
 	bool SetKernelEventStacks(std::initializer_list<std::wstring> categories);
 	bool SetKernelEventStacks(std::span<std::wstring const> categories);
+	std::vector<std::wstring> GetKernelEventStacks() const;
 	// true if stacks were requested for any kernel category or provider
 	bool HasStacks() const noexcept;
 	bool AddProvider(GUID const& guid, int level = TRACE_LEVEL_INFORMATION, bool stacks = false);
+	// adds the provider, or updates its configuration (re-enabling it if the session is live)
+	bool AddProvider(GUID const& guid, ProviderConfig const& config);
+	bool RemoveProvider(GUID const& guid);
 	bool AddProvider(std::wstring const& name, int level = TRACE_LEVEL_INFORMATION);
-	bool AddEventsForProvider(GUID const& guid, std::span<USHORT> ids);
+	// restricts the provider's events to the given IDs (empty: all events)
+	bool AddEventsForProvider(GUID const& guid, std::span<USHORT const> ids);
+	std::vector<USHORT> GetEventsForProvider(GUID const& guid) const;
 	void SetLogFileName(PCWSTR path);
+	// real-time sessions: also log to this .etl file (set before Init)
+	void SetOutputFile(std::wstring path);
+	std::wstring const& OutputFile() const noexcept;
+	// true if the session was started with kernel events (system logger mode)
+	bool IsKernelSession() const noexcept;
+	// true if a trace session with this name is running (e.g. started by another tool)
+	static bool SessionExists(PCWSTR name);
 
-	std::vector<std::pair<const GUID, int>> GetProviders() const noexcept;
+	std::vector<std::pair<GUID, ProviderConfig>> GetProviders() const noexcept;
 
 	void Pause(bool pause) noexcept;
 	bool IsRealTimeSession() const noexcept;
@@ -74,7 +95,7 @@ public:
 
 private:
 	bool StartCommon(bool cont);
-	ULONG EnableProvider(GUID const& guid, int level);
+	ULONG EnableProvider(GUID const& guid, ProviderConfig const& config);
 	static std::wstring GetProcessFullPath(DWORD pid);
 	static void AddProcessName(DWORD pid, std::wstring name);
 	static bool RemoveProcessName(DWORD pid);
@@ -131,9 +152,10 @@ private:
 	bool m_DumpUnnamedEvents{ false };
 	inline static std::unordered_map<std::wstring, GUID> s_Providers;
 	std::unordered_map<GUID, std::unordered_set<USHORT>> m_EventIds;
-	std::unordered_map<GUID, int> m_Providers;
-	std::unordered_set<GUID> m_StackProviders;
+	std::unordered_map<GUID, ProviderConfig> m_Providers;
 	std::wstring m_LogFileName;
+	std::wstring m_OutputFile;
+	bool m_KernelSession{ false };
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;
 	std::mutex m_FilterLock;

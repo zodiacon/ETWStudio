@@ -3,6 +3,7 @@
 #include "TraceSession.h"
 #include "EventData.h"
 #include <assert.h>
+#include <algorithm>
 
 #pragma comment(lib, "tdh")
 
@@ -107,27 +108,50 @@ bool TraceSession::SetKernelEventStacks(std::span<std::wstring const> categories
 	return true;
 }
 
+std::vector<std::wstring> TraceSession::GetKernelEventStacks() const {
+	return std::vector<std::wstring>(m_KernelEventStacks.begin(), m_KernelEventStacks.end());
+}
+
 bool TraceSession::HasStacks() const noexcept {
-	return !m_KernelEventStacks.empty() || !m_StackProviders.empty();
+	if (!m_KernelEventStacks.empty())
+		return true;
+	for (auto& [guid, config] : m_Providers)
+		if (config.Stacks)
+			return true;
+	return false;
 }
 
 bool TraceSession::AddProvider(GUID const& guid, int level, bool stacks) {
 	if (m_Providers.contains(guid))
 		return true;
 
-	m_Providers.insert({ guid, level });
-	if (stacks)
-		m_StackProviders.insert(guid);
+	ProviderConfig config;
+	config.Level = level;
+	config.Stacks = stacks;
+	return AddProvider(guid, config);
+}
+
+bool TraceSession::AddProvider(GUID const& guid, ProviderConfig const& config) {
+	m_Providers.insert_or_assign(guid, config);
 	if (m_hTrace)
-		return EnableProvider(guid, level) == ERROR_SUCCESS;
+		return EnableProvider(guid, config) == ERROR_SUCCESS;
 	return true;
 }
 
-ULONG TraceSession::EnableProvider(GUID const& guid, int level) {
+bool TraceSession::RemoveProvider(GUID const& guid) {
+	if (!m_Providers.erase(guid))
+		return false;
+	m_EventIds.erase(guid);
+	if (m_hTrace)
+		return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr) == ERROR_SUCCESS;
+	return true;
+}
+
+ULONG TraceSession::EnableProvider(GUID const& guid, ProviderConfig const& config) {
 	ENABLE_TRACE_PARAMETERS params{ ENABLE_TRACE_PARAMETERS_VERSION_2 };
 	params.EnableProperty = EVENT_ENABLE_PROPERTY_STACK_TRACE;
-	return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)level, 0, 0, 0,
-		m_StackProviders.contains(guid) ? &params : nullptr);
+	return ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_ENABLE_PROVIDER, (UCHAR)config.Level,
+		config.MatchAnyKeyword, config.MatchAllKeyword, 0, config.Stacks ? &params : nullptr);
 }
 
 bool TraceSession::AddProvider(std::wstring const& name, int level) {
@@ -144,17 +168,48 @@ bool TraceSession::AddProvider(std::wstring const& name, int level) {
 	return false;
 }
 
-bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT> ids) {
-	std::unordered_set<USHORT> events;
-	for (auto& id : ids)
-		events.insert(id);
-	m_EventIds.insert_or_assign(guid, std::move(events));
-
+bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT const> ids) {
+	if (ids.empty()) {
+		m_EventIds.erase(guid);
+		return true;
+	}
+	m_EventIds.insert_or_assign(guid, std::unordered_set<USHORT>(ids.begin(), ids.end()));
 	return true;
 }
 
-std::vector<std::pair<const GUID, int>> TraceSession::GetProviders() const noexcept {
-	return std::vector(m_Providers.begin(), m_Providers.end());
+std::vector<USHORT> TraceSession::GetEventsForProvider(GUID const& guid) const {
+	std::vector<USHORT> ids;
+	if (auto it = m_EventIds.find(guid); it != m_EventIds.end())
+		ids.assign(it->second.begin(), it->second.end());
+	std::ranges::sort(ids);
+	return ids;
+}
+
+std::vector<std::pair<GUID, ProviderConfig>> TraceSession::GetProviders() const noexcept {
+	return std::vector<std::pair<GUID, ProviderConfig>>(m_Providers.begin(), m_Providers.end());
+}
+
+void TraceSession::SetOutputFile(std::wstring path) {
+	m_OutputFile = std::move(path);
+}
+
+std::wstring const& TraceSession::OutputFile() const noexcept {
+	return m_OutputFile;
+}
+
+bool TraceSession::IsKernelSession() const noexcept {
+	return m_KernelSession;
+}
+
+bool TraceSession::SessionExists(PCWSTR name) {
+	constexpr ULONG maxName = 1024;
+	auto size = sizeof(EVENT_TRACE_PROPERTIES) + 2 * maxName * sizeof(WCHAR);
+	auto buffer = std::make_unique<BYTE[]>(size);
+	auto props = reinterpret_cast<EVENT_TRACE_PROPERTIES*>(buffer.get());
+	props->Wnode.BufferSize = (ULONG)size;
+	props->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+	props->LogFileNameOffset = sizeof(EVENT_TRACE_PROPERTIES) + maxName * sizeof(WCHAR);
+	return ::ControlTrace(0, name, props, EVENT_TRACE_CONTROL_QUERY) != ERROR_WMI_INSTANCE_NOT_FOUND;
 }
 
 bool TraceSession::Start(EventCallback cb, bool cont) {
@@ -671,11 +726,13 @@ bool TraceSession::Init() {
 	if (m_hTrace)
 		return true;
 
-	auto size = sizeof(EVENT_TRACE_PROPERTIES) + (m_SessionName.length() + 1) * sizeof(WCHAR);
+	auto nameSize = (m_SessionName.length() + 1) * sizeof(WCHAR);
+	auto size = sizeof(EVENT_TRACE_PROPERTIES) + nameSize + (m_OutputFile.length() + 1) * sizeof(WCHAR);
 	m_PropertiesBuffer = std::make_unique<BYTE[]>(size);
 	ULONG error;
 	m_RealTimeSession = true;
 	bool systemLogger = !m_KernelEventTypes.empty();
+	m_KernelSession = systemLogger;
 
 	for (;;) {
 		::memset(m_PropertiesBuffer.get(), 0, size);
@@ -689,6 +746,12 @@ bool TraceSession::Init() {
 		m_Properties->FlushTimer = 1;
 		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE | (systemLogger ? EVENT_TRACE_SYSTEM_LOGGER_MODE : 0);
 		m_Properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+		if (!m_OutputFile.empty()) {
+			// also write the session to a file
+			m_Properties->LogFileMode |= EVENT_TRACE_FILE_MODE_SEQUENTIAL;
+			m_Properties->LogFileNameOffset = (ULONG)(sizeof(EVENT_TRACE_PROPERTIES) + nameSize);
+			::memcpy(m_PropertiesBuffer.get() + m_Properties->LogFileNameOffset, m_OutputFile.c_str(), (m_OutputFile.length() + 1) * sizeof(WCHAR));
+		}
 
 		error = ::StartTrace(&m_hTrace, m_SessionName.c_str(), m_Properties);
 		if (error == ERROR_ALREADY_EXISTS) {
@@ -704,8 +767,8 @@ bool TraceSession::Init() {
 			if (error != ERROR_SUCCESS)
 				break;
 		}
-		for (auto& [p, level] : m_Providers) {
-			error = EnableProvider(p, level);
+		for (auto& [p, config] : m_Providers) {
+			error = EnableProvider(p, config);
 			if (error != ERROR_SUCCESS)
 				break;
 		}

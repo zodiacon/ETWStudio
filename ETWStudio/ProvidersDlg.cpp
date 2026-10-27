@@ -3,6 +3,14 @@
 #include "ProvidersDlg.h"
 #include <SortHelper.h>
 
+namespace {
+	// enumerating providers is slow; do it once
+	std::vector<EtwProvider> const& GetAllProviders() {
+		static const auto providers = EtwProvider::EnumProviders(true);
+		return providers;
+	}
+}
+
 void CProvidersDlg::DoSort(SortInfo const* si) {
 	auto tag = GetColumnManager(m_List)->GetColumnTag<ColumnType>(si->SortColumn);
 	auto asc = si->SortAscending;
@@ -35,14 +43,15 @@ LRESULT CProvidersDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	m_List.SetImageList(images, LVSIL_SMALL);
 
 	m_Edit.SubclassWindow(GetDlgItem(IDC_FILTER));
-	m_Edit.SetCueBannerText(L"Type to filter", FALSE);
+	m_Edit.SetCueBannerText(L"Name or GUID", FALSE);
 
 	auto cm = GetColumnManager(m_List);
 	cm->AddColumn(L"Provider Name", 0, 240, ColumnType::Name);
 	cm->AddColumn(L"Provider GUID", 0, 280, ColumnType::Guid);
 	cm->AddColumn(L"Source", 0, 60, ColumnType::Source);
 
-	m_Providers = EtwProvider::EnumProviders();
+	CWaitCursor wait;
+	m_Providers.Set(GetAllProviders());
 	m_List.SetItemCount((int)m_Providers.size());
 
 	return 0;
@@ -50,12 +59,14 @@ LRESULT CProvidersDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 
 LRESULT CProvidersDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 	if (wID == IDOK) {
-		int index = m_List.GetSelectedIndex();
-		if (index < 0) {
-			AtlMessageBox(m_hWnd, L"Please select a provider or hit Cancel", IDS_TITLE, MB_ICONWARNING);
+		m_SelectedProviders.clear();
+		for (int index = m_List.GetNextItem(-1, LVNI_SELECTED); index >= 0; index = m_List.GetNextItem(index, LVNI_SELECTED))
+			m_SelectedProviders.push_back(&m_Providers[index]);
+		if (m_SelectedProviders.empty()) {
+			AtlMessageBox(m_hWnd, L"Please select one or more providers or hit Cancel", IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
-		m_SelectedProvider = &m_Providers[index];
+		m_SelectedProvider = const_cast<EtwProvider*>(m_SelectedProviders[0]);
 	}
 	EndDialog(wID);
 	return 0;
@@ -68,14 +79,13 @@ LRESULT CProvidersDlg::OnChangeFilter(WORD, WORD wID, HWND, BOOL&) {
 		m_Providers.Filter(nullptr);
 	else {
 		m_Providers.Filter([&](auto& item, size_t index) {
-			CString name(item.Name().c_str());
+			CString name(item.Name().c_str()), guid(item.GuidAsString().c_str());
 			name.MakeLower();
-			if (name.Find(m_FilterText) >= 0)
-				return true;
-			return false;
+			guid.MakeLower();
+			return name.Find(m_FilterText) >= 0 || guid.Find(m_FilterText) >= 0;
 			});
-		m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOSCROLL);
 	}
+	m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOSCROLL);
 	return 0;
 }
 
@@ -102,5 +112,9 @@ bool CProvidersDlg::OnDoubleClickList(HWND, int row, int col, POINT const&) {
 
 EtwProvider const* CProvidersDlg::GetSelectedProvider() const {
 	return m_SelectedProvider;
+}
+
+std::vector<EtwProvider const*> const& CProvidersDlg::GetSelectedProviders() const {
+	return m_SelectedProviders;
 }
 

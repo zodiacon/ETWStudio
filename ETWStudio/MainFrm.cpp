@@ -160,10 +160,7 @@ LRESULT CMainFrame::OnChangeFont(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWnd
 		::GetObject(::GetStockObject(DEFAULT_GUI_FONT), sizeof(lf), &lf);
 
 	CFontDialog dlg(&lf, CF_SCREENFONTS | CF_FORCEFONTEXIST | CF_NOVERTFONTS, nullptr, m_hWnd);
-	WTLHelper::SuspendHook();
-	auto ok = IDOK == dlg.DoModal();
-	WTLHelper::ResumeHook();
-	if (ok) {
+	if(IDOK == dlg.DoModal()) {
 		dlg.GetCurrentFont(&lf);
 		if (m_Font.m_hFont)
 			m_Font.DeleteObject();
@@ -275,14 +272,12 @@ LRESULT CMainFrame::OnNewSession(WORD, WORD, HWND, BOOL&) {
 			AtlMessageBox(m_hWnd, L"Failed to initialize trace session", IDS_TITLE, MB_ICONERROR);
 			return 0;
 		}
-		for (auto& p : dlg.GetProviders())
-			if (!p.Kernel)
-				session->AddProvider(p.Guid, p.Level);
-
+		// the dialog already configured the session's providers
+		auto title = session->SessionName();
 		auto view = new CLogView(this, std::move(session));
 		view->Create(m_view, rcDefault, nullptr,
 			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
-		m_view.AddPage(view->m_hWnd, name.c_str(), 1, view);
+		m_view.AddPage(view->m_hWnd, title.c_str(), 1, view);
 		PostMessage(WM_COMMAND, ID_SESSION_RUN);
 	}
 	return 0;

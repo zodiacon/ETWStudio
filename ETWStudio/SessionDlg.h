@@ -4,6 +4,8 @@
 #include <DialogHelper.h>
 #include <VirtualListView.h>
 #include <TraceSession.h>
+#include <EtwProvider.h>
+#include <optional>
 
 struct IMainFrame;
 
@@ -18,26 +20,38 @@ public:
 	CSessionDlg(IMainFrame* frame, TraceSession& session, bool edit = false);
 
 	CString GetColumnText(HWND, int row, int col) const;
-	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState) const;
+	ListViewRowCheck IsRowChecked(HWND, int row) const;
+	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
+	void OnListViewClick(HWND, int row, int col, POINT const& pt);
 
 	struct ProviderInfo {
 		GUID Guid;
 		std::wstring Name;
-		ULONGLONG MatchAllKeyword{ 0 };
-		ULONGLONG MatchAnyKeyword{ 0 };
-		UCHAR Level{ 0 };
+		ProviderConfig Config;		// for kernel rows, only Stacks is used
+		std::wstring EventIds;		// as entered (empty: all events)
 		bool Kernel{ false };
 		KernelEventTypes KernelType{ KernelEventTypes::None };
 	};
 	std::vector<ProviderInfo> const& GetProviders() const;
 
+	// "1, 5, 10-20" -> IDs; empty text -> empty vector; invalid -> nullopt
+	static std::optional<std::vector<USHORT>> ParseEventIds(std::wstring const& text);
+	static std::wstring FormatEventIds(std::vector<USHORT> const& ids);
+
 	BEGIN_MSG_MAP(CSessionDlg)
 		NOTIFY_HANDLER(IDC_ADD, BCN_DROPDOWN, OnProviderDropdown)
+		NOTIFY_HANDLER(IDC_LIST, LVN_KEYDOWN, OnProvidersKeyDown)
+		NOTIFY_HANDLER(IDC_KEYWORDS, LVN_KEYDOWN, OnKeywordsKeyDown)
+		COMMAND_ID_HANDLER(IDC_ADD, OnRegisteredProvider)
 		COMMAND_ID_HANDLER(ID_PROVIDER_REGISTERED, OnRegisteredProvider)
 		COMMAND_ID_HANDLER(ID_PROVIDER_GUID, OnGuidProvider)
 		COMMAND_ID_HANDLER(ID_PROVIDER_KERNEL, OnKernelProvider)
 		COMMAND_ID_HANDLER(IDC_BROWSE, OnBrowseFile)
 		COMMAND_ID_HANDLER(IDC_REMOVE, OnRemoveProvider)
+		COMMAND_HANDLER(IDC_LEVEL, CBN_SELCHANGE, OnLevelChanged)
+		COMMAND_HANDLER(IDC_STACKS, BN_CLICKED, OnStacksChanged)
+		COMMAND_HANDLER(IDC_EVENTIDS, EN_CHANGE, OnEventIdsChanged)
+		COMMAND_HANDLER(IDC_FILELOG, BN_CLICKED, OnFileLogChanged)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -55,15 +69,34 @@ private:
 	LRESULT OnCloseCmd(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnBrowseFile(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnProviderDropdown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
+	LRESULT OnProvidersKeyDown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
+	LRESULT OnKeywordsKeyDown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnRegisteredProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnGuidProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnKernelProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnRemoveProvider(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnLevelChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnStacksChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnEventIdsChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnFileLogChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+
+	bool AddProvider(GUID const& guid, std::wstring name);
+	ProviderInfo* GetSelectedProvider();
+	void SelectProvider(int index);
+	void UpdateSettings();
+	void UpdateFileLog();
+	void ToggleKeyword(int index);
+	void RefreshSelectedRow();
+	std::vector<EtwFieldInfo> const& GetKeywords(GUID const& guid, std::wstring const& name);
+	bool ApplyToSession(std::wstring const& name);
 
 	IMainFrame* m_pFrame;
 	TraceSession& m_Session;
 	std::vector<ProviderInfo> m_Providers;
-	CListViewCtrl m_List;
+	std::unordered_map<GUID, std::vector<EtwFieldInfo>> m_KeywordCache;
+	std::vector<EtwFieldInfo> const* m_Keywords{ nullptr };	// of the selected provider
+	CListViewCtrl m_List, m_KeywordList;
+	CComboBox m_LevelCB;
 	bool m_Edit;
+	bool m_Updating{ false };
 };
-
