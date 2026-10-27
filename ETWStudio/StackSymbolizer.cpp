@@ -42,9 +42,9 @@ bool StackSymbolizer::InitContext(HANDLE hContext, bool invadeProcess) {
 		::SymSetOptions(::SymGetOptions() | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_FAIL_CRITICAL_ERRORS);
 		optionsSet = true;
 	}
-	auto path = AppSettings::Get().SymbolPath();
-	// null path makes DbgHelp use _NT_SYMBOL_PATH
-	return ::SymInitializeW(hContext, path.empty() ? nullptr : path.c_str(), invadeProcess);
+	// not null even when empty: DbgHelp would add _NT_SYMBOL_PATH, which the settings may exclude
+	auto path = AppSettings::Get().BuildSymbolSearchPath();
+	return ::SymInitializeW(hContext, path.c_str(), invadeProcess);
 }
 
 std::wstring StackSymbolizer::DriverPathToDosPath(std::wstring path) {

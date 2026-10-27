@@ -22,7 +22,7 @@ A Windows GUI tool for capturing and browsing [Event Tracing for Windows (ETW)](
 
 - Windows 10 or later, x64.
 - Live trace sessions need administrator rights: start ETW Studio elevated, or use *File ▸ Run as Administrator*. Opening `.etl` files does not.
-- Call stacks are symbolized with DbgHelp. For function names, set a symbol path in *Options ▸ Symbol Path* (for example `srv*C:\Symbols*https://msdl.microsoft.com/download/symbols`; empty uses `_NT_SYMBOL_PATH`). Downloading symbols requires `symsrv.dll` next to `dbghelp.dll`.
+- Call stacks are symbolized with DbgHelp. For function names, configure symbols in *Options ▸ Symbols*: a symbol server with a local cache (*Microsoft Defaults* fills in the public Microsoft server), additional local paths, and whether to include `_NT_SYMBOL_PATH`. Downloading symbols requires `symsrv.dll` next to `dbghelp.dll`.
 
 ## Building
 

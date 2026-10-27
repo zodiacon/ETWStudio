@@ -54,6 +54,9 @@
     <ClCompile Include="SimpleDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
+    <ClCompile Include="SymbolSettingsDlg.cpp">
+      <Filter>Dialogs</Filter>
+    </ClCompile>
     <ClCompile Include="LogView.cpp">
       <Filter>Views</Filter>
     </ClCompile>
@@ -120,6 +123,9 @@
       <Filter>Dialogs</Filter>
     </ClInclude>
     <ClInclude Include="SimpleDlg.h">
+      <Filter>Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="SymbolSettingsDlg.h">
       <Filter>Dialogs</Filter>
     </ClInclude>
     <ClInclude Include="LogView.h">

@@ -51,6 +51,7 @@
 #define IDD_KERNELPROVIDER              251
 #define IDI_ICON1                       253
 #define IDI_KERNEL                      253
+#define IDD_SYMBOLS                     254
 #define IDC_VERSION                     1000
 #define IDC_COPYRIGHT                   1001
 #define IDC_LINK                        1002
@@ -105,6 +106,14 @@
 #define IDC_SAVESESSION                 1058
 #define IDC_SUMMARY                     1059
 #define IDC_MATCHALL                    1060
+#define IDC_SYM_USE_SERVER              1061
+#define IDC_SYM_SERVER_URL              1062
+#define IDC_SYM_CACHE                   1063
+#define IDC_SYM_BROWSE                  1064
+#define IDC_SYM_EXTRA                   1065
+#define IDC_SYM_USE_ENV                 1066
+#define IDC_SYM_PREVIEW                 1067
+#define IDC_SYM_DEFAULTS                1068
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -142,9 +151,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        254
+#define _APS_NEXT_RESOURCE_VALUE        255
 #define _APS_NEXT_COMMAND_VALUE         32807
-#define _APS_NEXT_CONTROL_VALUE         1061
+#define _APS_NEXT_CONTROL_VALUE         1069
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

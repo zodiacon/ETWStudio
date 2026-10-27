@@ -10,7 +10,12 @@ public:
 		SETTING(AlwaysOnTop, 0, SettingType::Bool);
 		SETTING(ViewStatusBar, 1, SettingType::Bool);
 		SETTING(DarkMode, 0, SettingType::Bool);
-		SETTING(SymbolPath, L"", SettingType::String);
+		SETTING(SymbolPath, L"", SettingType::String);		// before the symbol settings below; moved to SymbolExtraPaths
+		SETTING(SymbolServerEnabled, 0, SettingType::Bool);
+		SETTING(SymbolServerUrl, DefaultSymbolServerUrl, SettingType::String);
+		SETTING(SymbolCache, DefaultSymbolCache, SettingType::String);
+		SETTING(SymbolExtraPaths, L"", SettingType::String);
+		SETTING(SymbolUseEnvPath, 1, SettingType::Bool);
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
@@ -19,5 +24,21 @@ public:
 	DEF_SETTING(ViewStatusBar, bool)
 	DEF_SETTING(MainWindowPlacement, WINDOWPLACEMENT)
 	DEF_SETTING_STRING(SymbolPath)
+	DEF_SETTING(SymbolServerEnabled, bool)
+	DEF_SETTING_STRING(SymbolServerUrl)
+	DEF_SETTING_STRING(SymbolCache)
+	DEF_SETTING_STRING(SymbolExtraPaths)
+	DEF_SETTING(SymbolUseEnvPath, bool)
+
+	static constexpr PCWSTR DefaultSymbolServerUrl = L"https://msdl.microsoft.com/download/symbols";
+	static constexpr PCWSTR DefaultSymbolCache = L"%LOCALAPPDATA%\\ETWStudio\\Symbols";
+
+	// after loading: a symbol path from an older version becomes the additional paths
+	void Upgrade();
+
+	// the search path handed to DbgHelp ("extra paths;_NT_SYMBOL_PATH;srv*cache*url"); empty: none
+	std::wstring BuildSymbolSearchPath() const;
+	static std::wstring BuildSymbolSearchPath(bool useServer, std::wstring const& url, std::wstring const& cache,
+		std::wstring const& extra, bool useEnv);
 };
 

@@ -174,7 +174,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -208,7 +208,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -350,7 +350,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -387,7 +387,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -425,7 +425,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -462,7 +462,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <UACExecutionLevel>HighestAvailable</UACExecutionLevel>
     </Link>
     <ResourceCompile>
       <Culture>0x0409</Culture>
@@ -514,6 +514,7 @@
     <ClCompile Include="SecurityHelper.cpp" />
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
+    <ClCompile Include="SymbolSettingsDlg.cpp" />
     <ClCompile Include="StringHelper.cpp" />
     <ClCompile Include="TraceSessionsView.cpp" />
   </ItemGroup>
@@ -538,6 +539,7 @@
     <ClInclude Include="SecurityHelper.h" />
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />
+    <ClInclude Include="SymbolSettingsDlg.h" />
     <ClInclude Include="StringHelper.h" />
     <ClInclude Include="TraceSessionsView.h" />
   </ItemGroup>

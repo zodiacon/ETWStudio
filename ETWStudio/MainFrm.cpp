@@ -5,6 +5,7 @@
 #include "MainFrm.h"
 #include "StackSymbolizer.h"
 #include "SimpleDlg.h"
+#include "SymbolSettingsDlg.h"
 #include "SessionDlg.h"
 #include <ToolbarHelper.h>
 #include <TraceSession.h>
@@ -404,12 +405,8 @@ LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWnd
 }
 
 LRESULT CMainFrame::OnSymbolPath(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	auto& settings = AppSettings::Get();
-	CSimpleDlg dlg(L"Symbol Path", settings.SymbolPath().c_str(), L"Empty: use _NT_SYMBOL_PATH");
-	if (IDOK == dlg.DoModal()) {
-		CString path(dlg.GetText());
-		settings.SymbolPath((PCWSTR)path.Trim());
+	CSymbolSettingsDlg dlg;
+	if (IDOK == dlg.DoModal())
 		StackSymbolizer::Get().Reset();		// stacks shown from now on use the new path
-	}
 	return 0;
 }
