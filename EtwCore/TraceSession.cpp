@@ -57,6 +57,17 @@ void TraceSession::ClearEvents(std::function<void()> const& onClear) {
 	m_Events.clear();
 }
 
+std::vector<EventData*> TraceSession::SnapshotEvents(std::function<void()> const& onSnapshot) {
+	std::lock_guard locker(m_EventsLock);
+	if (onSnapshot)
+		onSnapshot();
+	std::vector<EventData*> events;
+	events.reserve(m_Events.size());
+	for (auto& evt : m_Events)
+		events.push_back(evt.get());
+	return events;
+}
+
 bool TraceSession::SetSessionName(std::wstring name) noexcept {
 	if (m_hTrace)
 		return false;
@@ -236,6 +247,8 @@ bool TraceSession::Start(EventCallbackNoOwn cb, bool cont) {
 
 bool TraceSession::Stop(bool quit) noexcept {
 	m_Quit = quit;
+	m_Stopped = true;
+	m_ProcessesTimer.reset();	// cancels and waits for a running refresh
 	if (m_hTrace) {
 		assert(IsRealTimeSession());
 		::ControlTrace(m_hTrace, nullptr, m_Properties, EVENT_TRACE_CONTROL_STOP);
@@ -278,18 +291,20 @@ void TraceSession::EnumProcesses() {
 	if (!::Process32First(hSnapshot.get(), &pe))
 		return;
 
-	std::lock_guard locker(s_ProcessesLock);
-
-	s_Processes.clear();
-	s_Processes.reserve(512);
+	// build the map without the lock (opening each process is slow), then swap it in
+	std::unordered_map<DWORD, ProcessInfo> processes;
+	processes.reserve(512);
 
 	do {
 		ProcessInfo pi;
 		pi.Id = pe.th32ProcessID;
 		pi.ImageName = pe.szExeFile;
 		pi.FullPath = GetProcessFullPath(pi.Id);
-		s_Processes.insert({ pe.th32ProcessID, std::move(pi) });
+		processes.insert({ pe.th32ProcessID, std::move(pi) });
 	} while (::Process32Next(hSnapshot.get(), &pe));
+
+	std::lock_guard locker(s_ProcessesLock);
+	s_Processes.swap(processes);
 }
 
 bool TraceSession::ParseProcessStartStop(EventData* data) {
@@ -362,6 +377,17 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 	if (m_Quit || m_Paused)
 		return;
 
+	if (!IsRealTimeSession()) {
+		auto time = rec->EventHeader.TimeStamp.QuadPart;
+		if (time == m_FilePos.Time)
+			m_FilePos.Count++;
+		else
+			m_FilePos = { time, 1 };
+		// already processed before the pause
+		if (m_FilePos.Time < m_ResumePos.Time || (m_FilePos.Time == m_ResumePos.Time && m_FilePos.Count <= m_ResumePos.Count))
+			return;
+	}
+
 	if (auto it = m_EventIds.find(rec->EventHeader.ProviderId); it != m_EventIds.end()) {
 		//
 		// check if event should be filtered
@@ -428,8 +454,9 @@ DWORD TraceSession::Run() {
 	else {
 		FILETIME ft;
 		PFILETIME start = nullptr;
-		if (m_Continue && m_LastEvent) {
-			*(ULONGLONG*)&ft = m_LastEvent->GetTimeStamp();
+		if (m_ResumePos.Count) {
+			// ProcessTrace skips earlier events; OnEventRecord skips the ones at this time already seen
+			*(LONGLONG*)&ft = m_ResumePos.Time;
 			start = &ft;
 		}
 		err = ::ProcessTrace(&m_hOpenTrace, 1, start, nullptr);
@@ -438,7 +465,8 @@ DWORD TraceSession::Run() {
 		::CloseTrace(m_hOpenTrace);
 		m_hOpenTrace = INVALID_PROCESSTRACE_HANDLE;
 	}
-	if (err == ERROR_SUCCESS)
+	// ProcessTrace also succeeds when CloseTrace cut it short
+	if (err == ERROR_SUCCESS && !m_Stopped)
 		m_Done = true;
 	return err;
 }
@@ -591,6 +619,12 @@ bool TraceSession::EnumProviders() {
 
 bool TraceSession::StartCommon(bool cont) {
 	m_Continue = cont;
+	if (cont && m_Done)
+		return true;	// nothing left to resume
+	m_ResumePos = cont ? m_FilePos : FilePosition{};
+	m_FilePos = {};
+	m_Done = false;
+	m_Stopped = false;
 	// log files may contain StackWalk events; real-time sessions only when stacks were requested
 	m_TrackStacks = m_StoreEvents && (!IsRealTimeSession() || !m_KernelEventStacks.empty());
 
@@ -612,13 +646,6 @@ bool TraceSession::StartCommon(bool cont) {
 	m_TraceLog.EventRecordCallback = [](PEVENT_RECORD record) {
 		auto session = ((TraceSession*)record->UserContext);
 		session->OnEventRecord(record);
-		if (session->IsRealTimeSession()) {
-			static auto time = ::GetTickCount64();
-			if (::GetTickCount64() - time > 5000) {
-				EnumProcesses();
-				time = ::GetTickCount64();
-			}
-		}
 	};
 	m_hOpenTrace = ::OpenTrace(&m_TraceLog);
 	if (m_hOpenTrace == INVALID_PROCESSTRACE_HANDLE)
@@ -642,10 +669,25 @@ bool TraceSession::StartCommon(bool cont) {
 	::SetThreadPriority(m_hProcessThread.get(), THREAD_PRIORITY_HIGHEST);
 	::SetThreadDescription(m_hProcessThread.get(), L"ETW Processing Thread");
 	if (::WaitForSingleObject(m_hProcessThread.get(), 100) == WAIT_OBJECT_0) {
+		// a small log file may already be fully processed; only an error exit code is a failure
+		DWORD code = ERROR_GEN_FAILURE;
+		::GetExitCodeThread(m_hProcessThread.get(), &code);
+		if (code == ERROR_SUCCESS)
+			return true;
 		m_hProcessThread.reset();
 		::CloseTrace(m_hTrace);
 		m_hTrace = 0;
 		return false;
+	}
+
+	if (IsRealTimeSession()) {
+		// refresh the process names off the trace thread (process start/stop events only arrive for kernel sessions)
+		m_ProcessesTimer.reset(::CreateThreadpoolTimer([](PTP_CALLBACK_INSTANCE, PVOID, PTP_TIMER) { EnumProcesses(); }, nullptr, nullptr));
+		if (m_ProcessesTimer) {
+			LARGE_INTEGER due;
+			due.QuadPart = -5 * 10000000LL;
+			::SetThreadpoolTimer(m_ProcessesTimer.get(), (PFILETIME)&due, 5000, 1000);
+		}
 	}
 
 	return true;
@@ -706,9 +748,8 @@ std::wstring TraceSession::GetDosNameFromNtName(PCWSTR name) {
 }
 
 void TraceSession::Pause(bool pause) noexcept {
-	if (IsRealTimeSession()) {
-		m_Paused = pause;
-	}
+	// for log files too: events delivered while ProcessTrace winds down are dropped, and replayed on resume
+	m_Paused = pause;
 	if(!m_LogFileName.empty()) {
 		if (pause)
 			Stop();

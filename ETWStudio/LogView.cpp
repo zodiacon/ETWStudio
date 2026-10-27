@@ -294,16 +294,17 @@ LRESULT CLogView::OnQuickFind(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
-	if (m_Running)
+	if (m_Running || m_Done)	// a fully processed log file has nothing left to run
 		return 0;
 
 	if (m_Session->IsRunning())
 		m_Session->Pause(false);
 	else {
+		// a stopped log file continues where it stopped
 		auto ok = m_Session->Start([&](EventData* evt) {
 			std::lock_guard locker(m_EventsLock);
 			m_TempEvents.push_back(evt);
-			});
+			}, !m_Session->IsRealTimeSession());
 		if (!ok) {
 			AtlMessageBox(m_hWnd, L"Failed to start session", IDR_MAINFRAME, MB_ICONERROR);
 			return 0;
@@ -336,12 +337,42 @@ LRESULT CLogView::OnAutoScroll(WORD, WORD, HWND, BOOL&) {
 LRESULT CLogView::OnEditFilter(WORD, WORD, HWND, BOOL&) {
 	auto mgr = m_FilterMgr.Clone();
 	CFilterDlg dlg(mgr);
+	dlg.SetApplyToExisting(m_ApplyFilterToExisting);
 	if (IDOK == dlg.DoModal()) {
 		m_FilterMgr = std::move(mgr);
 		m_Session->SetFilterManager(m_FilterMgr.Clone());
+		m_ApplyFilterToExisting = dlg.ApplyToExisting();
+		if (m_ApplyFilterToExisting)
+			ApplyFilterToExisting();
 	}
 
 	return 0;
+}
+
+void CLogView::ApplyFilterToExisting() {
+	CloseProperties();		// they index into m_Events
+
+	// pending events are part of the snapshot, so drop them to avoid duplicates
+	auto events = m_Session->SnapshotEvents([&] {
+		std::lock_guard locker(m_EventsLock);
+		m_TempEvents.clear();
+		});
+
+	// events excluded while capturing were never stored, so loosening a filter can't bring them back
+	std::vector<char> keep(events.size());
+	std::for_each(std::execution::par, events.begin(), events.end(), [&](auto& evt) {
+		keep[&evt - events.data()] = m_FilterMgr.Eval(evt) != FilterResult::Exclude;
+		});
+	m_Events.clear();
+	for (size_t i = 0; i < events.size(); i++)
+		if (keep[i])
+			m_Events.push_back(events[i]);
+
+	ClearSort(m_List);
+	m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOSCROLL);
+	m_List.RedrawItems(m_List.GetTopIndex(), m_List.GetTopIndex() + m_List.GetCountPerPage());
+	Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
+	UpdateUI();
 }
 
 LRESULT CLogView::OnViewProperties(WORD, WORD, HWND, BOOL&) {

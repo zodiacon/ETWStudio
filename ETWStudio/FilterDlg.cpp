@@ -29,6 +29,14 @@ namespace {
 CFilterDlg::CFilterDlg(FilterManager& fm) : m_FilterMgr(fm) {
 }
 
+void CFilterDlg::SetApplyToExisting(bool apply) noexcept {
+	m_ApplyToExisting = apply;
+}
+
+bool CFilterDlg::ApplyToExisting() const noexcept {
+	return m_ApplyToExisting;
+}
+
 PropertyFilter* CFilterDlg::GetFilter(int index) const {
 	return static_cast<PropertyFilter*>(m_FilterMgr.GetFilter(index));
 }
@@ -149,6 +157,8 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	m_ActionCB.SetItemData(m_ActionCB.AddString(L"Exclude"), (DWORD_PTR)FilterResult::Exclude);
 	m_ActionCB.SelectString(-1, L"Include");
 
+	CheckDlgButton(IDC_APPLYEXISTING, m_ApplyToExisting ? BST_CHECKED : BST_UNCHECKED);
+
 	UpdateList();
 	return 0;
 }
@@ -163,6 +173,7 @@ LRESULT CFilterDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 			if (filter->IsEnabled() && filter->GetResult() == FilterResult::Include)
 				include = true;
 		m_FilterMgr.SetDefaultResult(include ? FilterResult::Exclude : FilterResult::Include);
+		m_ApplyToExisting = IsDlgButtonChecked(IDC_APPLYEXISTING) == BST_CHECKED;
 	}
 	EndDialog(wID);
 	return 0;

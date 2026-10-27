@@ -14,6 +14,10 @@ class CFilterDlg :
 public:
 	explicit CFilterDlg(FilterManager& fm);
 
+	// "Apply to captured events" checkbox
+	void SetApplyToExisting(bool apply) noexcept;
+	bool ApplyToExisting() const noexcept;
+
 	enum { IDD = IDD_FILTER };
 
 	CString GetColumnText(HWND, int row, int col) const;
@@ -65,4 +69,5 @@ private:
 	CListViewCtrl m_List;
 	FilterManager& m_FilterMgr;
 	CComboBox m_PropCB, m_CompCB, m_ValueCB, m_ActionCB;
+	bool m_ApplyToExisting{ true };
 };

@@ -56,6 +56,8 @@ public:
 private:
 	void UpdateUI();
 	void CloseProperties();
+	// re-evaluates the current filters against all events stored so far
+	void ApplyFilterToExisting();
 	bool DoSave(PCWSTR path) const;
 	static std::wstring GetProperties(EventData const& evt);
 	static std::wstring GetDetails(EventData const& evt);
@@ -99,6 +101,7 @@ private:
 	// properties dialogs hold borrowed event pointers; close them before events are freed
 	mutable std::vector<HWND> m_PropertiesDialogs;
 	bool m_AutoScroll{ false };
+	bool m_ApplyFilterToExisting{ true };
 	bool m_Running{ false };
 	bool m_Active{ false };
 	bool m_Done{ false };

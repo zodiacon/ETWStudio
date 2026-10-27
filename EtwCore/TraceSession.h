@@ -36,6 +36,9 @@ public:
 	std::vector<std::unique_ptr<EventData>> const& GetEvents() const noexcept {
 		return m_Events;
 	}
+	// copies the stored event pointers; onSnapshot runs under the events lock (as with ClearEvents).
+	// The pointers stay valid until ClearEvents or destruction.
+	std::vector<EventData*> SnapshotEvents(std::function<void()> const& onSnapshot = nullptr);
 
 	FilterManager& GetFilterManager() noexcept;
 	// safe to call while the session is running
@@ -144,7 +147,13 @@ private:
 	inline static std::unordered_map<DWORD, ProcessInfo> s_Processes;
 	mutable std::unordered_map<ULONGLONG, std::wstring> m_KernelEventNames;
 	std::vector<DWORD> m_CleanupPids;
-	std::shared_ptr<EventData> m_LastEvent;
+	// log file position (timestamp + records seen at that timestamp), so a paused file resumes where it stopped
+	struct FilePosition {
+		LONGLONG Time{ 0 };
+		uint32_t Count{ 0 };
+	};
+	FilePosition m_FilePos, m_ResumePos;
+	wil::unique_threadpool_timer m_ProcessesTimer;
 	std::shared_ptr<EventData> m_LastExcluded;
 	uint32_t m_Index{ 0 };
 	wil::unique_handle m_hMemMap;
@@ -163,7 +172,8 @@ private:
 	std::atomic<bool> m_Paused{ false };
 	bool m_Continue{ false };
 	bool m_Quit{ false };
-	bool m_Done{ false };
+	std::atomic<bool> m_Done{ false };
+	std::atomic<bool> m_Stopped{ false };
 	bool m_StoreEvents{ true };
 	bool m_RealTimeSession{ false };
 };
