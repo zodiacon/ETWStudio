@@ -507,6 +507,8 @@
     <ClCompile Include="PropertiesDlg.cpp" />
     <ClCompile Include="PropertyFilter.cpp" />
     <ClCompile Include="StackSymbolizer.cpp" />
+    <ClCompile Include="SessionPreset.cpp" />
+    <ClCompile Include="EventExport.cpp" />
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
     <ClCompile Include="SecurityHelper.cpp" />
@@ -527,6 +529,8 @@
     <ClInclude Include="PropertiesDlg.h" />
     <ClInclude Include="PropertyFilter.h" />
     <ClInclude Include="StackSymbolizer.h" />
+    <ClInclude Include="SessionPreset.h" />
+    <ClInclude Include="EventExport.h" />
     <ClInclude Include="ProvidersDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />

@@ -6,6 +6,7 @@
 #include "StringHelper.h"
 #include "SimpleDlg.h"
 #include "KernelProviderDlg.h"
+#include <SecurityHelper.h>
 
 namespace {
 	struct LevelInfo {
@@ -278,35 +279,205 @@ LRESULT CSessionDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	for (auto& level : Levels)
 		m_LevelCB.SetItemData(m_LevelCB.AddString(level.Name), level.Level);
 
+	for (auto id : { IDC_BUFFERSIZE, IDC_MINBUFFERS, IDC_MAXBUFFERS })
+		((CEdit)GetDlgItem(id)).SetCueBannerText(L"Default");
+
+	// a new session starts with the session's (default) buffer settings
+	LoadPreset(SessionPreset::FromSession(m_Session), true);
 	if (m_Edit) {
-		for (auto& [guid, config] : m_Session.GetProviders()) {
-			ProviderInfo pi;
-			pi.Guid = guid;
-			pi.Config = config;
-			pi.Name = StringHelper::ProviderGuidToName(guid);
-			pi.EventIds = FormatEventIds(m_Session.GetEventsForProvider(guid));
-			m_Providers.push_back(std::move(pi));
-		}
-		auto stacks = m_Session.GetKernelEventStacks();
-		for (auto type : m_Session.GetKernelEventTypes()) {
-			auto pi = MakeKernelProvider(type);
-			for (auto& cat : KernelEventCategory::GetAllCategories())
-				if (cat.EnableFlag == type && std::ranges::find(stacks, cat.Name) != stacks.end())
-					pi.Config.Stacks = true;
-			m_Providers.push_back(std::move(pi));
-		}
-		m_List.SetItemCount((int)m_Providers.size());
 		SetWindowText((L"Edit Session: " + m_Session.SessionName()).c_str());
 		((CEdit)GetDlgItem(IDC_NAME)).SetReadOnly(TRUE);
-		if (!m_Session.OutputFile().empty()) {
-			SetDlgItemText(IDC_PATH, m_Session.OutputFile().c_str());
-			CheckDlgButton(IDC_FILELOG, BST_CHECKED);
-		}
-		GetDlgItem(IDC_FILELOG).EnableWindow(FALSE);
+		// can't change for a running session
+		for (auto id : { IDC_FILELOG, IDC_BUFFERSIZE, IDC_MINBUFFERS, IDC_MAXBUFFERS, IDC_FLUSHTIMER })
+			GetDlgItem(id).EnableWindow(FALSE);
 	}
+	return 0;
+}
+
+BufferSettings CSessionDlg::GetBuffers() {
+	auto value = [&](int id) {
+		CString text;
+		GetDlgItemText(id, text);
+		return (ULONG)_wtoi(text.Trim());
+	};
+	BufferSettings buffers;
+	buffers.BufferSizeKB = value(IDC_BUFFERSIZE);
+	buffers.MinimumBuffers = value(IDC_MINBUFFERS);
+	buffers.MaximumBuffers = value(IDC_MAXBUFFERS);
+	buffers.FlushTimerSec = value(IDC_FLUSHTIMER);
+	if (buffers.FlushTimerSec == 0)
+		buffers.FlushTimerSec = BufferSettings().FlushTimerSec;
+	return buffers;
+}
+
+void CSessionDlg::SetBuffers(BufferSettings const& buffers) {
+	auto set = [&](int id, ULONG value) {
+		SetDlgItemText(id, value ? std::to_wstring(value).c_str() : L"");
+	};
+	set(IDC_BUFFERSIZE, buffers.BufferSizeKB);
+	set(IDC_MINBUFFERS, buffers.MinimumBuffers);
+	set(IDC_MAXBUFFERS, buffers.MaximumBuffers);
+	set(IDC_FLUSHTIMER, buffers.FlushTimerSec);
+}
+
+void CSessionDlg::LoadPreset(SessionPreset const& preset, bool sessionSettings) {
+	m_Providers.clear();
+	for (auto& p : preset.Providers) {
+		ProviderInfo pi;
+		pi.Guid = p.Guid;
+		pi.Name = p.Name.empty() ? StringHelper::ProviderGuidToName(p.Guid) : p.Name;
+		pi.Config = p.Config;
+		pi.EventIds = FormatEventIds(p.EventIds);
+		m_Providers.push_back(std::move(pi));
+	}
+	for (auto& k : preset.KernelTypes) {
+		auto pi = MakeKernelProvider(k.Type);
+		if (pi.Name.empty())
+			continue;		// not a known kernel event type
+		pi.Config.Stacks = k.Stacks;
+		m_Providers.push_back(std::move(pi));
+	}
+
+	if (sessionSettings) {
+		if (!preset.Name.empty())
+			SetDlgItemText(IDC_NAME, preset.Name.c_str());
+		SetDlgItemText(IDC_PATH, preset.OutputFile.c_str());
+		CheckDlgButton(IDC_FILELOG, preset.OutputFile.empty() ? BST_UNCHECKED : BST_CHECKED);
+		SetBuffers(preset.Buffers);
+		UpdateFileLog();
+	}
+
+	m_List.SetItemState(-1, 0, LVIS_SELECTED);
+	m_List.SetItemCountEx((int)m_Providers.size(), LVSICF_NOSCROLL);
+	m_List.RedrawItems(0, m_List.GetItemCount());
 	GetDlgItem(IDC_REMOVE).EnableWindow(FALSE);
-	UpdateFileLog();
 	UpdateSettings();
+}
+
+SessionPreset CSessionDlg::GetPreset() {
+	SessionPreset preset;
+	CString text;
+	GetDlgItemText(IDC_NAME, text);
+	preset.Name = (PCWSTR)text.Trim();
+	if (IsDlgButtonChecked(IDC_FILELOG)) {
+		GetDlgItemText(IDC_PATH, text);
+		preset.OutputFile = (PCWSTR)text.Trim();
+	}
+	preset.Buffers = GetBuffers();
+	for (auto& p : m_Providers) {
+		if (p.Kernel)
+			preset.KernelTypes.push_back({ p.KernelType, p.Config.Stacks });
+		else
+			preset.Providers.push_back({ p.Guid, p.Name, p.Config, ParseEventIds(p.EventIds).value_or(std::vector<USHORT>()) });
+	}
+	return preset;
+}
+
+bool CSessionDlg::ValidateEventIds() {
+	for (int i = 0; i < (int)m_Providers.size(); i++) {
+		auto& p = m_Providers[i];
+		if (!p.Kernel && !ParseEventIds(p.EventIds)) {
+			SelectProvider(i);
+			AtlMessageBox(m_hWnd, std::format(L"Invalid event IDs for {}.\nUse numbers and ranges, e.g. 1, 5, 10-20", p.Name).c_str(),
+				IDS_TITLE, MB_ICONWARNING);
+			GetDlgItem(IDC_EVENTIDS).SetFocus();
+			return false;
+		}
+	}
+	return true;
+}
+
+std::wstring CSessionDlg::GetSummary() {
+	auto preset = GetPreset();
+	std::wstring text;
+	text += std::format(L"Session: {}{}\n", preset.Name.empty() ? L"(no name)" : preset.Name, m_Edit ? L" (running)" : L"");
+	text += preset.OutputFile.empty() ? L"Events: displayed live\n" : std::format(L"Events: displayed live and written to {}\n", preset.OutputFile);
+
+	auto& b = preset.Buffers;
+	auto value = [](ULONG v, PCWSTR unit) { return v ? std::format(L"{}{}", v, unit) : std::wstring(L"default"); };
+	text += std::format(L"Buffers: size {}, minimum {}, maximum {}; flushed every {} sec\n",
+		value(b.BufferSizeKB, L" KB"), value(b.MinimumBuffers, L""), value(b.MaximumBuffers, L""), b.FlushTimerSec);
+
+	if (!preset.Providers.empty()) {
+		text += std::format(L"\nProviders ({}):\n", preset.Providers.size());
+		for (auto& p : preset.Providers) {
+			text += std::format(L"  {} {}\n", p.Name, StringHelper::GuidToString(p.Guid));
+			text += std::format(L"      Level: {} and more severe\n", LevelName(p.Config.Level));
+			if (p.Config.MatchAnyKeyword == 0)
+				text += L"      Keywords: all\n";
+			else {
+				std::wstring names;
+				for (auto& kw : GetKeywords(p.Guid, p.Name))
+					if (kw.Value && (kw.Value & p.Config.MatchAnyKeyword) == kw.Value)
+						names += (names.empty() ? L"" : L", ") + kw.Name;
+				text += std::format(L"      Keywords: 0x{:X}{}\n", p.Config.MatchAnyKeyword, names.empty() ? L"" : L" (" + names + L")");
+			}
+			text += std::format(L"      Events: {}\n", p.EventIds.empty() ? L"all" : FormatEventIds(p.EventIds));
+			if (p.Config.Stacks)
+				text += L"      Call stacks: yes\n";
+		}
+	}
+	if (!preset.KernelTypes.empty()) {
+		text += std::format(L"\nKernel events ({}):\n", preset.KernelTypes.size());
+		for (auto& k : preset.KernelTypes)
+			text += std::format(L"  {}{}\n", MakeKernelProvider(k.Type).Name, k.Stacks ? L" (call stacks)" : L"");
+	}
+
+	std::vector<std::wstring> warnings;
+	if (preset.Providers.empty() && preset.KernelTypes.empty())
+		warnings.push_back(L"No providers: add at least one provider.");
+	if (!SecurityHelper::IsRunningElevated())
+		warnings.push_back(L"ETW Studio is not running elevated; starting a trace session requires administrator rights.");
+	if (!m_Edit && !preset.Name.empty() && TraceSession::SessionExists(preset.Name.c_str()))
+		warnings.push_back(std::format(L"A session named \"{}\" is already running; it will be stopped.", preset.Name));
+	if (!m_Edit && !preset.OutputFile.empty()) {
+		if (::GetFileAttributes(preset.OutputFile.c_str()) != INVALID_FILE_ATTRIBUTES)
+			warnings.push_back(L"The log file exists and will be overwritten.");
+		if (std::ranges::any_of(preset.Providers, [](auto& p) { return !p.EventIds.empty(); }))
+			warnings.push_back(L"Event ID selections are applied to the display only; the log file gets all events of these providers.");
+	}
+	if (!warnings.empty()) {
+		text += L"\nWarnings:\n";
+		for (auto& w : warnings)
+			text += L"  - " + w + L"\n";
+	}
+	return text;
+}
+
+LRESULT CSessionDlg::OnLoadPreset(WORD, WORD, HWND, BOOL&) {
+	CSimpleFileDialog dlg(TRUE, L"etwsession", nullptr, OFN_FILEMUSTEXIST | OFN_EXPLORER | OFN_ENABLESIZING,
+		L"ETW Studio Sessions (*.etwsession)\0*.etwsession\0All Files\0*.*\0", m_hWnd);
+	WTLHelper::SuspendHook();
+	auto ok = IDOK == dlg.DoModal();
+	WTLHelper::ResumeHook();
+	if (ok) {
+		auto preset = SessionPreset::Load(dlg.m_szFileName);
+		if (!preset)
+			AtlMessageBox(m_hWnd, L"Failed to load the session file", IDS_TITLE, MB_ICONERROR);
+		else
+			LoadPreset(*preset, !m_Edit);
+	}
+	return 0;
+}
+
+LRESULT CSessionDlg::OnSavePreset(WORD, WORD, HWND, BOOL&) {
+	if (!ValidateEventIds())
+		return 0;
+
+	auto preset = GetPreset();
+	CSimpleFileDialog dlg(FALSE, L"etwsession", preset.Name.empty() ? nullptr : preset.Name.c_str(), OFN_EXPLORER | OFN_ENABLESIZING | OFN_OVERWRITEPROMPT,
+		L"ETW Studio Sessions (*.etwsession)\0*.etwsession\0All Files\0*.*\0", m_hWnd);
+	WTLHelper::SuspendHook();
+	auto ok = IDOK == dlg.DoModal();
+	WTLHelper::ResumeHook();
+	if (ok && !preset.Save(dlg.m_szFileName))
+		AtlMessageBox(m_hWnd, L"Failed to save the session file", IDS_TITLE, MB_ICONERROR);
+	return 0;
+}
+
+LRESULT CSessionDlg::OnSummary(WORD, WORD, HWND, BOOL&) {
+	if (ValidateEventIds())
+		AtlMessageBox(m_hWnd, GetSummary().c_str(), L"Session Summary", MB_ICONINFORMATION);
 	return 0;
 }
 
@@ -349,10 +520,13 @@ bool CSessionDlg::ApplyToSession(std::wstring const& name) {
 	if (m_Edit)
 		m_Session.UpdateEventConfig();
 
-	if (!m_Edit && IsDlgButtonChecked(IDC_FILELOG)) {
-		CString path;
-		GetDlgItemText(IDC_PATH, path);
-		m_Session.SetOutputFile((PCWSTR)path);
+	if (!m_Edit) {
+		if (IsDlgButtonChecked(IDC_FILELOG)) {
+			CString path;
+			GetDlgItemText(IDC_PATH, path);
+			m_Session.SetOutputFile((PCWSTR)path);
+		}
+		m_Session.SetBufferSettings(GetBuffers());
 	}
 	return true;
 }
@@ -372,16 +546,8 @@ LRESULT CSessionDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 				IDS_TITLE, MB_ICONWARNING);
 			return 0;
 		}
-		for (int i = 0; i < (int)m_Providers.size(); i++) {
-			auto& p = m_Providers[i];
-			if (!p.Kernel && !ParseEventIds(p.EventIds)) {
-				SelectProvider(i);
-				AtlMessageBox(m_hWnd, std::format(L"Invalid event IDs for {}.\nUse numbers and ranges, e.g. 1, 5, 10-20", p.Name).c_str(),
-					IDS_TITLE, MB_ICONWARNING);
-				GetDlgItem(IDC_EVENTIDS).SetFocus();
-				return 0;
-			}
-		}
+		if (!ValidateEventIds())
+			return 0;
 		if (!m_Edit && IsDlgButtonChecked(IDC_FILELOG) && GetDlgItem(IDC_PATH).GetWindowTextLength() == 0) {
 			AtlMessageBox(m_hWnd, L"Please specify a file to log to", IDS_TITLE, MB_ICONWARNING);
 			GetDlgItem(IDC_PATH).SetFocus();

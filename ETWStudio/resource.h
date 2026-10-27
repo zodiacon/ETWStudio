@@ -56,7 +56,6 @@
 #define IDC_LINK                        1002
 #define IDC_NAME                        1003
 #define IDC_LIST                        1004
-#define IDC_REALTIME                    1005
 #define IDC_FILELOG                     1006
 #define IDC_PATH                        1007
 #define IDC_BROWSE                      1008
@@ -98,6 +97,13 @@
 #define IDC_EVENTIDS                    1050
 #define IDC_SETTINGS                    1051
 #define IDC_APPLYEXISTING               1052
+#define IDC_BUFFERSIZE                  1053
+#define IDC_MINBUFFERS                  1054
+#define IDC_MAXBUFFERS                  1055
+#define IDC_FLUSHTIMER                  1056
+#define IDC_LOADSESSION                 1057
+#define IDC_SAVESESSION                 1058
+#define IDC_SUMMARY                     1059
 #define ID_WINDOW_CLOSE                 32772
 #define ID_WINDOW_CLOSE_ALL             32773
 #define ID_OPTIONS_ALWAYSONTOP          32775
@@ -137,7 +143,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        254
 #define _APS_NEXT_COMMAND_VALUE         32807
-#define _APS_NEXT_CONTROL_VALUE         1053
+#define _APS_NEXT_CONTROL_VALUE         1060
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

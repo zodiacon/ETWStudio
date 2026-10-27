@@ -6,6 +6,7 @@
 #include <TraceSession.h>
 #include <EtwProvider.h>
 #include <optional>
+#include "SessionPreset.h"
 
 struct IMainFrame;
 
@@ -52,6 +53,9 @@ public:
 		COMMAND_HANDLER(IDC_STACKS, BN_CLICKED, OnStacksChanged)
 		COMMAND_HANDLER(IDC_EVENTIDS, EN_CHANGE, OnEventIdsChanged)
 		COMMAND_HANDLER(IDC_FILELOG, BN_CLICKED, OnFileLogChanged)
+		COMMAND_ID_HANDLER(IDC_LOADSESSION, OnLoadPreset)
+		COMMAND_ID_HANDLER(IDC_SAVESESSION, OnSavePreset)
+		COMMAND_ID_HANDLER(IDC_SUMMARY, OnSummary)
 		COMMAND_ID_HANDLER(IDOK, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -79,6 +83,9 @@ private:
 	LRESULT OnStacksChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnEventIdsChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFileLogChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnLoadPreset(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnSavePreset(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnSummary(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	bool AddProvider(GUID const& guid, std::wstring name);
 	ProviderInfo* GetSelectedProvider();
@@ -89,6 +96,14 @@ private:
 	void RefreshSelectedRow();
 	std::vector<EtwFieldInfo> const& GetKeywords(GUID const& guid, std::wstring const& name);
 	bool ApplyToSession(std::wstring const& name);
+	// selects the first provider with invalid event IDs and tells the user
+	bool ValidateEventIds();
+	// sessionSettings: also name, log file and buffers (not for a running session)
+	void LoadPreset(SessionPreset const& preset, bool sessionSettings);
+	SessionPreset GetPreset();
+	BufferSettings GetBuffers();
+	void SetBuffers(BufferSettings const& buffers);
+	std::wstring GetSummary();
 
 	IMainFrame* m_pFrame;
 	TraceSession& m_Session;

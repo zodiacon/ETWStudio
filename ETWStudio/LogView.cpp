@@ -8,6 +8,8 @@
 #include "FilterDlg.h"
 #include "PropertiesDlg.h"
 #include "SessionDlg.h"
+#include "SessionPreset.h"
+#include "EventExport.h"
 #include <execution>
 #include <fstream>
 
@@ -146,20 +148,46 @@ void CLogView::UpdateUI() {
 	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
 }
 
-bool CLogView::DoSave(PCWSTR path) const {
-	std::wofstream stm;
-	stm.open(path, std::ios::out);
-	if (!stm.good())
+bool CLogView::DoSave(PCWSTR path, SaveFormat format) const {
+	// m_Events is only changed on the UI thread, so the session keeps running while saving
+	Utf8Writer writer(path);
+	if (!writer.IsOpen())
 		return false;
 
-	if (m_Running)
-		m_Session->Pause(true);
-	auto str = ListViewHelper::GetAllRowsAsString(m_List, L",", L"\n");
-	stm << (PCWSTR)str;
-	stm.close();
-	if (m_Running)
-		m_Session->Pause(false);
-	return true;
+	CWaitCursor wait;
+	if (format == SaveFormat::Csv)
+		SaveCsv(writer);
+	else
+		EventExport::WriteJson(writer, m_Events);
+	return writer.Flush();
+}
+
+void CLogView::SaveCsv(Utf8Writer& writer) const {
+	writer << L"\xFEFF";	// BOM, so Excel detects UTF-8
+
+	// the visible columns, in display order, as displayed
+	auto header = m_List.GetHeader();
+	int count = header.GetItemCount();
+	std::vector<int> order(count);
+	m_List.GetColumnOrderArray(count, order.data());
+	for (int i = 0; i < count; i++) {
+		WCHAR name[128]{};
+		LVCOLUMN lvc{ LVCF_TEXT };
+		lvc.pszText = name;
+		lvc.cchTextMax = _countof(name);
+		m_List.GetColumn(order[i], &lvc);
+		writer << (i ? L"," : L"") << EventExport::CsvField(name);
+	}
+	writer << L"\r\n";
+
+	CString text;
+	for (int row = 0; row < (int)m_Events.size(); row++) {
+		for (int i = 0; i < count; i++) {
+			m_List.GetItemText(row, order[i], text);
+			writer << (i ? L"," : L"") << EventExport::CsvField((PCWSTR)text);
+		}
+		writer << L"\r\n";
+	}
 }
 
 std::wstring CLogView::GetProperties(EventData const& evt) {
@@ -397,13 +425,37 @@ LRESULT CLogView::OnClearAll(WORD, WORD, HWND, BOOL&) {
 
 LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) const {
 	WTLHelper::SuspendHook();
-	CSimpleFileDialog dlg(FALSE, L"log", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
-		L"Log Files (*.log)\0*.txt;*.log\0All Files\0*.*\0", m_hWnd);
+	CSimpleFileDialog dlg(FALSE, L"csv", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
+		L"CSV Files - displayed columns (*.csv)\0*.csv\0JSON Files - all event data (*.json)\0*.json\0", m_hWnd);
 	auto ok = IDOK == dlg.DoModal();
 	WTLHelper::ResumeHook();
 	if (ok) {
-		DoSave(dlg.m_szFileName);
+		// the extension decides; otherwise the selected file type
+		auto dot = ::wcsrchr(dlg.m_szFileName, L'.');
+		auto ext = dot ? dot : L"";
+		auto format = ::_wcsicmp(ext, L".json") == 0 ? SaveFormat::Json :
+			::_wcsicmp(ext, L".csv") == 0 ? SaveFormat::Csv : dlg.m_ofn.nFilterIndex == 2 ? SaveFormat::Json : SaveFormat::Csv;
+		if (!DoSave(dlg.m_szFileName, format))
+			AtlMessageBox(m_hWnd, L"Failed to save the file", IDS_TITLE, MB_ICONERROR);
+		else
+			Frame()->SetStatusText(3, std::format(L"Saved {} events to {}", m_Events.size(), dlg.m_szFileName).c_str());
 	}
+	return 0;
+}
+
+LRESULT CLogView::OnSaveSession(WORD, WORD, HWND, BOOL&) const {
+	if (!m_Session->IsRealTimeSession()) {
+		AtlMessageBox(m_hWnd, L"Only live trace sessions can be saved as session files", IDS_TITLE, MB_ICONINFORMATION);
+		return 0;
+	}
+	auto preset = SessionPreset::FromSession(*m_Session);
+	WTLHelper::SuspendHook();
+	CSimpleFileDialog dlg(FALSE, L"etwsession", preset.Name.c_str(), OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
+		L"ETW Studio Sessions (*.etwsession)\0*.etwsession\0All Files\0*.*\0", m_hWnd);
+	auto ok = IDOK == dlg.DoModal();
+	WTLHelper::ResumeHook();
+	if (ok && !preset.Save(dlg.m_szFileName))
+		AtlMessageBox(m_hWnd, L"Failed to save the session file", IDS_TITLE, MB_ICONERROR);
 	return 0;
 }
 

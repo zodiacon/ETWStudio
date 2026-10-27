@@ -63,6 +63,12 @@
     <ClCompile Include="StackSymbolizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SessionPreset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EventExport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FullFindDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
@@ -126,6 +132,12 @@
       <Filter>Dialogs</Filter>
     </ClInclude>
     <ClInclude Include="StackSymbolizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SessionPreset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EventExport.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PropertyFilter.h">

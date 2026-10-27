@@ -15,6 +15,14 @@ struct ProviderConfig {
 	ULONGLONG MatchAllKeyword{ 0 };
 	bool Stacks{ false };
 };
+
+// zero: system default
+struct BufferSettings {
+	ULONG BufferSizeKB{ 0 };
+	ULONG MinimumBuffers{ 0 };
+	ULONG MaximumBuffers{ 0 };
+	ULONG FlushTimerSec{ 1 };
+};
 using EventCallbackNoOwn = std::function<void(EventData*)>;
 
 namespace std {
@@ -75,6 +83,9 @@ public:
 	// real-time sessions: also log to this .etl file (set before Init)
 	void SetOutputFile(std::wstring path);
 	std::wstring const& OutputFile() const noexcept;
+	// applied by Init
+	void SetBufferSettings(BufferSettings const& settings) noexcept;
+	BufferSettings const& GetBufferSettings() const noexcept;
 	// true if the session was started with kernel events (system logger mode)
 	bool IsKernelSession() const noexcept;
 	// true if a trace session with this name is running (e.g. started by another tool)
@@ -163,6 +174,7 @@ private:
 	std::unordered_map<GUID, ProviderConfig> m_Providers;
 	std::wstring m_LogFileName;
 	std::wstring m_OutputFile;
+	BufferSettings m_Buffers;
 	bool m_KernelSession{ false };
 	std::wstring m_SessionName;
 	FilterManager m_FilterMgr;

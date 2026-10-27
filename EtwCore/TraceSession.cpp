@@ -208,6 +208,14 @@ std::wstring const& TraceSession::OutputFile() const noexcept {
 	return m_OutputFile;
 }
 
+void TraceSession::SetBufferSettings(BufferSettings const& settings) noexcept {
+	m_Buffers = settings;
+}
+
+BufferSettings const& TraceSession::GetBufferSettings() const noexcept {
+	return m_Buffers;
+}
+
 bool TraceSession::IsKernelSession() const noexcept {
 	return m_KernelSession;
 }
@@ -799,7 +807,10 @@ bool TraceSession::Init() {
 		//m_Properties->Wnode.Guid = sessionGuid;
 		//m_Properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
 		m_Properties->Wnode.ClientContext = 1;
-		m_Properties->FlushTimer = 1;
+		m_Properties->FlushTimer = m_Buffers.FlushTimerSec;
+		m_Properties->BufferSize = m_Buffers.BufferSizeKB;
+		m_Properties->MinimumBuffers = m_Buffers.MinimumBuffers;
+		m_Properties->MaximumBuffers = m_Buffers.MaximumBuffers;
 		m_Properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE | (systemLogger ? EVENT_TRACE_SYSTEM_LOGGER_MODE : 0);
 		m_Properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 		if (!m_OutputFile.empty()) {

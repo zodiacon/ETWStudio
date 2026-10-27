@@ -49,6 +49,7 @@ public:
 		COMMAND_ID_HANDLER(ID_VIEW_AUTOSCROLL, OnAutoScroll)
 		COMMAND_ID_HANDLER(ID_EDIT_FILTER, OnEditFilter)
 		COMMAND_ID_HANDLER(ID_FILE_SAVE, OnFileSave)
+		COMMAND_ID_HANDLER(ID_FILE_SAVESESSION, OnSaveSession)
 		COMMAND_ID_HANDLER(ID_EDIT_COPY, OnCopy)
 		COMMAND_ID_HANDLER(ID_SESSION_PROPERTIES, OnEditSession)
 	END_MSG_MAP()
@@ -58,7 +59,9 @@ private:
 	void CloseProperties();
 	// re-evaluates the current filters against all events stored so far
 	void ApplyFilterToExisting();
-	bool DoSave(PCWSTR path) const;
+	enum class SaveFormat { Csv, Json };
+	bool DoSave(PCWSTR path, SaveFormat format) const;
+	void SaveCsv(class Utf8Writer& writer) const;
 	static std::wstring GetProperties(EventData const& evt);
 	static std::wstring GetDetails(EventData const& evt);
 
@@ -88,6 +91,7 @@ private:
 	LRESULT OnViewProperties(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnClearAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFileSave(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const;
+	LRESULT OnSaveSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const;
 	LRESULT OnCopy(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const;
 	LRESULT OnEditSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
