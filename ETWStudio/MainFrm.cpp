@@ -100,11 +100,19 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 		menuMain.GetSubMenu(0).DeleteMenu(0, MF_BYPOSITION);
 	}
 	m_view.SetWindowMenu(menuMain.GetSubMenu(WindowMenuPosition));
-	// the File menu's only submenu
+	// the File menu's submenus: the recent lists, told apart by their first command
 	auto fileMenu = menuMain.GetSubMenu(0);
-	for (int i = 0; i < fileMenu.GetMenuItemCount() && !m_RecentSessionsMenu; i++)
-		m_RecentSessionsMenu = fileMenu.GetSubMenu(i);
-	UpdateRecentSessionsMenu();
+	for (int i = 0; i < fileMenu.GetMenuItemCount(); i++) {
+		if (CMenuHandle sub = fileMenu.GetSubMenu(i); sub) {
+			auto first = sub.GetMenuItemID(0);
+			if (first == ID_FILE_RECENTFILE_FIRST)
+				m_RecentFilesMenu = sub;
+			else if (first == ID_FILE_RECENTSESSION_FIRST)
+				m_RecentSessionsMenu = sub;
+		}
+	}
+	UpdateRecentMenu(AppSettings::Recent::Files);
+	UpdateRecentMenu(AppSettings::Recent::Sessions);
 
 	CImageList images;
 	images.Create(16, 16, ILC_COLOR32, 4, 4);
@@ -313,7 +321,7 @@ bool CMainFrame::LoadSession(PCWSTR path) {
 }
 
 LRESULT CMainFrame::OnRecentSession(WORD, WORD id, HWND, BOOL&) {
-	auto paths = AppSettings::Get().RecentSessionList();
+	auto paths = AppSettings::Get().RecentList(AppSettings::Recent::Sessions);
 	auto index = id - ID_FILE_RECENTSESSION_FIRST;
 	if (index >= paths.size())
 		return 0;
@@ -321,33 +329,53 @@ LRESULT CMainFrame::OnRecentSession(WORD, WORD id, HWND, BOOL&) {
 	if (!LoadSession(path.c_str())) {
 		auto text = std::format(L"Failed to load the session file {}.\n\nRemove it from the recent sessions?", path);
 		if (IDYES == AtlMessageBox(m_hWnd, text.c_str(), IDS_TITLE, MB_ICONERROR | MB_YESNO)) {
-			AppSettings::Get().UpdateRecentSessions(path, true);
-			UpdateRecentSessionsMenu();
+			AppSettings::Get().UpdateRecent(AppSettings::Recent::Sessions, path, true);
+			UpdateRecentMenu(AppSettings::Recent::Sessions);
 		}
 	}
 	return 0;
 }
 
-LRESULT CMainFrame::OnClearRecentSessions(WORD, WORD, HWND, BOOL&) {
-	AppSettings::Get().RecentSessions(L"");
-	UpdateRecentSessionsMenu();
+LRESULT CMainFrame::OnRecentFile(WORD, WORD id, HWND, BOOL&) {
+	auto paths = AppSettings::Get().RecentList(AppSettings::Recent::Files);
+	auto index = id - ID_FILE_RECENTFILE_FIRST;
+	if (index >= paths.size())
+		return 0;
+	auto& path = paths[index];
+	if (!OpenFile(path.c_str())) {
+		auto text = std::format(L"Failed to open {}.\n\nRemove it from the recent files?", path);
+		if (IDYES == AtlMessageBox(m_hWnd, text.c_str(), IDS_TITLE, MB_ICONERROR | MB_YESNO)) {
+			AppSettings::Get().UpdateRecent(AppSettings::Recent::Files, path, true);
+			UpdateRecentMenu(AppSettings::Recent::Files);
+		}
+	}
+	return 0;
+}
+
+LRESULT CMainFrame::OnClearRecent(WORD, WORD id, HWND, BOOL&) {
+	auto kind = id == ID_FILE_CLEARRECENTFILES ? AppSettings::Recent::Files : AppSettings::Recent::Sessions;
+	AppSettings::Get().ClearRecent(kind);
+	UpdateRecentMenu(kind);
 	return 0;
 }
 
 void CMainFrame::AddRecentSession(PCWSTR path) {
-	AppSettings::Get().UpdateRecentSessions(path);
-	UpdateRecentSessionsMenu();
+	AppSettings::Get().UpdateRecent(AppSettings::Recent::Sessions, path);
+	UpdateRecentMenu(AppSettings::Recent::Sessions);
 }
 
-void CMainFrame::UpdateRecentSessionsMenu() {
-	if (!m_RecentSessionsMenu)
+void CMainFrame::UpdateRecentMenu(AppSettings::Recent kind) {
+	bool files = kind == AppSettings::Recent::Files;
+	auto menu = files ? m_RecentFilesMenu : m_RecentSessionsMenu;
+	UINT first = files ? ID_FILE_RECENTFILE_FIRST : ID_FILE_RECENTSESSION_FIRST;
+	if (!menu)
 		return;
-	while (m_RecentSessionsMenu.GetMenuItemCount() > 0)
-		m_RecentSessionsMenu.DeleteMenu(0, MF_BYPOSITION);
+	while (menu.GetMenuItemCount() > 0)
+		menu.DeleteMenu(0, MF_BYPOSITION);
 
-	auto paths = AppSettings::Get().RecentSessionList();
+	auto paths = AppSettings::Get().RecentList(kind);
 	if (paths.empty()) {
-		m_RecentSessionsMenu.AppendMenu(MF_STRING | MF_GRAYED, ID_FILE_RECENTSESSION_FIRST, L"(None)");
+		menu.AppendMenu(MF_STRING | MF_GRAYED, first, L"(None)");
 		return;
 	}
 	for (int i = 0; i < (int)paths.size(); i++) {
@@ -358,10 +386,10 @@ void CMainFrame::UpdateRecentSessionsMenu() {
 		std::wstring text(compact);
 		for (size_t pos = 0; (pos = text.find(L'&', pos)) != std::wstring::npos; pos += 2)
 			text.insert(pos, 1, L'&');
-		m_RecentSessionsMenu.AppendMenu(MF_STRING, ID_FILE_RECENTSESSION_FIRST + i, std::format(L"&{} {}", i + 1, text).c_str());
+		menu.AppendMenu(MF_STRING, first + i, std::format(L"&{} {}", i + 1, text).c_str());
 	}
-	m_RecentSessionsMenu.AppendMenu(MF_SEPARATOR);
-	m_RecentSessionsMenu.AppendMenu(MF_STRING, ID_FILE_CLEARRECENTSESSIONS, L"&Clear List");
+	menu.AppendMenu(MF_SEPARATOR);
+	menu.AppendMenu(MF_STRING, files ? ID_FILE_CLEARRECENTFILES : ID_FILE_CLEARRECENTSESSIONS, L"&Clear List");
 }
 
 void CMainFrame::NewSession(SessionPreset const* preset) {
@@ -463,18 +491,23 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	WTLHelper::SuspendHook();
 	bool ok = IDOK == dlg.DoModal();
 	WTLHelper::ResumeHook();
-	if(ok) {
-		auto view = new CLogView(this, nullptr);
-		view->Create(m_view, rcDefault, nullptr,
-			WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
-		if (!view->OpenLogFile(dlg.m_szFileName)) {
-			AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
-			view->DestroyWindow();
-			return 0;
-		}
-		m_view.AddPage(view->m_hWnd, dlg.m_szFileTitle, 2, view);
-	}
+	if (ok && !OpenFile(dlg.m_szFileName))
+		AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
 	return 0;
+}
+
+bool CMainFrame::OpenFile(PCWSTR path) {
+	auto view = new CLogView(this, nullptr);
+	view->Create(m_view, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0);
+	if (!view->OpenLogFile(path)) {
+		view->DestroyWindow();
+		return false;
+	}
+	auto slash = ::wcsrchr(path, L'\\');
+	m_view.AddPage(view->m_hWnd, slash ? slash + 1 : path, 2, view);
+	AppSettings::Get().UpdateRecent(AppSettings::Recent::Files, path);
+	UpdateRecentMenu(AppSettings::Recent::Files);
+	return true;
 }
 
 LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {

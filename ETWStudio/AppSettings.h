@@ -18,6 +18,7 @@ public:
 		SETTING_STRING(SymbolExtraPaths, L"");
 		SETTING(SymbolUseEnvPath, 1, SettingType::Bool);
 		SETTING_STRING(RecentSessions, L"");		// session file paths, most recent first, one per line
+		SETTING_STRING(RecentFiles, L"");			// opened data (.etl) files, the same way
 		SETTING(ExportCsvStacks, 0, SettingType::Bool);		// CSV exports get a Stack column
 		SETTING(ExportStackSymbols, 1, SettingType::Bool);	// exported stacks get their symbols (may download them)
 		END_SETTINGS
@@ -34,13 +35,17 @@ public:
 	DEF_SETTING_STRING(SymbolExtraPaths)
 	DEF_SETTING(SymbolUseEnvPath, bool)
 	DEF_SETTING_STRING(RecentSessions)
+	DEF_SETTING_STRING(RecentFiles)
 	DEF_SETTING(ExportCsvStacks, bool)
 	DEF_SETTING(ExportStackSymbols, bool)
 
-	static constexpr int MaxRecentSessions = 8;
-	std::vector<std::wstring> RecentSessionList() const;
+	// the recently used files of each kind (File > Recent Files, Recent Sessions), most recent first
+	enum class Recent { Files, Sessions };
+	static constexpr int MaxRecent = 8;
+	std::vector<std::wstring> RecentList(Recent kind) const;
 	// moves the path to the top (adding it if new); remove: takes it out
-	void UpdateRecentSessions(std::wstring const& path, bool remove = false);
+	void UpdateRecent(Recent kind, std::wstring const& path, bool remove = false);
+	void ClearRecent(Recent kind);
 
 	static constexpr PCWSTR DefaultSymbolServerUrl = L"https://msdl.microsoft.com/download/symbols";
 	static constexpr PCWSTR DefaultSymbolCache = L"%LOCALAPPDATA%\\ETWStudio\\Symbols";
