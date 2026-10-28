@@ -19,6 +19,7 @@ public:
 
 	CString GetColumnText(HWND, int row, int col) const;
 	bool IsSortable(HWND, int col) const;
+	void OnStateChanged(HWND, int from, int to, UINT oldState, UINT newState);
 
 	enum { IDD = IDD_PROPERTIES };
 	// posted by the symbolizer's thread when more of the stack's symbols are in
@@ -31,6 +32,9 @@ public:
 		COMMAND_ID_HANDLER(IDCANCEL, OnCloseCmd)
 		COMMAND_ID_HANDLER(IDC_NEXT, OnNextEvent)
 		COMMAND_ID_HANDLER(IDC_PREV, OnPrevEvent)
+		COMMAND_ID_HANDLER(IDC_COPY, OnCopy)
+		COMMAND_ID_HANDLER(IDC_COPYALL, OnCopyAll)
+		NOTIFY_HANDLER(IDC_LIST, LVN_KEYDOWN, OnListKeyDown)
 		CHAIN_MSG_MAP(CVirtualListView<CPropertiesDlg>)
 		CHAIN_MSG_MAP(CDynamicDialogLayout<CPropertiesDlg>)
 	END_MSG_MAP()
@@ -38,6 +42,8 @@ public:
 private:
 	void UpdateEvent();
 	CString GetFullMessage() const;
+	// the event's fields (as shown above the list), then its properties and stack frames, tab separated
+	std::wstring GetAllText() const;
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -50,6 +56,9 @@ private:
 	LRESULT OnSymbolsReady(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnNextEvent(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnPrevEvent(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnCopy(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnCopyAll(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnListKeyDown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	TraceSession const* m_Session;

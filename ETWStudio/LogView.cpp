@@ -788,8 +788,10 @@ LRESULT CLogView::OnEditFilter(WORD, WORD, HWND, BOOL&) {
 	auto mgr = m_FilterMgr.Clone();
 	CFilterDlg dlg(mgr);
 	dlg.SetApplyToExisting(m_ApplyFilterToExisting);
+	dlg.SetDiscardExcluded(m_Session->DiscardsExcluded());
 	if (IDOK == dlg.DoModal()) {
 		m_FilterMgr = std::move(mgr);
+		m_Session->SetDiscardExcluded(dlg.DiscardExcluded());
 		m_Session->SetFilterManager(m_FilterMgr.Clone());
 		m_ApplyFilterToExisting = dlg.ApplyToExisting();
 		if (m_ApplyFilterToExisting)
@@ -809,14 +811,24 @@ void CLogView::ApplyFilterToExisting() {
 		});
 
 	// the session stores the events a filter excluded while capturing too, so a looser filter brings them back
-	std::vector<char> keep(events.size());
+	// (unless it discards them: then the ones this filter excludes go now)
+	std::vector<char> keep(events.size()), excluded(events.size());
 	std::for_each(std::execution::par, events.begin(), events.end(), [&](auto& evt) {
-		keep[&evt - events.data()] = IsShown(evt) && m_FilterMgr.Eval(evt) != FilterResult::Exclude;
+		auto i = &evt - events.data();
+		excluded[i] = m_FilterMgr.Eval(evt) == FilterResult::Exclude;
+		keep[i] = !excluded[i] && IsShown(evt);
 		});
 	m_Events.clear();
-	for (size_t i = 0; i < events.size(); i++)
+	std::vector<EventData*> discard;
+	for (size_t i = 0; i < events.size(); i++) {
 		if (keep[i])
 			m_Events.push_back(events[i]);
+		else if (excluded[i] && m_Session->DiscardsExcluded())
+			discard.push_back(events[i]);
+	}
+	// nothing else holds them: the pending ones were dropped with the snapshot, the properties are closed
+	if (auto removed = m_Session->RemoveEvents(discard))
+		Frame()->SetStatusText(3, std::format(L"{} excluded events discarded", removed).c_str());
 
 	ClearSort(m_List);
 	m_List.SetItemCountEx((int)m_Events.size(), LVSICF_NOSCROLL);
@@ -929,6 +941,27 @@ LRESULT CLogView::OnCopy(WORD, WORD, HWND, BOOL&) const {
 LRESULT CLogView::OnEditSession(WORD, WORD, HWND, BOOL&) {
 	CSessionDlg dlg(Frame(), *m_Session, true);
 	if (IDOK == dlg.DoModal()) {
+		// what changed in the running session; failures need a look
+		auto& report = dlg.GetApplyReport();
+		auto list = [](auto const& items) {
+			std::wstring text;
+			for (auto& item : items)
+				text += L"  - " + item + L"\n";
+			return text;
+		};
+		if (!report.Failures.empty()) {
+			auto text = L"Some changes could not be applied to the running session:\n\n" + list(report.Failures);
+			if (!report.Changes.empty())
+				text += L"\nApplied:\n" + list(report.Changes);
+			AtlMessageBox(m_hWnd, text.c_str(), IDS_TITLE, MB_ICONWARNING);
+		}
+		std::wstring status;
+		for (auto& change : report.Changes)
+			status += (status.empty() ? L"Session updated: " : L"; ") + change;
+		if (status.empty())
+			status = report.Failures.empty() ? L"No changes to the session" : L"Session not changed";
+		Frame()->SetStatusText(3, status.c_str());
+
 		// image events may have been selected, or enabled only for stacks
 		if (bool show = m_Session->ImageEventsRequested(); show != m_ShowImageEvents) {
 			m_ShowImageEvents = show;

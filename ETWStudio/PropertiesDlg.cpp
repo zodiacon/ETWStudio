@@ -5,6 +5,8 @@
 #include <EtwProvider.h>
 #include "AppSettings.h"
 #include "StackSymbolizer.h"
+#include <ClipboardHelper.h>
+#include <ListViewHelper.h>
 
 CPropertiesDlg::CPropertiesDlg(TraceSession const* session, std::vector<EventData*> const& events, int index, HICON hIcon) :
     m_Session(session), m_Events(events), m_Index(index), m_hIcon(hIcon) {
@@ -39,6 +41,31 @@ CString CPropertiesDlg::GetColumnText(HWND, int row, int col) const {
 
 bool CPropertiesDlg::IsSortable(HWND, int col) const {
     return col == 0;
+}
+
+void CPropertiesDlg::OnStateChanged(HWND, int, int, UINT oldState, UINT newState) {
+    if ((oldState ^ newState) & LVIS_SELECTED)
+        GetDlgItem(IDC_COPY).EnableWindow(m_List.GetSelectedCount() > 0);
+}
+
+std::wstring CPropertiesDlg::GetAllText() const {
+    std::wstring text;
+    // the fields in the order they're laid out
+    std::pair<PCWSTR, int> const fields[] = {
+        { L"Index", IDC_INDEX }, { L"Time", IDC_TIME }, { L"Provider", IDC_PROVIDER },
+        { L"PID", IDC_PID }, { L"Process Name", IDC_PNAME }, { L"TID", IDC_TID },
+        { L"Keyword", IDC_KEYWORD }, { L"Channel", IDC_CHANNEL },
+        { L"Opcode", IDC_OPCODE }, { L"Level", IDC_LEVEL }, { L"Version", IDC_VERSION },
+        { L"Task", IDC_TASK }, { L"Event", IDC_EVENT }, { L"Message", IDC_MESSAGE },
+    };
+    for (auto& [name, id] : fields) {
+        CString value;
+        GetDlgItemText(id, value);
+        text += std::format(L"{}:\t{}\r\n", name, (PCWSTR)value);
+    }
+    text += L"\r\n";
+    text += (PCWSTR)ListViewHelper::GetAllRowsAsString(m_List);
+    return text;
 }
 
 void CPropertiesDlg::UpdateEvent() {
@@ -84,6 +111,7 @@ void CPropertiesDlg::UpdateEvent() {
         });
     }
     m_List.SetItemCount((int)(props.size() + m_Stack.size()));
+    GetDlgItem(IDC_COPY).EnableWindow(m_List.GetSelectedCount() > 0);
 }
 
 CString CPropertiesDlg::GetFullMessage() const {
@@ -111,6 +139,7 @@ LRESULT CPropertiesDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
     cm->AddColumn(L"Property", 0, 150);
     cm->AddColumn(L"Value", 0, 200);
     cm->AddColumn(L"Details", 0, 300);	// the symbol of a stack frame
+    GetDlgItem(IDC_COPY).EnableWindow(FALSE);	// until rows are selected
 
     UpdateEvent();
 
@@ -143,6 +172,30 @@ LRESULT CPropertiesDlg::OnNextEvent(WORD, WORD wID, HWND, BOOL&) {
 
     m_Index++;
     UpdateEvent();
+    return 0;
+}
+
+LRESULT CPropertiesDlg::OnCopy(WORD, WORD wID, HWND, BOOL&) {
+    if (m_List.GetSelectedCount() > 0)
+        ClipboardHelper::CopyText(m_hWnd, ListViewHelper::GetSelectedRowsAsString(m_List));
+    return 0;
+}
+
+LRESULT CPropertiesDlg::OnCopyAll(WORD, WORD wID, HWND, BOOL&) {
+    ClipboardHelper::CopyText(m_hWnd, GetAllText().c_str());
+    return 0;
+}
+
+LRESULT CPropertiesDlg::OnListKeyDown(int, LPNMHDR hdr, BOOL& handled) {
+    auto key = ((NMLVKEYDOWN*)hdr)->wVKey;
+    if (::GetKeyState(VK_CONTROL) < 0 && (key == 'C' || key == 'A')) {
+        if (key == 'C')
+            SendMessage(WM_COMMAND, IDC_COPY);
+        else
+            m_List.SetItemState(-1, LVIS_SELECTED, LVIS_SELECTED);
+        return 0;
+    }
+    handled = FALSE;
     return 0;
 }
 

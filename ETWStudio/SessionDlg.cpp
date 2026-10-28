@@ -479,6 +479,16 @@ std::wstring CSessionDlg::GetSummary() {
 	auto value = [](ULONG v, PCWSTR unit) { return v ? std::format(L"{}{}", v, unit) : std::wstring(L"default"); };
 	text += std::format(L"Buffers: size {}, minimum {}, maximum {}; flushed every {} sec\n",
 		value(b.BufferSizeKB, L" KB"), value(b.MinimumBuffers, L""), value(b.MaximumBuffers, L""), b.FlushTimerSec);
+	// ETW raises the counts when the session starts
+	auto effective = TraceSession::EffectiveBuffers(b);
+	if (effective.MinimumBuffers != b.MinimumBuffers || effective.MaximumBuffers != b.MaximumBuffers) {
+		std::wstring raised;
+		if (effective.MinimumBuffers != b.MinimumBuffers)
+			raised = std::format(L"minimum {} (2 per processor)", effective.MinimumBuffers);
+		if (effective.MaximumBuffers != b.MaximumBuffers)
+			raised += std::format(L"{}maximum {} (not below the minimum)", raised.empty() ? L"" : L", ", effective.MaximumBuffers);
+		text += std::format(L"    ETW raises them to: {}\n", raised);
+	}
 
 	if (!preset.Providers.empty()) {
 		text += std::format(L"\nProviders ({}):\n", preset.Providers.size());
@@ -570,17 +580,142 @@ LRESULT CSessionDlg::OnSummary(WORD, WORD, HWND, BOOL&) {
 	return 0;
 }
 
-bool CSessionDlg::ApplyToSession(std::wstring const& name) {
-	if (!m_Edit)
-		m_Session.SetSessionName(name);
+CSessionDlg::ApplyReport const& CSessionDlg::GetApplyReport() const {
+	return m_Report;
+}
 
-	if (m_Edit) {
-		// providers removed in the dialog
-		for (auto& [guid, config] : m_Session.GetProviders()) {
-			if (std::ranges::none_of(m_Providers, [&](auto& p) { return !p.Kernel && p.Guid == guid; }))
-				m_Session.RemoveProvider(guid);
-		}
+namespace {
+	std::wstring ErrorText(ULONG error) {
+		PWSTR text = nullptr;
+		::FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, error, 0,
+			(PWSTR)&text, 0, nullptr);
+		std::wstring result = text ? text : L"";
+		::LocalFree(text);
+		while (!result.empty() && (result.back() == L'\n' || result.back() == L'\r' || result.back() == L'.'))
+			result.pop_back();
+		return std::format(L"{} (error {})", result.empty() ? L"failed" : result, error);
 	}
+
+	std::wstring KeywordsText(ProviderConfig const& config) {
+		if (config.MatchAnyKeyword == 0)
+			return L"all";
+		return std::format(L"{}0x{:X}", config.MatchAllKeyword ? L"all of " : L"", config.MatchAnyKeyword);
+	}
+}
+
+void CSessionDlg::ApplyEdits() {
+	// change only what changed: each change re-enables a provider in the running session, and may fail
+	m_Report = {};
+	m_Session.TakeLastControlError();
+	auto failed = [&](std::wstring const& what) {
+		m_Report.Failures.push_back(std::format(L"{}: {}", what, ErrorText(m_Session.TakeLastControlError())));
+	};
+	auto old = m_Session.GetProviders();
+
+	// providers removed in the dialog
+	for (auto& [guid, config] : old) {
+		if (std::ranges::any_of(m_Providers, [&](auto& p) { return !p.Kernel && p.Guid == guid; }))
+			continue;
+		auto name = StringHelper::ProviderGuidToName(guid);
+		if (m_Session.RemoveProvider(guid))
+			m_Report.Changes.push_back(L"removed " + name);
+		else
+			failed(L"Removing " + name);
+	}
+
+	std::vector<KernelEventTypes> kernelTypes;
+	std::vector<std::wstring> stackCategories;
+	for (auto& p : m_Providers) {
+		if (p.Kernel) {
+			kernelTypes.push_back(p.KernelType);
+			if (p.Config.Stacks) {
+				for (auto& cat : KernelEventCategory::GetAllCategories())
+					if (cat.EnableFlag == p.KernelType)
+						stackCategories.push_back(cat.Name);
+			}
+			continue;
+		}
+		auto ids = *ParseEventIds(p.EventIds);
+		auto it = std::ranges::find_if(old, [&](auto& entry) { return entry.first == p.Guid; });
+		if (it == old.end()) {
+			// the event IDs first: the provider is enabled with them
+			m_Session.AddEventsForProvider(p.Guid, ids);
+			if (m_Session.AddProvider(p.Guid, p.Config))
+				m_Report.Changes.push_back(L"added " + p.Name);
+			else
+				failed(L"Adding " + p.Name);
+			continue;
+		}
+
+		auto& was = it->second;
+		auto oldIds = m_Session.GetEventsForProvider(p.Guid);
+		std::vector<std::wstring> parts;
+		if (was.Level != p.Config.Level)
+			parts.push_back(std::format(L"level {} -> {}", LevelName(was.Level), LevelName(p.Config.Level)));
+		if (was.MatchAnyKeyword != p.Config.MatchAnyKeyword || was.MatchAllKeyword != p.Config.MatchAllKeyword)
+			parts.push_back(std::format(L"keywords {} -> {}", KeywordsText(was), KeywordsText(p.Config)));
+		if (was.Stacks != p.Config.Stacks)
+			parts.push_back(p.Config.Stacks ? L"call stacks on" : L"call stacks off");
+		if (oldIds != ids)
+			parts.push_back(std::format(L"events {} -> {}", oldIds.empty() ? L"all" : FormatEventIds(oldIds), ids.empty() ? L"all" : FormatEventIds(ids)));
+		if (parts.empty())
+			continue;
+
+		bool configChanged = parts.size() > (oldIds != ids ? 1u : 0u);
+		bool ok = true;
+		if (oldIds != ids)
+			ok = m_Session.AddEventsForProvider(p.Guid, ids);
+		if (configChanged)
+			ok = m_Session.AddProvider(p.Guid, p.Config) && ok;
+		std::wstring what;
+		for (auto& part : parts)
+			what += (what.empty() ? L"" : L", ") + part;
+		if (ok)
+			m_Report.Changes.push_back(std::format(L"{}: {}", p.Name, what));
+		else
+			failed(std::format(L"Changing {} ({})", p.Name, what));
+	}
+
+	if (!m_Session.IsKernelSession()) {
+		if (!kernelTypes.empty())
+			m_Report.Failures.push_back(L"Kernel events can only be changed for sessions that were started with kernel events; "
+				L"create a new session to trace kernel events");
+		return;
+	}
+	auto oldTypes = m_Session.GetKernelEventTypes();
+	auto oldStacks = m_Session.GetKernelEventStacks();
+	auto sorted = [](auto v) { std::ranges::sort(v); return v; };
+	if (sorted(oldTypes) == sorted(kernelTypes) && sorted(oldStacks) == sorted(stackCategories))
+		return;
+
+	std::wstring what;
+	auto names = [](auto const& types, auto const& others) {
+		std::wstring text;
+		for (auto type : types)
+			if (std::ranges::find(others, type) == others.end())
+				text += (text.empty() ? L"" : L", ") + MakeKernelProvider(type).Name;
+		return text;
+	};
+	if (auto added = names(kernelTypes, oldTypes); !added.empty())
+		what = L"added " + added;
+	if (auto removed = names(oldTypes, kernelTypes); !removed.empty())
+		what += (what.empty() ? L"" : L"; ") + (L"removed " + removed);
+	if (sorted(oldStacks) != sorted(stackCategories))
+		what += (what.empty() ? L"" : L"; ") + std::wstring(L"call stacks changed");
+	m_Session.SetKernelEventTypes(kernelTypes);
+	m_Session.SetKernelEventStacks(stackCategories);
+	if (auto error = m_Session.UpdateEventConfig(); error == ERROR_SUCCESS)
+		m_Report.Changes.push_back(L"kernel events: " + what);
+	else
+		m_Report.Failures.push_back(std::format(L"Kernel events ({}): {}", what, ErrorText(error)));
+}
+
+bool CSessionDlg::ApplyToSession(std::wstring const& name) {
+	if (m_Edit) {
+		ApplyEdits();
+		return true;
+	}
+	m_Session.SetSessionName(name);
 
 	std::vector<KernelEventTypes> kernelTypes;
 	std::vector<std::wstring> stackCategories;
@@ -598,25 +733,14 @@ bool CSessionDlg::ApplyToSession(std::wstring const& name) {
 		m_Session.AddEventsForProvider(p.Guid, *ParseEventIds(p.EventIds));
 	}
 
-	if (m_Edit && !m_Session.IsKernelSession()) {
-		if (!kernelTypes.empty())
-			AtlMessageBox(m_hWnd, L"Kernel events can only be changed for sessions that were started with kernel events.\n"
-				L"Create a new session to trace kernel events.", IDS_TITLE, MB_ICONWARNING);
-		return true;
-	}
 	m_Session.SetKernelEventTypes(kernelTypes);
 	m_Session.SetKernelEventStacks(stackCategories);
-	if (m_Edit)
-		m_Session.UpdateEventConfig();
-
-	if (!m_Edit) {
-		if (IsDlgButtonChecked(IDC_FILELOG)) {
-			CString path;
-			GetDlgItemText(IDC_PATH, path);
-			m_Session.SetOutputFile((PCWSTR)path);
-		}
-		m_Session.SetBufferSettings(GetBuffers());
+	if (IsDlgButtonChecked(IDC_FILELOG)) {
+		CString path;
+		GetDlgItemText(IDC_PATH, path);
+		m_Session.SetOutputFile((PCWSTR)path);
 	}
+	m_Session.SetBufferSettings(GetBuffers());
 	return true;
 }
 

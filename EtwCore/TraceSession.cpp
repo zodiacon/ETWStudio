@@ -59,6 +59,26 @@ void TraceSession::ClearEvents(std::function<void()> const& onClear) {
 	m_Events.clear();
 }
 
+void TraceSession::SetDiscardExcluded(bool discard) noexcept {
+	m_DiscardExcluded = discard;
+}
+
+bool TraceSession::DiscardsExcluded() const noexcept {
+	return m_DiscardExcluded;
+}
+
+size_t TraceSession::RemoveEvents(std::span<EventData* const> events) {
+	if (events.empty())
+		return 0;
+	std::unordered_set<EventData const*> removed(events.begin(), events.end());
+	std::lock_guard locker(m_EventsLock);
+	// the stack matching keeps pointers to stored events too
+	for (auto& [tid, owners] : m_RecentByThread)
+		std::erase_if(owners, [&](auto& owner) { return removed.contains(owner.Event); });
+	std::erase_if(m_PendingUserStacks, [&](auto& pending) { return removed.contains(pending.second); });
+	return std::erase_if(m_Events, [&](auto& evt) { return removed.contains(evt.get()); });
+}
+
 std::vector<EventData*> TraceSession::SnapshotEvents(std::function<void()> const& onSnapshot) {
 	std::lock_guard locker(m_EventsLock);
 	if (onSnapshot)
@@ -147,9 +167,11 @@ bool TraceSession::AddProvider(GUID const& guid, int level, bool stacks) {
 bool TraceSession::AddProvider(GUID const& guid, ProviderConfig const& config) {
 	m_Providers.insert_or_assign(guid, config);
 	if (m_hTrace) {
-		auto ok = EnableProvider(guid, config) == ERROR_SUCCESS;
+		auto error = EnableProvider(guid, config);
+		if (error != ERROR_SUCCESS)
+			m_LastControlError = error;
 		UpdateImageTracking();
-		return ok;
+		return error == ERROR_SUCCESS;
 	}
 	return true;
 }
@@ -159,11 +181,17 @@ bool TraceSession::RemoveProvider(GUID const& guid) {
 		return false;
 	m_EventIds.erase(guid);
 	if (m_hTrace) {
-		auto ok = ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr) == ERROR_SUCCESS;
+		auto error = ::EnableTraceEx2(m_hTrace, &guid, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, nullptr);
+		if (error != ERROR_SUCCESS)
+			m_LastControlError = error;
 		UpdateImageTracking();
-		return ok;
+		return error == ERROR_SUCCESS;
 	}
 	return true;
+}
+
+ULONG TraceSession::TakeLastControlError() noexcept {
+	return std::exchange(m_LastControlError, (ULONG)ERROR_SUCCESS);
 }
 
 namespace {
@@ -256,8 +284,12 @@ bool TraceSession::AddEventsForProvider(GUID const& guid, std::span<USHORT const
 	else
 		m_EventIds.insert_or_assign(guid, std::unordered_set<USHORT>(ids.begin(), ids.end()));
 	// a live session: re-enable with the new event ID filter
-	if (auto it = m_Providers.find(guid); m_hTrace && it != m_Providers.end())
-		return EnableProvider(guid, it->second) == ERROR_SUCCESS;
+	if (auto it = m_Providers.find(guid); m_hTrace && it != m_Providers.end()) {
+		auto error = EnableProvider(guid, it->second);
+		if (error != ERROR_SUCCESS)
+			m_LastControlError = error;
+		return error == ERROR_SUCCESS;
+	}
 	return true;
 }
 
@@ -287,6 +319,17 @@ void TraceSession::SetBufferSettings(BufferSettings const& settings) noexcept {
 
 BufferSettings const& TraceSession::GetBufferSettings() const noexcept {
 	return m_Buffers;
+}
+
+BufferSettings TraceSession::EffectiveBuffers(BufferSettings const& settings) noexcept {
+	// as measured (StartTrace, then a query): a minimum below 2 per processor is raised, also when it's left
+	// to the default; a maximum below the minimum is raised to it. The buffer size is taken as given
+	auto buffers = settings;
+	auto minimum = 2 * ::GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+	buffers.MinimumBuffers = (std::max)(buffers.MinimumBuffers, minimum);
+	if (buffers.MaximumBuffers)
+		buffers.MaximumBuffers = (std::max)(buffers.MaximumBuffers, buffers.MinimumBuffers);
+	return buffers;
 }
 
 bool TraceSession::IsKernelSession() const noexcept {
@@ -629,8 +672,8 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 			excluded = m_FilterMgr.Eval(data.get()) == FilterResult::Exclude;
 		}
 		// streamed events are gone once excluded; stored ones are kept (only not handed out), so a looser filter
-		// applied to the existing events brings them back
-		if (excluded && !m_StoreEvents)
+		// applied to the existing events brings them back, unless the session discards them
+		if (excluded && (!m_StoreEvents || m_DiscardExcluded))
 			return;
 
 		if (m_StoreEvents) {

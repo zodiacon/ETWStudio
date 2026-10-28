@@ -61,8 +61,16 @@ public:
 
 	FilterManager& GetFilterManager() noexcept;
 	// safe to call while the session is running. Excluded events aren't handed to the callback; a session that
-	// stores its events (EventCallbackNoOwn) still stores them, so a looser filter can show them later
+	// stores its events (EventCallbackNoOwn) still stores them, so a looser filter can show them later,
+	// unless it discards them (SetDiscardExcluded)
 	void SetFilterManager(FilterManager mgr);
+	// a session that stores its events: don't store the ones the filter excludes (saves memory; a looser filter
+	// can't bring them back). Safe to call while the session is running
+	void SetDiscardExcluded(bool discard) noexcept;
+	bool DiscardsExcluded() const noexcept;
+	// deletes these stored events (e.g. the ones a filter excludes, when discarding them); the caller must not
+	// hold other pointers to them. Returns how many were deleted
+	size_t RemoveEvents(std::span<EventData* const> events);
 	// deletes all stored events; onClear runs under the events lock, so the caller can drop
 	// any borrowed pointers it holds without racing the trace thread
 	void ClearEvents(std::function<void()> const& onClear = nullptr);
@@ -98,6 +106,12 @@ public:
 	// applied by Init
 	void SetBufferSettings(BufferSettings const& settings) noexcept;
 	BufferSettings const& GetBufferSettings() const noexcept;
+	// what ETW makes of buffer settings when a session starts: at least 2 buffers per processor, and the
+	// maximum not below the minimum (0: ETW's default, unchanged)
+	static BufferSettings EffectiveBuffers(BufferSettings const& settings) noexcept;
+	// the error of the last provider change on a running session that failed (AddProvider, RemoveProvider,
+	// AddEventsForProvider), ERROR_SUCCESS if none did since the last call
+	ULONG TakeLastControlError() noexcept;
 	// true if the session was started with kernel events (system logger mode)
 	bool IsKernelSession() const noexcept;
 	// true if a trace session with this name is running (e.g. started by another tool)
@@ -227,5 +241,7 @@ private:
 	std::atomic<bool> m_Stopped{ false };
 	bool m_StoreEvents{ true };
 	bool m_RealTimeSession{ false };
+	std::atomic<bool> m_DiscardExcluded{ false };
+	ULONG m_LastControlError{ ERROR_SUCCESS };
 };
 

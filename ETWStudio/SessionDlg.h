@@ -38,6 +38,12 @@ public:
 	};
 	std::vector<ProviderInfo> const& GetProviders() const;
 
+	// editing a running session: what was changed, and what failed (with the error)
+	struct ApplyReport {
+		std::vector<std::wstring> Changes, Failures;
+	};
+	ApplyReport const& GetApplyReport() const;
+
 	// "1, 5, 10-20" -> IDs; empty text -> empty vector; invalid -> nullopt
 	static std::optional<std::vector<USHORT>> ParseEventIds(std::wstring const& text);
 	static std::wstring FormatEventIds(std::vector<USHORT> const& ids);
@@ -104,6 +110,8 @@ private:
 	void ShowKeywordMask();
 	std::vector<EtwFieldInfo> const& GetKeywords(GUID const& guid, std::wstring const& name);
 	bool ApplyToSession(std::wstring const& name);
+	// a running session: applies what changed in the dialog, filling m_Report
+	void ApplyEdits();
 	// selects the first provider with invalid event IDs and tells the user
 	bool ValidateEventIds();
 	// sessionSettings: also name, log file and buffers (not for a running session)
@@ -131,4 +139,5 @@ private:
 	std::optional<SessionPreset> m_Preset;
 	bool m_Edit;
 	bool m_Updating{ false };
+	ApplyReport m_Report;
 };

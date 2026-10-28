@@ -120,6 +120,9 @@
 #define IDC_PROGRESS_TEXT               1070
 #define IDC_PROGRESS_DETAIL             1079
 #define IDC_FIND_WRAP                   1080
+#define IDC_DISCARDEXCLUDED             1081
+#define IDC_COPY                        1082
+#define IDC_COPYALL                     1083
 #define IDC_FIND_TEXT                   1071
 #define IDC_FIND_MATCHCASE              1072
 #define IDC_FIND_WHOLEWORD              1073
@@ -171,7 +174,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        257
 #define _APS_NEXT_COMMAND_VALUE         32817
-#define _APS_NEXT_CONTROL_VALUE         1081
+#define _APS_NEXT_CONTROL_VALUE         1084
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

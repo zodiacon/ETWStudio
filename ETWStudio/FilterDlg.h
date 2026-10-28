@@ -19,6 +19,9 @@ public:
 	// "Apply to captured events" checkbox
 	void SetApplyToExisting(bool apply) noexcept;
 	bool ApplyToExisting() const noexcept;
+	// "Discard the events this filter excludes" checkbox
+	void SetDiscardExcluded(bool discard) noexcept;
+	bool DiscardExcluded() const noexcept;
 
 	enum { IDD = IDD_FILTER };
 
@@ -74,5 +77,6 @@ private:
 	FilterManager& m_FilterMgr;
 	CComboBox m_PropCB, m_CompCB, m_ValueCB, m_ActionCB;
 	bool m_ApplyToExisting{ true };
+	bool m_DiscardExcluded{ false };
 	Mode m_Mode;
 };

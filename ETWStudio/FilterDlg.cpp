@@ -61,6 +61,14 @@ bool CFilterDlg::ApplyToExisting() const noexcept {
 	return m_ApplyToExisting;
 }
 
+void CFilterDlg::SetDiscardExcluded(bool discard) noexcept {
+	m_DiscardExcluded = discard;
+}
+
+bool CFilterDlg::DiscardExcluded() const noexcept {
+	return m_DiscardExcluded;
+}
+
 PropertyFilter* CFilterDlg::GetFilter(int index) const {
 	return static_cast<PropertyFilter*>(m_FilterMgr.GetFilter(index));
 }
@@ -158,6 +166,7 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	if (highlight) {
 		SetWindowText(L"Highlight");
 		GetDlgItem(IDC_APPLYEXISTING).ShowWindow(SW_HIDE);	// highlighting always applies to all rows
+		GetDlgItem(IDC_DISCARDEXCLUDED).ShowWindow(SW_HIDE);
 	}
 
 	m_List.Attach(GetDlgItem(IDC_LIST));
@@ -194,6 +203,7 @@ LRESULT CFilterDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	}
 
 	CheckDlgButton(IDC_APPLYEXISTING, m_ApplyToExisting ? BST_CHECKED : BST_UNCHECKED);
+	CheckDlgButton(IDC_DISCARDEXCLUDED, m_DiscardExcluded ? BST_CHECKED : BST_UNCHECKED);
 
 	UpdateList();
 	return 0;
@@ -210,6 +220,7 @@ LRESULT CFilterDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 				include = true;
 		m_FilterMgr.SetDefaultResult(include ? FilterResult::Exclude : FilterResult::Include);
 		m_ApplyToExisting = IsDlgButtonChecked(IDC_APPLYEXISTING) == BST_CHECKED;
+		m_DiscardExcluded = IsDlgButtonChecked(IDC_DISCARDEXCLUDED) == BST_CHECKED;
 	}
 	EndDialog(wID);
 	return 0;

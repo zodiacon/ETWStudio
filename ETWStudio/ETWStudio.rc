@@ -374,7 +374,7 @@ BEGIN
     LTEXT           "Items found:",IDC_STATS,281,10,68,8
 END
 
-IDD_FILTER DIALOGEX 0, 0, 381, 199
+IDD_FILTER DIALOGEX 0, 0, 381, 211
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "Filter"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
@@ -393,6 +393,8 @@ BEGIN
     PUSHBUTTON      "",IDC_ADD,355,4,19,16,BS_ICON
     COMBOBOX        IDC_ACTION,292,4,56,52,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
     CONTROL         "A&pply to captured events",IDC_APPLYEXISTING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,180,110,10
+    CONTROL         "&Discard the events this filter excludes (saves memory; loosening the filter won't bring them back)",IDC_DISCARDEXCLUDED,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,196,340,10
 END
 
 IDD_PROPERTIES DIALOGEX 0, 0, 381, 271
@@ -432,6 +434,8 @@ BEGIN
     EDITTEXT        IDC_VERSION,345,65,29,14,ES_AUTOHSCROLL | ES_READONLY
     PUSHBUTTON      "Next Event",IDC_NEXT,231,246,43,19,BS_ICON
     PUSHBUTTON      "Prev Event",IDC_PREV,103,246,43,19,BS_ICON
+    PUSHBUTTON      "&Copy",IDC_COPY,7,251,42,14
+    PUSHBUTTON      "Copy &All",IDC_COPYALL,53,251,45,14
 END
 
 IDD_KERNELPROVIDER DIALOGEX 0, 0, 363, 174
@@ -682,6 +686,7 @@ BEGIN
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0,
+    0, 100, 0, 0,
     0, 100, 0, 0
 END
 
@@ -719,7 +724,9 @@ BEGIN
     100, 0, 0, 0,
     100, 0, 0, 0,
     50, 100, 0, 0,
-    50, 100, 0, 0
+    50, 100, 0, 0,
+    0, 100, 0, 0,
+    0, 100, 0, 0
 END
 
 IDD_KERNELPROVIDER AFX_DIALOG_LAYOUT
