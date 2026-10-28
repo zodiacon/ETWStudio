@@ -54,6 +54,12 @@ void CMainFrame::InitMenu(HMENU hMenu) {
 }
 
 LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
+	// .etl and session files dropped anywhere on the window (the views are its children). Running elevated,
+	// Windows drops Explorer's (not elevated) messages unless they're let through
+	DragAcceptFiles();
+	for (UINT msg : { (UINT)WM_DROPFILES, (UINT)WM_COPYDATA, 0x0049u /* WM_COPYGLOBALDATA */ })
+		::ChangeWindowMessageFilterEx(m_hWnd, msg, MSGFLT_ALLOW, nullptr);
+
 	CreateSimpleStatusBar();
 	m_StatusBar.SubclassWindow(m_hWndStatusBar);
 	// 0: ready, 1: run/stop icon, 2: event count, 3: messages (search results, exports), to the end
@@ -494,6 +500,41 @@ LRESULT CMainFrame::OnFileOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 	if (ok && !OpenFile(dlg.m_szFileName))
 		AtlMessageBox(m_hWnd, L"Failed to open file", IDR_MAINFRAME, MB_ICONERROR);
 	return 0;
+}
+
+LRESULT CMainFrame::OnDropFiles(UINT, WPARAM wParam, LPARAM, BOOL&) {
+	auto hDrop = (HDROP)wParam;
+	std::vector<std::wstring> paths;
+	auto count = ::DragQueryFile(hDrop, 0xFFFFFFFF, nullptr, 0);
+	for (UINT i = 0; i < count; i++) {
+		std::wstring path(::DragQueryFile(hDrop, i, nullptr, 0), L'\0');
+		::DragQueryFile(hDrop, i, path.data(), (UINT)path.size() + 1);
+		paths.push_back(std::move(path));
+	}
+	// done with the drop before a session file's dialog (modal) comes up
+	::DragFinish(hDrop);
+	OpenFiles(paths);
+	return 0;
+}
+
+void CMainFrame::OpenFiles(std::vector<std::wstring> const& paths) {
+	std::wstring failed;
+	for (auto& path : paths) {
+		auto dot = path.find_last_of(L'.');
+		auto ext = dot == std::wstring::npos ? std::wstring() : path.substr(dot);
+		if (::_wcsicmp(ext.c_str(), L".etl") == 0) {
+			if (!OpenFile(path.c_str()))
+				failed += path + L"\n";
+		}
+		else if (::_wcsicmp(ext.c_str(), L".etwsession") == 0) {
+			if (!LoadSession(path.c_str()))
+				failed += path + L"\n";
+		}
+		else
+			failed += path + L" (only .etl and .etwsession files)\n";
+	}
+	if (!failed.empty())
+		AtlMessageBox(m_hWnd, (L"Failed to open:\n\n" + failed).c_str(), IDS_TITLE, MB_ICONERROR);
 }
 
 bool CMainFrame::OpenFile(PCWSTR path) {

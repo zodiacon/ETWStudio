@@ -27,6 +27,22 @@ int Run(LPCTSTR /*lpstrCmdLine*/ = nullptr, int nCmdShow = SW_SHOWDEFAULT) {
 
 	wndMain.ShowWindow(nCmdShow);
 
+	// files on the command line ("Open with", or dropped on the exe), relative ones from the current directory
+	int argc = 0;
+	if (auto argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc); argv) {
+		std::vector<std::wstring> paths;
+		for (int i = 1; i < argc; i++) {
+			WCHAR full[MAX_PATH * 4];
+			auto length = ::GetFullPathName(argv[i], _countof(full), full, nullptr);
+			paths.push_back(length && length < _countof(full) ? full : argv[i]);
+		}
+		::LocalFree(argv);
+		if (!paths.empty()) {
+			wndMain.UpdateWindow();		// shown before a session file's dialog
+			wndMain.OpenFiles(paths);
+		}
+	}
+
 	int nRet = theLoop.Run();
 
 	_Module.RemoveMessageLoop();

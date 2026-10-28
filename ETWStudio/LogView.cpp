@@ -711,22 +711,37 @@ LRESULT CLogView::OnListCustomDraw(int, LPNMHDR hdr, BOOL& handled) {
 			return CDRF_NOTIFYITEMDRAW;
 
 		case CDDS_ITEMPREPAINT:
+		{
+			auto row = (int)cd->nmcd.dwItemSpec;
+			auto color = m_Highlights.GetFilterCount() > 0 && row < (int)m_Events.size() ? GetHighlightColor(m_Events[row]) : CLR_INVALID;
 			// selected rows look as selected without the focus too (the theme's inactive selection is faint,
-			// in dark mode almost invisible): what Find found while the focus stays in its dialog
-			if (::GetFocus() != m_List && m_List.GetItemState((int)cd->nmcd.dwItemSpec, LVIS_SELECTED)) {
+			// in dark mode almost invisible): what Find found while the focus stays in its dialog. A selected
+			// highlighted row is the selection mixed with its color, with or without the focus (the theme's
+			// selection would hide the color)
+			if ((color != CLR_INVALID || ::GetFocus() != m_List) && m_List.GetItemState(row, LVIS_SELECTED)) {
 				cd->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS);
-				cd->clrTextBk = ::GetSysColor(COLOR_HIGHLIGHT);
-				cd->clrText = ::GetSysColor(COLOR_HIGHLIGHTTEXT);
+				auto selection = ::GetSysColor(COLOR_HIGHLIGHT);
+				if (color == CLR_INVALID) {
+					cd->clrTextBk = selection;
+					cd->clrText = ::GetSysColor(COLOR_HIGHLIGHTTEXT);
+				}
+				else {
+					auto mix = RGB((GetRValue(selection) + GetRValue(color)) / 2, (GetGValue(selection) + GetGValue(color)) / 2,
+						(GetBValue(selection) + GetBValue(color)) / 2);
+					cd->clrTextBk = mix;
+					// readable on it
+					auto luminance = GetRValue(mix) * 299 + GetGValue(mix) * 587 + GetBValue(mix) * 114;
+					cd->clrText = luminance > 140 * 1000 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+				}
 				return CDRF_NEWFONT;
 			}
-			if (m_Highlights.GetFilterCount() > 0 && cd->nmcd.dwItemSpec < m_Events.size()) {
-				if (auto color = GetHighlightColor(m_Events[cd->nmcd.dwItemSpec]); color != CLR_INVALID) {
-					cd->clrTextBk = color;
-					cd->clrText = RGB(0, 0, 0);
-					return CDRF_NEWFONT;
-				}
+			if (color != CLR_INVALID) {
+				cd->clrTextBk = color;
+				cd->clrText = RGB(0, 0, 0);
+				return CDRF_NEWFONT;
 			}
 			break;
+		}
 	}
 	return CDRF_DODEFAULT;
 }
