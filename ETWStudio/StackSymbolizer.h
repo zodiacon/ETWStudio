@@ -44,6 +44,9 @@ public:
 	void Reset();
 	// at exit: drops the queued lookups, lets the one under way finish (for a moment) and cleans up DbgHelp
 	void Shutdown();
+	// what the symbolizer's thread is busy with that may take a while (finding an image or loading its
+	// symbols, possibly from the symbol server); empty otherwise. For a progress dialog to show
+	std::wstring GetActivity() const;
 
 private:
 	StackSymbolizer();
@@ -61,6 +64,8 @@ private:
 	bool InitContext(HANDLE hContext, bool invadeProcess);
 	static std::wstring DriverPathToDosPath(std::wstring path);
 	static std::wstring Lookup(HANDLE hContext, ULONG64 address);
+	void SetActivity(std::wstring text);
+	static BOOL CALLBACK OnSymbolEvent(HANDLE hContext, ULONG action, ULONG64 data, ULONG64 context);
 
 	// a process of a trace, with the images loaded into it as frames needed them
 	struct TraceContext {
@@ -90,6 +95,8 @@ private:
 		void const* Owner;
 		std::function<void()> Work;
 	};
+	mutable std::mutex m_ActivityLock;
+	std::wstring m_Activity;
 	std::mutex m_Lock;
 	std::condition_variable m_Ready;
 	std::deque<Task> m_Tasks;

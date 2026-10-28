@@ -21,6 +21,15 @@ public:
 
 	CProgressDlg(std::wstring title, std::wstring what, size_t total, Work work);
 	Result Run(HWND owner);
+	// a line under the bar saying what the work is busy with (polled on the UI thread; empty: nothing to say)
+	void SetDetail(std::function<std::wstring()> detail);
+
+	// the dialog running now (on the UI thread), if any
+	static CProgressDlg* Running();
+	// the app is closing: stops the work, and once it has (the dialog gone, so its caller has returned),
+	// sends the window WM_CLOSE again. Closing the window meanwhile would destroy the dialog (and the view
+	// the work belongs to) under the worker
+	void CancelAndClose(HWND window);
 
 	BEGIN_MSG_MAP(CProgressDlg)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -39,14 +48,19 @@ private:
 	LRESULT OnDone(UINT, WPARAM, LPARAM, BOOL&);
 	LRESULT OnCancel(WORD, WORD, HWND, BOOL&);
 	void UpdateProgress();
+	void Cancel();
 
 	std::wstring m_Title, m_What;
 	size_t m_Total;
 	Work m_Work;
+	std::function<std::wstring()> m_Detail;
+	std::wstring m_LastDetail;
 	std::thread m_Thread;
 	std::atomic<size_t> m_Done{ 0 };
 	std::atomic<bool> m_Cancel{ false };
 	Result m_Result{ Result::Failed };
 	bool m_Show{ false };
+	HWND m_CloseWhenDone{ nullptr };
+	static inline CProgressDlg* s_Running{ nullptr };
 	CProgressBarCtrl m_Progress;
 };

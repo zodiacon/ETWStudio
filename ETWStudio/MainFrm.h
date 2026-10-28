@@ -42,6 +42,7 @@ public:
 	NOTIFY_CODE_HANDLER(TBVN_PAGEACTIVATED, OnPageActivated)
 		COMMAND_ID_HANDLER(ID_VIEW_FINDINPROVIDERS, OnFindAll)
 		COMMAND_ID_HANDLER(ID_APP_EXIT, OnFileExit)
+		MESSAGE_HANDLER(WM_CLOSE, OnClose)
 		COMMAND_ID_HANDLER(ID_TRACING_REGISTEREDPROVIDERS, OnViewProviders)
 		COMMAND_ID_HANDLER(ID_NEW_SESSION, OnNewSession)
 		COMMAND_ID_HANDLER(ID_FILE_LOADSESSION, OnLoadSession)
@@ -86,6 +87,7 @@ private:
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
 	LRESULT OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnClose(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnFindAll(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnViewProviders(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnViewStatusBar(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);

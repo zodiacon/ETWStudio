@@ -60,6 +60,7 @@ void StackSymbolizer::Run() {
 			m_CancelRunning = false;
 		}
 		task.Work();
+		SetActivity(L"");
 		std::lock_guard locker(m_Lock);
 		m_RunningOwner = nullptr;
 	}
@@ -155,7 +156,37 @@ bool StackSymbolizer::InitContext(HANDLE hContext, bool invadeProcess) {
 	}
 	// not null even when empty: DbgHelp would add _NT_SYMBOL_PATH, which the settings may exclude
 	auto path = AppSettings::Get().BuildSymbolSearchPath();
-	return ::SymInitializeW(hContext, path.c_str(), invadeProcess);
+	if (!::SymInitializeW(hContext, path.c_str(), invadeProcess))
+		return false;
+	::SymRegisterCallbackW64(hContext, OnSymbolEvent, reinterpret_cast<ULONG64>(this));
+	return true;
+}
+
+BOOL CALLBACK StackSymbolizer::OnSymbolEvent(HANDLE, ULONG action, ULONG64 data, ULONG64 context) {
+	auto self = reinterpret_cast<StackSymbolizer*>(context);
+	switch (action) {
+		case CBA_DEFERRED_SYMBOL_LOAD_START: {
+			std::wstring_view file = reinterpret_cast<PIMAGEHLP_DEFERRED_SYMBOL_LOADW64>(data)->FileName;
+			self->SetActivity(std::format(L"Loading symbols for {}", file.substr(file.find_last_of(L'\\') + 1)));
+			break;
+		}
+		case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
+		case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
+			self->SetActivity(L"");
+			break;
+	}
+	// informational only (TRUE would mean handled: for a failure, retry with another file)
+	return FALSE;
+}
+
+void StackSymbolizer::SetActivity(std::wstring text) {
+	std::lock_guard locker(m_ActivityLock);
+	m_Activity = std::move(text);
+}
+
+std::wstring StackSymbolizer::GetActivity() const {
+	std::lock_guard locker(m_ActivityLock);
+	return m_Activity;
 }
 
 std::wstring StackSymbolizer::DriverPathToDosPath(std::wstring path) {
@@ -309,8 +340,11 @@ std::wstring StackSymbolizer::FindImageFile(HANDLE hContext, ImageInfo const& im
 	if (image.TimeDateStamp) {
 		auto name = image.FileName.substr(image.FileName.find_last_of(L'\\') + 1);
 		WCHAR found[MAX_PATH];
-		if (::SymFindFileInPathW(hContext, nullptr, name.c_str(), reinterpret_cast<PVOID>((ULONG_PTR)image.TimeDateStamp), image.Size, 0,
-			SSRVOPT_DWORD, found, nullptr, nullptr))
+		SetActivity(std::format(L"Finding {}", name));
+		auto ok = ::SymFindFileInPathW(hContext, nullptr, name.c_str(), reinterpret_cast<PVOID>((ULONG_PTR)image.TimeDateStamp), image.Size, 0,
+			SSRVOPT_DWORD, found, nullptr, nullptr);
+		SetActivity(L"");
+		if (ok)
 			return found;
 	}
 	return L"";

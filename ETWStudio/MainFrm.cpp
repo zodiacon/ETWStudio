@@ -7,6 +7,7 @@
 #include "StackSymbolizer.h"
 #include "SimpleDlg.h"
 #include "SymbolSettingsDlg.h"
+#include "ProgressDlg.h"
 #include "SessionDlg.h"
 #include <ToolbarHelper.h>
 #include <TraceSession.h>
@@ -218,6 +219,17 @@ LRESULT CMainFrame::OnAlwaysOnTop(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWn
 LRESULT CMainFrame::OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 	m_view.RemoveAllPages();
 	PostMessage(WM_CLOSE);
+	return 0;
+}
+
+LRESULT CMainFrame::OnClose(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled) {
+	// an export or a search under way: stop it first, then close (the frame is disabled, but a posted
+	// WM_CLOSE still gets here, e.g. at log off)
+	if (auto progress = CProgressDlg::Running()) {
+		progress->CancelAndClose(m_hWnd);
+		return 0;
+	}
+	bHandled = FALSE;
 	return 0;
 }
 

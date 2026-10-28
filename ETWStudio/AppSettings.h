@@ -18,6 +18,8 @@ public:
 		SETTING_STRING(SymbolExtraPaths, L"");
 		SETTING(SymbolUseEnvPath, 1, SettingType::Bool);
 		SETTING_STRING(RecentSessions, L"");		// session file paths, most recent first, one per line
+		SETTING(ExportCsvStacks, 0, SettingType::Bool);		// CSV exports get a Stack column
+		SETTING(ExportStackSymbols, 1, SettingType::Bool);	// exported stacks get their symbols (may download them)
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
@@ -32,6 +34,8 @@ public:
 	DEF_SETTING_STRING(SymbolExtraPaths)
 	DEF_SETTING(SymbolUseEnvPath, bool)
 	DEF_SETTING_STRING(RecentSessions)
+	DEF_SETTING(ExportCsvStacks, bool)
+	DEF_SETTING(ExportStackSymbols, bool)
 
 	static constexpr int MaxRecentSessions = 8;
 	std::vector<std::wstring> RecentSessionList() const;

@@ -13,6 +13,7 @@
 #include "StackSymbolizer.h"
 #include "EventExport.h"
 #include "ProgressDlg.h"
+#include "AppSettings.h"
 #include <execution>
 #include <fstream>
 
@@ -165,13 +166,14 @@ void CLogView::UpdateUI() {
 	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, LR_SHARED, 16, 16));
 }
 
-CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
+CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveOptions const& options) const {
 	auto writer = std::make_unique<Utf8Writer>(path);
 	if (!writer->IsOpen())
 		return CProgressDlg::Result::Failed;
 
 	// the CSV columns: the visible ones, in display order, as displayed
 	std::vector<std::pair<std::wstring, ColumnType>> columns;
+	auto format = options.Format;
 	if (format == SaveFormat::Csv) {
 		auto cm = GetColumnManager(m_List);
 		int count = m_List.GetHeader().GetItemCount();
@@ -188,18 +190,45 @@ CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
 		}
 	}
 
-	// the dialog is modal, so the events stay as they are meanwhile
-	CProgressDlg dlg(L"Export", L"Exported", m_Events.size(), [&](auto const& report) {
+	// the dialog is modal, so nothing clears the events meanwhile; but the timer still adds the ones that came in
+	// before the session stopped to m_Events (which may move it), so the worker gets its own list
+	auto events = m_Events;
+	CProgressDlg dlg(L"Export", L"Exported", events.size(), [&](auto const& report) {
 		// the stacks' symbols as the Properties dialog shows them (looked up on the symbolizer's thread, this one waits)
-		auto symbols = [this](EventData const& evt) {
-			std::vector<StackSymbolizer::Frame> frames;
-			for (auto address : evt.GetStackTrace())
-				frames.push_back(StackSymbolizer::MakeFrame(m_Session.get(), evt.GetProcessId(), address, (LONGLONG)evt.GetTimeStamp()));
-			return StackSymbolizer::Get().GetSymbols(m_Session.get(), std::move(frames));
-		};
-		bool ok = format == SaveFormat::Csv ? SaveCsv(*writer, columns, report) : EventExport::WriteJson(*writer, m_Events, report, symbols);
-		return ok && writer->Flush();
+		EventExport::StackSymbols symbols;
+		if (options.StackSymbols) {
+			symbols = [this](EventData const& evt) {
+				std::vector<StackSymbolizer::Frame> frames;
+				for (auto address : evt.GetStackTrace())
+					frames.push_back(StackSymbolizer::MakeFrame(m_Session.get(), evt.GetProcessId(), address, (LONGLONG)evt.GetTimeStamp()));
+				return StackSymbolizer::Get().GetSymbols(m_Session.get(), std::move(frames));
+			};
+		}
+		if (format == SaveFormat::Json)
+			return EventExport::WriteJson(*writer, events, report, symbols) && writer->Flush();
+
+		// a frame per line (in the quoted field): its symbol, or its address without one (or without symbols)
+		std::function<std::wstring(EventData const&)> stack;
+		if (options.CsvStacks) {
+			stack = [&](EventData const& evt) {
+				auto addresses = evt.GetStackTrace();
+				std::vector<std::wstring> names;
+				if (symbols && !addresses.empty())
+					names = symbols(evt);
+				std::wstring text;
+				for (size_t i = 0; i < addresses.size(); i++) {
+					if (i)
+						text += L"\n";
+					text += i < names.size() && !names[i].empty() ? names[i] : std::format(L"0x{:X}", addresses[i]);
+				}
+				return text;
+			};
+		}
+		return SaveCsv(*writer, events, columns, report, stack) && writer->Flush();
 	});
+	// lookups may wait for downloads: say which
+	if (options.StackSymbols && (format == SaveFormat::Json || options.CsvStacks))
+		dlg.SetDetail([] { return StackSymbolizer::Get().GetActivity(); });
 	auto result = dlg.Run(m_hWnd);
 	if (result != CProgressDlg::Result::Done) {
 		writer.reset();		// closes the file
@@ -208,19 +237,23 @@ CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
 	return result;
 }
 
-bool CLogView::SaveCsv(Utf8Writer& writer, std::span<std::pair<std::wstring, ColumnType> const> columns,
-	std::function<bool(size_t)> const& progress) const {
+bool CLogView::SaveCsv(Utf8Writer& writer, std::span<EventData* const> events, std::span<std::pair<std::wstring, ColumnType> const> columns,
+	std::function<bool(size_t)> const& progress, std::function<std::wstring(EventData const&)> const& stack) const {
 	writer << L"\xFEFF";	// BOM, so Excel detects UTF-8
 
 	for (size_t i = 0; i < columns.size(); i++)
 		writer << (i ? L"," : L"") << EventExport::CsvField(columns[i].first);
+	if (stack)
+		writer << (columns.empty() ? L"" : L",") << L"Stack";
 	writer << L"\r\n";
 
-	for (size_t row = 0; row < m_Events.size(); row++) {
+	for (size_t row = 0; row < events.size(); row++) {
 		if (row % 256 == 0 && !progress(row))
 			return false;
 		for (size_t i = 0; i < columns.size(); i++)
-			writer << (i ? L"," : L"") << EventExport::CsvField((PCWSTR)GetEventText(*m_Events[row], columns[i].second));
+			writer << (i ? L"," : L"") << EventExport::CsvField((PCWSTR)GetEventText(*events[row], columns[i].second));
+		if (stack)
+			writer << (columns.empty() ? L"" : L",") << EventExport::CsvField(stack(*events[row]));
 		writer << L"\r\n";
 	}
 	return writer.Ok();
@@ -796,18 +829,40 @@ LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) {
 	}
 	AddPendingEvents();		// everything received before stopping
 
+	COMDLG_FILTERSPEC types[] = {
+		{ L"CSV Files - displayed columns", L"*.csv" },
+		{ L"JSON Files - all event data", L"*.json" },
+	};
+	CShellFileSaveDialog dlg(nullptr, FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT, L"csv", types, _countof(types));
+	// the export options, under the file types
+	enum { CsvStacksId = 1, StackSymbolsId };
+	auto& settings = AppSettings::Get();
+	CComQIPtr<IFileDialogCustomize> custom(dlg.GetPtr());
+	if (custom) {
+		custom->AddCheckButton(CsvStacksId, L"CSV: add a call stack column", settings.ExportCsvStacks());
+		custom->AddCheckButton(StackSymbolsId, L"Look up call stack symbols (the first time may download them)", settings.ExportStackSymbols());
+	}
 	WTLHelper::SuspendHook();
-	CSimpleFileDialog dlg(FALSE, L"csv", nullptr, OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_ENABLESIZING,
-		L"CSV Files - displayed columns (*.csv)\0*.csv\0JSON Files - all event data (*.json)\0*.json\0", m_hWnd);
-	auto ok = IDOK == dlg.DoModal();
+	auto ok = IDOK == dlg.DoModal(m_hWnd);
 	WTLHelper::ResumeHook();
-	if (ok) {
+	CString path;
+	if (ok && SUCCEEDED(dlg.GetFilePath(path))) {
+		SaveOptions options{ SaveFormat::Csv, settings.ExportCsvStacks(), settings.ExportStackSymbols() };
+		if (custom) {
+			BOOL checked;
+			if (SUCCEEDED(custom->GetCheckButtonState(CsvStacksId, &checked)))
+				settings.ExportCsvStacks(options.CsvStacks = checked);
+			if (SUCCEEDED(custom->GetCheckButtonState(StackSymbolsId, &checked)))
+				settings.ExportStackSymbols(options.StackSymbols = checked);
+		}
 		// the extension decides; otherwise the selected file type
-		auto dot = ::wcsrchr(dlg.m_szFileName, L'.');
+		auto dot = ::wcsrchr(path, L'.');
 		auto ext = dot ? dot : L"";
-		auto format = ::_wcsicmp(ext, L".json") == 0 ? SaveFormat::Json :
-			::_wcsicmp(ext, L".csv") == 0 ? SaveFormat::Csv : dlg.m_ofn.nFilterIndex == 2 ? SaveFormat::Json : SaveFormat::Csv;
-		switch (DoSave(dlg.m_szFileName, format)) {
+		UINT type = 1;
+		dlg.GetPtr()->GetFileTypeIndex(&type);
+		options.Format = ::_wcsicmp(ext, L".json") == 0 ? SaveFormat::Json :
+			::_wcsicmp(ext, L".csv") == 0 ? SaveFormat::Csv : type == 2 ? SaveFormat::Json : SaveFormat::Csv;
+		switch (DoSave(path, options)) {
 			case CProgressDlg::Result::Failed:
 				AtlMessageBox(m_hWnd, L"Failed to save the file", IDS_TITLE, MB_ICONERROR);
 				break;
@@ -815,7 +870,7 @@ LRESULT CLogView::OnFileSave(WORD, WORD, HWND, BOOL&) {
 				Frame()->SetStatusText(3, L"Export canceled");
 				break;
 			default:
-				Frame()->SetStatusText(3, std::format(L"Saved {} events to {}", m_Events.size(), dlg.m_szFileName).c_str());
+				Frame()->SetStatusText(3, std::format(L"Saved {} events to {}", m_Events.size(), (PCWSTR)path).c_str());
 				break;
 		}
 	}

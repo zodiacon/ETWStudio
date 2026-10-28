@@ -128,10 +128,16 @@ private:
 	std::optional<std::vector<int>> SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match);
 
 	enum class SaveFormat { Csv, Json };
+	struct SaveOptions {
+		SaveFormat Format;
+		bool CsvStacks;		// CSV: a Stack column (JSON always has the stacks)
+		bool StackSymbols;	// the stacks' symbols (the first export of a trace may download a lot of them)
+	};
 	// exports on a worker thread, with a progress dialog; a failed or canceled export leaves no file
-	CProgressDlg::Result DoSave(PCWSTR path, SaveFormat format) const;
-	bool SaveCsv(class Utf8Writer& writer, std::span<std::pair<std::wstring, ColumnType> const> columns,
-		std::function<bool(size_t)> const& progress) const;
+	CProgressDlg::Result DoSave(PCWSTR path, SaveOptions const& options) const;
+	// stack (optional): an event's stack as the Stack column's text
+	bool SaveCsv(class Utf8Writer& writer, std::span<EventData* const> events, std::span<std::pair<std::wstring, ColumnType> const> columns,
+		std::function<bool(size_t)> const& progress, std::function<std::wstring(EventData const&)> const& stack) const;
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
