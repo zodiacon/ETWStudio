@@ -22,9 +22,11 @@ CString CPropertiesDlg::GetColumnText(HWND, int row, int col) const {
             case 0: return std::format(L"Stack [{}]", frame).c_str();
             case 1: return std::format(L"0x{:X}", m_Stack[frame]).c_str();
             case 2:
-                if (!m_StackSymbols[frame])
-                    m_StackSymbols[frame] = StackSymbolizer::Get().GetSymbol(m_Session, m_Data->GetProcessId(), m_Stack[frame], (LONGLONG)m_Data->GetTimeStamp()).c_str();
-                return *m_StackSymbols[frame];
+            {
+                std::lock_guard locker(m_StackSymbols->Lock);
+                auto& symbol = m_StackSymbols->Symbols[frame];
+                return symbol ? symbol->c_str() : L"Looking up...";
+            }
         }
         return CString();
     }
@@ -63,7 +65,24 @@ void CPropertiesDlg::UpdateEvent() {
     SetDlgItemInt(IDC_VERSION, m_Data->GetEventDescriptor().Version);
 
     m_Stack = m_Data->GetStackTrace();
-    m_StackSymbols.assign(m_Stack.size(), std::nullopt);
+    // the symbols come in the background: the first lookups in a module may download it and its symbols
+    auto& symbolizer = StackSymbolizer::Get();
+    symbolizer.Cancel(this);
+    m_StackSymbols = std::make_shared<StackSymbols>();
+    m_StackSymbols->Symbols.resize(m_Stack.size());
+    if (!m_Stack.empty()) {
+        std::vector<StackSymbolizer::Frame> frames;
+        for (auto address : m_Stack)
+            frames.push_back(StackSymbolizer::MakeFrame(m_Session, m_Data->GetProcessId(), address, (LONGLONG)m_Data->GetTimeStamp()));
+        symbolizer.Request(this, m_Session, std::move(frames), [symbols = m_StackSymbols, hWnd = m_hWnd](size_t i, std::wstring const& symbol) {
+            {
+                std::lock_guard locker(symbols->Lock);
+                symbols->Symbols[i] = symbol;
+            }
+            if (!symbols->Posted.exchange(true))
+                ::PostMessage(hWnd, WM_SYMBOLS_READY, 0, 0);
+        });
+    }
     m_List.SetItemCount((int)(props.size() + m_Stack.size()));
 }
 
@@ -104,8 +123,17 @@ LRESULT CPropertiesDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
 }
 
 LRESULT CPropertiesDlg::OnDestroy(UINT, WPARAM, LPARAM, BOOL&) {
+    StackSymbolizer::Get().Cancel(this);
     AppSettings::Get().SaveWindowPosition(m_hWnd, L"PropertiesDialog");
 
+    return 0;
+}
+
+LRESULT CPropertiesDlg::OnSymbolsReady(UINT, WPARAM, LPARAM, BOOL&) {
+    // (may be from the previous event's lookup: then there's just nothing new)
+    m_StackSymbols->Posted = false;
+    if (auto first = (int)m_Data->GetProperties().size(); !m_Stack.empty())
+        m_List.RedrawItems(first, first + (int)m_Stack.size() - 1);
     return 0;
 }
 

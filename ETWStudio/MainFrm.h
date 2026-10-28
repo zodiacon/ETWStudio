@@ -27,6 +27,7 @@ public:
 	void SetStatusText(int pane, PCWSTR text) override;
 	void SetStatusIcon(int pane, HICON hIcon) override;
 	HFONT GetFont() const override;
+	void AddRecentSession(PCWSTR path) override;
 
 	BEGIN_MSG_MAP(CMainFrame)
 		if (uMsg == WM_COMMAND) {
@@ -62,6 +63,8 @@ public:
 		MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
 		MESSAGE_HANDLER(WM_MENUSELECT, [](auto, auto, auto, auto) { return 0; })
 		COMMAND_RANGE_HANDLER(ID_WINDOW_TABFIRST, ID_WINDOW_TABLAST, OnWindowActivate)
+		COMMAND_RANGE_HANDLER(ID_FILE_RECENTSESSION_FIRST, ID_FILE_RECENTSESSION_LAST, OnRecentSession)
+		COMMAND_ID_HANDLER(ID_FILE_CLEARRECENTSESSIONS, OnClearRecentSessions)
 		CHAIN_MSG_MAP(CAutoUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
@@ -71,6 +74,8 @@ private:
 	void UpdateUI();
 	void SetAlwaysOnTop(bool onTop);
 	void ApplyFontToAllPages();
+	// rebuilds File > Recent Sessions from the settings
+	void UpdateRecentSessionsMenu();
 
 	// Handler prototypes (uncomment arguments if needed):
 	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -91,6 +96,10 @@ private:
 	LRESULT OnWindowActivate(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnNewSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnLoadSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnRecentSession(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnClearRecentSessions(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	// loads the session file into a new session (and the recent list); false: it couldn't be loaded
+	bool LoadSession(PCWSTR path);
 	// preset: pre-fills the session dialog
 	void NewSession(SessionPreset const* preset);
 	LRESULT OnAboutWindows(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) const;
@@ -105,6 +114,7 @@ private:
 
 	CNativeCustomTabView m_view;
 	CMultiPaneStatusBarCtrl m_StatusBar;
+	CMenuHandle m_RecentSessionsMenu;
 	CFont m_Font;
 	int m_ActivePage{ -1 };
 };

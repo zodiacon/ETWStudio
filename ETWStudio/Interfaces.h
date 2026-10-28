@@ -9,4 +9,6 @@ struct IMainFrame abstract {
 	virtual void SetStatusText(int pane, PCWSTR text) = 0;
 	virtual void SetStatusIcon(int pane, HICON hIcon) = 0;
 	virtual HFONT GetFont() const = 0;
+	// a session file loaded or saved goes to the top of File > Recent Sessions
+	virtual void AddRecentSession(PCWSTR path) = 0;
 };

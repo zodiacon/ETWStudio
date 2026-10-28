@@ -24,6 +24,31 @@ void AppSettings::Upgrade() {
 		SymbolCache(DefaultSymbolCache);
 }
 
+std::vector<std::wstring> AppSettings::RecentSessionList() const {
+	std::vector<std::wstring> paths;
+	auto text = RecentSessions();
+	for (size_t start = 0; start < text.size(); ) {
+		auto end = text.find(L'\n', start);
+		if (end == std::wstring::npos)
+			end = text.size();
+		if (end > start && paths.size() < MaxRecentSessions)
+			paths.push_back(text.substr(start, end - start));
+		start = end + 1;
+	}
+	return paths;
+}
+
+void AppSettings::UpdateRecentSessions(std::wstring const& path, bool remove) {
+	auto paths = RecentSessionList();
+	std::erase_if(paths, [&](auto const& p) { return ::_wcsicmp(p.c_str(), path.c_str()) == 0; });
+	if (!remove)
+		paths.insert(paths.begin(), path);
+	std::wstring text;
+	for (size_t i = 0; i < paths.size() && i < MaxRecentSessions; i++)
+		text += (i ? L"\n" : L"") + paths[i];
+	RecentSessions(text);
+}
+
 std::wstring AppSettings::BuildSymbolSearchPath() const {
 	return BuildSymbolSearchPath(SymbolServerEnabled(), SymbolServerUrl(), SymbolCache(), SymbolExtraPaths(), SymbolUseEnvPath());
 }

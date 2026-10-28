@@ -189,7 +189,14 @@ CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
 
 	// the dialog is modal, so the events stay as they are meanwhile
 	CProgressDlg dlg(L"Export", L"Exported", m_Events.size(), [&](auto const& report) {
-		bool ok = format == SaveFormat::Csv ? SaveCsv(*writer, columns, report) : EventExport::WriteJson(*writer, m_Events, report);
+		// the stacks' symbols as the Properties dialog shows them (looked up on the symbolizer's thread, this one waits)
+		auto symbols = [this](EventData const& evt) {
+			std::vector<StackSymbolizer::Frame> frames;
+			for (auto address : evt.GetStackTrace())
+				frames.push_back(StackSymbolizer::MakeFrame(m_Session.get(), evt.GetProcessId(), address, (LONGLONG)evt.GetTimeStamp()));
+			return StackSymbolizer::Get().GetSymbols(m_Session.get(), std::move(frames));
+		};
+		bool ok = format == SaveFormat::Csv ? SaveCsv(*writer, columns, report) : EventExport::WriteJson(*writer, m_Events, report, symbols);
 		return ok && writer->Flush();
 	});
 	auto result = dlg.Run(m_hWnd);
@@ -752,7 +759,11 @@ LRESULT CLogView::OnSaveSession(WORD, WORD, HWND, BOOL&) const {
 		L"ETW Studio Sessions (*.etwsession)\0*.etwsession\0All Files\0*.*\0", m_hWnd);
 	auto ok = IDOK == dlg.DoModal();
 	WTLHelper::ResumeHook();
-	if (ok && !preset.Save(dlg.m_szFileName))
+	if (!ok)
+		return 0;
+	if (preset.Save(dlg.m_szFileName))
+		Frame()->AddRecentSession(dlg.m_szFileName);
+	else
 		AtlMessageBox(m_hWnd, L"Failed to save the session file", IDS_TITLE, MB_ICONERROR);
 	return 0;
 }

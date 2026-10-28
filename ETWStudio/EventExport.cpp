@@ -46,7 +46,8 @@ std::wstring EventExport::CsvField(std::wstring_view text) {
 	return field + L'"';
 }
 
-bool EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress) {
+bool EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress,
+	StackSymbols const& symbols) {
 	writer << L"[";
 	bool first = true;
 	size_t count = 0;
@@ -80,6 +81,15 @@ bool EventExport::WriteJson(Utf8Writer& writer, std::span<EventData* const> even
 				firstFrame = false;
 			}
 			writer << L"]";
+			if (symbols) {
+				writer << L",\n   \"StackSymbols\": [";
+				firstFrame = true;
+				for (auto& symbol : symbols(*evt)) {
+					writer << (firstFrame ? L"" : L", ") << JsonString(symbol);
+					firstFrame = false;
+				}
+				writer << L"]";
+			}
 		}
 		writer << L" }";
 	}

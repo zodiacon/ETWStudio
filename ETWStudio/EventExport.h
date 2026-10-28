@@ -43,7 +43,11 @@ private:
 namespace EventExport {
 	// quotes a CSV field if needed
 	std::wstring CsvField(std::wstring_view text);
+	// an event's stack frames' symbols, in order
+	using StackSymbols = std::function<std::vector<std::wstring>(EventData const&)>;
 	// all event data (header fields, properties, stack) as a JSON array.
-	// progress (optional) gets the number of events written so far; returning false stops (returns false)
-	bool WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress = nullptr);
+	// progress (optional) gets the number of events written so far; returning false stops (returns false).
+	// symbols (optional) adds "StackSymbols" next to "Stack"
+	bool WriteJson(Utf8Writer& writer, std::span<EventData* const> events, std::function<bool(size_t)> const& progress = nullptr,
+		StackSymbols const& symbols = nullptr);
 }

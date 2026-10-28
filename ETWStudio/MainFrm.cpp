@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <atlmisc.h>
 #include "resource.h"
 #include "AboutDlg.h"
 #include "ProvidersView.h"
@@ -97,6 +98,11 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 		menuMain.GetSubMenu(0).DeleteMenu(0, MF_BYPOSITION);
 	}
 	m_view.SetWindowMenu(menuMain.GetSubMenu(WindowMenuPosition));
+	// the File menu's only submenu
+	auto fileMenu = menuMain.GetSubMenu(0);
+	for (int i = 0; i < fileMenu.GetMenuItemCount() && !m_RecentSessionsMenu; i++)
+		m_RecentSessionsMenu = fileMenu.GetSubMenu(i);
+	UpdateRecentSessionsMenu();
 
 	CImageList images;
 	images.Create(16, 16, ILC_COLOR32, 4, 4);
@@ -279,13 +285,70 @@ LRESULT CMainFrame::OnLoadSession(WORD, WORD, HWND, BOOL&) {
 	if (!ok)
 		return 0;
 
-	auto preset = SessionPreset::Load(dlg.m_szFileName);
-	if (!preset) {
+	if (!LoadSession(dlg.m_szFileName))
 		AtlMessageBox(m_hWnd, L"Failed to load the session file", IDS_TITLE, MB_ICONERROR);
-		return 0;
-	}
-	NewSession(&*preset);
 	return 0;
+}
+
+bool CMainFrame::LoadSession(PCWSTR path) {
+	auto preset = SessionPreset::Load(path);
+	if (!preset)
+		return false;
+	AddRecentSession(path);
+	NewSession(&*preset);
+	return true;
+}
+
+LRESULT CMainFrame::OnRecentSession(WORD, WORD id, HWND, BOOL&) {
+	auto paths = AppSettings::Get().RecentSessionList();
+	auto index = id - ID_FILE_RECENTSESSION_FIRST;
+	if (index >= paths.size())
+		return 0;
+	auto& path = paths[index];
+	if (!LoadSession(path.c_str())) {
+		auto text = std::format(L"Failed to load the session file {}.\n\nRemove it from the recent sessions?", path);
+		if (IDYES == AtlMessageBox(m_hWnd, text.c_str(), IDS_TITLE, MB_ICONERROR | MB_YESNO)) {
+			AppSettings::Get().UpdateRecentSessions(path, true);
+			UpdateRecentSessionsMenu();
+		}
+	}
+	return 0;
+}
+
+LRESULT CMainFrame::OnClearRecentSessions(WORD, WORD, HWND, BOOL&) {
+	AppSettings::Get().RecentSessions(L"");
+	UpdateRecentSessionsMenu();
+	return 0;
+}
+
+void CMainFrame::AddRecentSession(PCWSTR path) {
+	AppSettings::Get().UpdateRecentSessions(path);
+	UpdateRecentSessionsMenu();
+}
+
+void CMainFrame::UpdateRecentSessionsMenu() {
+	if (!m_RecentSessionsMenu)
+		return;
+	while (m_RecentSessionsMenu.GetMenuItemCount() > 0)
+		m_RecentSessionsMenu.DeleteMenu(0, MF_BYPOSITION);
+
+	auto paths = AppSettings::Get().RecentSessionList();
+	if (paths.empty()) {
+		m_RecentSessionsMenu.AppendMenu(MF_STRING | MF_GRAYED, ID_FILE_RECENTSESSION_FIRST, L"(None)");
+		return;
+	}
+	for (int i = 0; i < (int)paths.size(); i++) {
+		WCHAR compact[64];
+		if (!AtlCompactPath(compact, paths[i].c_str(), _countof(compact)))
+			wcscpy_s(compact, paths[i].substr(0, _countof(compact) - 1).c_str());
+		// & would mark a mnemonic
+		std::wstring text(compact);
+		for (size_t pos = 0; (pos = text.find(L'&', pos)) != std::wstring::npos; pos += 2)
+			text.insert(pos, 1, L'&');
+		m_RecentSessionsMenu.AppendMenu(MF_STRING, ID_FILE_RECENTSESSION_FIRST + i, std::format(L"&{} {}", i + 1, text).c_str());
+	}
+	m_RecentSessionsMenu.AppendMenu(MF_SEPARATOR);
+	m_RecentSessionsMenu.AppendMenu(MF_STRING, ID_FILE_CLEARRECENTSESSIONS, L"&Clear List");
 }
 
 void CMainFrame::NewSession(SessionPreset const* preset) {

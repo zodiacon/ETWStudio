@@ -17,6 +17,7 @@ public:
 		SETTING_STRING(SymbolCache, DefaultSymbolCache);
 		SETTING_STRING(SymbolExtraPaths, L"");
 		SETTING(SymbolUseEnvPath, 1, SettingType::Bool);
+		SETTING_STRING(RecentSessions, L"");		// session file paths, most recent first, one per line
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
@@ -30,6 +31,12 @@ public:
 	DEF_SETTING_STRING(SymbolCache)
 	DEF_SETTING_STRING(SymbolExtraPaths)
 	DEF_SETTING(SymbolUseEnvPath, bool)
+	DEF_SETTING_STRING(RecentSessions)
+
+	static constexpr int MaxRecentSessions = 8;
+	std::vector<std::wstring> RecentSessionList() const;
+	// moves the path to the top (adding it if new); remove: takes it out
+	void UpdateRecentSessions(std::wstring const& path, bool remove = false);
 
 	static constexpr PCWSTR DefaultSymbolServerUrl = L"https://msdl.microsoft.com/download/symbols";
 	static constexpr PCWSTR DefaultSymbolCache = L"%LOCALAPPDATA%\\ETWStudio\\Symbols";

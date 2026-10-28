@@ -4,6 +4,8 @@
 #include <TraceSession.h>
 #include <DbgHelp.h>
 #include <Psapi.h>
+#include <future>
+#include <thread>
 
 #pragma comment(lib, "dbghelp")
 
@@ -37,15 +39,100 @@ namespace {
 }
 
 StackSymbolizer& StackSymbolizer::Get() {
-	static StackSymbolizer symbolizer;
-	return symbolizer;
+	// never destroyed: its thread may be in a download when the process exits
+	static auto symbolizer = new StackSymbolizer;
+	return *symbolizer;
 }
 
-StackSymbolizer::~StackSymbolizer() {
-	Reset();
+StackSymbolizer::StackSymbolizer() : m_Thread([this] { Run(); }) {
+}
+
+void StackSymbolizer::Run() {
+	m_ThreadId = ::GetCurrentThreadId();
+	while (!m_Quit) {
+		Task task;
+		{
+			std::unique_lock locker(m_Lock);
+			m_Ready.wait(locker, [&] { return !m_Tasks.empty(); });
+			task = std::move(m_Tasks.front());
+			m_Tasks.pop_front();
+			m_RunningOwner = task.Owner;
+			m_CancelRunning = false;
+		}
+		task.Work();
+		std::lock_guard locker(m_Lock);
+		m_RunningOwner = nullptr;
+	}
+}
+
+void StackSymbolizer::Post(void const* owner, std::function<void()> work) {
+	{
+		std::lock_guard locker(m_Lock);
+		m_Tasks.push_back({ owner, std::move(work) });
+	}
+	m_Ready.notify_one();
+}
+
+void StackSymbolizer::Cancel(void const* owner) {
+	std::lock_guard locker(m_Lock);
+	std::erase_if(m_Tasks, [&](auto const& task) { return task.Owner == owner; });
+	if (m_RunningOwner == owner)
+		m_CancelRunning = true;
+}
+
+StackSymbolizer::Frame StackSymbolizer::MakeFrame(TraceSession const* session, DWORD pid, ULONG64 address, LONGLONG time) {
+	Frame frame{ address, pid };
+	// drivers are images of process 0
+	if (session)
+		frame.Image = session->FindImage(IsKernelAddress(address) ? 0 : pid, address, time);
+	return frame;
+}
+
+void StackSymbolizer::Request(void const* owner, TraceSession const* session, std::vector<Frame> frames, SymbolCallback callback) {
+	Post(owner, [=, this, frames = std::move(frames), callback = std::move(callback)] {
+		for (size_t i = 0; i < frames.size() && !m_CancelRunning; i++)
+			callback(i, Resolve(session, frames[i]));
+	});
+}
+
+std::vector<std::wstring> StackSymbolizer::GetSymbols(TraceSession const* session, std::vector<Frame> frames) {
+	ATLASSERT(::GetCurrentThreadId() != m_ThreadId);
+	std::promise<std::vector<std::wstring>> promise;
+	auto result = promise.get_future();
+	Post(nullptr, [&, this] {
+		std::vector<std::wstring> symbols;
+		symbols.reserve(frames.size());
+		for (auto& frame : frames)
+			symbols.push_back(Resolve(session, frame));
+		promise.set_value(std::move(symbols));
+	});
+	return result.get();
 }
 
 void StackSymbolizer::Reset() {
+	Post(nullptr, [this] { DoReset(); });
+}
+
+void StackSymbolizer::Shutdown() {
+	{
+		std::lock_guard locker(m_Lock);
+		m_Tasks.clear();
+		m_CancelRunning = true;
+	}
+	Post(nullptr, [this] {
+		DoReset();
+		m_Quit = true;
+	});
+	// a download can take longer: then the process ends with the thread still in it
+	if (::WaitForSingleObject(m_Thread.native_handle(), 3000) == WAIT_OBJECT_0)
+		m_Thread.join();
+	else
+		m_Thread.detach();
+}
+
+void StackSymbolizer::DoReset() {
+	m_Cache.clear();
+	m_ImageCache.clear();
 	for (auto& [pid, hProcess] : m_Processes) {
 		::SymCleanup(hProcess);
 		::CloseHandle(hProcess);
@@ -139,16 +226,28 @@ std::wstring StackSymbolizer::Lookup(HANDLE hContext, ULONG64 address) {
 	return std::format(L"{}+0x{:X}", module.ModuleName, address - module.BaseOfImage);
 }
 
-std::wstring StackSymbolizer::GetSymbol(TraceSession const* session, DWORD pid, ULONG64 address, LONGLONG time) {
+std::wstring StackSymbolizer::Resolve(TraceSession const* session, Frame const& frame) {
+	if (auto& image = frame.Image) {
+		// the same image's frames have the same symbols in every process (ntdll's in all of them)
+		ImageCacheKey key(image->FileName, image->TimeDateStamp, image->Size, frame.Address - image->Base);
+		if (auto it = m_ImageCache.find(key); it != m_ImageCache.end())
+			return it->second;
+		return m_ImageCache[key] = DoResolve(session, frame);
+	}
+	CacheKey key(session, IsKernelAddress(frame.Address) ? 0 : frame.Pid, frame.Address);
+	if (auto it = m_Cache.find(key); it != m_Cache.end())
+		return it->second;
+	return m_Cache[key] = DoResolve(session, frame);
+}
+
+std::wstring StackSymbolizer::DoResolve(TraceSession const* session, Frame const& frame) {
+	auto address = frame.Address;
 	auto kernel = IsKernelAddress(address);
-	std::optional<ImageInfo> image;
-	if (session) {
-		// drivers are images of process 0
-		image = session->FindImage(kernel ? 0 : pid, address, time);
-		if (image) {
-			if (auto text = LookupTraceImage(session, kernel ? 0 : pid, *image, address))
-				return *text;
-		}
+	auto pid = kernel ? 0 : frame.Pid;
+	auto& image = frame.Image;
+	if (image) {
+		if (auto text = LookupTraceImage(session, pid, *image, address))
+			return *text;
 	}
 	if (auto hContext = kernel ? GetKernelContext() : GetProcessContext(pid)) {
 		if (auto text = Lookup(hContext, address); !text.empty())
@@ -218,12 +317,16 @@ std::wstring StackSymbolizer::FindImageFile(HANDLE hContext, ImageInfo const& im
 }
 
 void StackSymbolizer::Forget(TraceSession const* session) {
-	for (auto it = m_TraceContexts.begin(); it != m_TraceContexts.end(); ) {
-		if (it->first.first == session) {
-			::SymCleanup(it->second.Handle);
-			it = m_TraceContexts.erase(it);
+	// after the session's queued lookups, which use it only as a key
+	Post(nullptr, [=, this] {
+		std::erase_if(m_Cache, [&](auto const& entry) { return std::get<0>(entry.first) == session; });
+		for (auto it = m_TraceContexts.begin(); it != m_TraceContexts.end(); ) {
+			if (it->first.first == session) {
+				::SymCleanup(it->second.Handle);
+				it = m_TraceContexts.erase(it);
+			}
+			else
+				++it;
 		}
-		else
-			++it;
-	}
+	});
 }

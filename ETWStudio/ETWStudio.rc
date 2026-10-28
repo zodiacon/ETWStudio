@@ -61,6 +61,10 @@ BEGIN
         MENUITEM "&Save...\tCtrl+S",            ID_FILE_SAVE
         MENUITEM "&Load Session...",            ID_FILE_LOADSESSION
         MENUITEM "Save Session...",             ID_FILE_SAVESESSION
+        POPUP "Recent Sessions"
+        BEGIN
+            MENUITEM "(None)",                      ID_FILE_RECENTSESSION_FIRST, GRAYED
+        END
         MENUITEM SEPARATOR
         MENUITEM "E&xit",                       ID_APP_EXIT
     END
@@ -803,6 +807,7 @@ BEGIN
     ID_NEW_SESSION          "\nNew Session"
     ID_TRACING_REGISTEREDPROVIDERS "\nRegistered Providers"
     ID_VIEW_AUTOSCROLL      "\nAutoscroll"
+    ID_FILE_CLEARRECENTSESSIONS "Clear the list of recent session files\nClear Recent Sessions"
     ID_VIEW_IMAGEEVENTS     "Show image load and unload events (traced for call stack symbols)\nImage Events"
     ID_SESSION_RUN          "\nRun"
     ID_SESSION_STOP         "\nStop"

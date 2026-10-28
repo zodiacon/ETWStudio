@@ -6,6 +6,7 @@
 #include <WTLHelper.h>
 #include "SecurityHelper.h"
 #include "AppSettings.h"
+#include "StackSymbolizer.h"
 #include <DbgHelp.h>
 
 #pragma comment(lib, "Dbghelp.lib")
@@ -58,6 +59,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR lp
 
 	int nRet = Run(lpstrCmdLine, nCmdShow);
 
+	StackSymbolizer::Get().Shutdown();
 	g_Settings.Save();
 
 	_Module.Term();
