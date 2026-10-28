@@ -623,11 +623,15 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 		}
 	}
 	if (m_Callback || m_CallbackNoOwn) {
+		bool excluded;
 		{
 			std::lock_guard locker(m_FilterLock);
-			if (m_FilterMgr.Eval(data.get()) == FilterResult::Exclude)
-				return;
+			excluded = m_FilterMgr.Eval(data.get()) == FilterResult::Exclude;
 		}
+		// streamed events are gone once excluded; stored ones are kept (only not handed out), so a looser filter
+		// applied to the existing events brings them back
+		if (excluded && !m_StoreEvents)
+			return;
 
 		if (m_StoreEvents) {
 			auto evt = data.get();
@@ -648,7 +652,8 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 				if (history.size() > 16)
 					history.pop_front();
 			}
-			m_CallbackNoOwn(evt);
+			if (!excluded)
+				m_CallbackNoOwn(evt);
 		}
 		else {
 			m_Callback(std::move(data));

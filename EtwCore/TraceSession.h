@@ -60,7 +60,8 @@ public:
 	std::vector<EventData*> SnapshotEvents(std::function<void()> const& onSnapshot = nullptr);
 
 	FilterManager& GetFilterManager() noexcept;
-	// safe to call while the session is running
+	// safe to call while the session is running. Excluded events aren't handed to the callback; a session that
+	// stores its events (EventCallbackNoOwn) still stores them, so a looser filter can show them later
 	void SetFilterManager(FilterManager mgr);
 	// deletes all stored events; onClear runs under the events lock, so the caller can drop
 	// any borrowed pointers it holds without racing the trace thread

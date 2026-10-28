@@ -113,6 +113,8 @@ private:
 	IMainFrame* m_pFrame;
 	TraceSession& m_Session;
 	std::vector<ProviderInfo> m_Providers;
+	// the selected rows' indices (call stacks apply to all of them)
+	std::vector<int> GetSelectedRows() const;
 	std::unordered_map<GUID, std::vector<EtwFieldInfo>> m_KeywordCache;
 	std::vector<EtwFieldInfo> const* m_Keywords{ nullptr };	// of the selected provider
 	CListViewCtrl m_List, m_KeywordList;

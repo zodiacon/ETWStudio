@@ -12,6 +12,7 @@
 #include "SessionPreset.h"
 #include "StackSymbolizer.h"
 #include "EventExport.h"
+#include "ProgressDlg.h"
 #include <execution>
 #include <fstream>
 
@@ -230,13 +231,20 @@ std::wstring CLogView::GetProperties(EventData const& evt) {
 }
 
 std::wstring CLogView::GetDetails(EventData const& evt) {
-	if (evt.UserText.empty()) {
-		std::wstring text;
-		for (auto& prop : evt.GetProperties() | std::views::take(8)) {
-			text += prop.Name + L": " + evt.FormatProperty(prop) + L"; ";
-		}
-		evt.UserText = std::move(text);
+	// searches and exports ask on other threads while the list paints
+	static std::mutex lock;
+	{
+		std::lock_guard locker(lock);
+		if (!evt.UserText.empty())
+			return evt.UserText;
 	}
+	std::wstring text;
+	for (auto& prop : evt.GetProperties() | std::views::take(8)) {
+		text += prop.Name + L": " + evt.FormatProperty(prop) + L"; ";
+	}
+	std::lock_guard locker(lock);
+	if (evt.UserText.empty())
+		evt.UserText = std::move(text);
 	return evt.UserText;
 }
 
@@ -462,49 +470,110 @@ bool CLogView::EventMatches(EventData* evt, std::span<ColumnType const> columns,
 	return false;
 }
 
+std::optional<std::vector<int>> CLogView::SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match) {
+	if (m_Searching)
+		return std::nullopt;
+	// the timer adds new events to m_Events meanwhile; the events themselves stay (the frame is disabled, so
+	// nothing clears them)
+	auto events = m_Events;
+	int count = (int)events.size();
+	auto rowAt = [&](int n) { return ((start + (forward ? n : -n)) % count + count) % count; };
+	std::vector<int> found;
+	auto done = [&] { return !all && !found.empty(); };
+
+	// most searches end quickly: no worker and no dialog for them
+	CWaitCursor wait;
+	int n = 0;
+	for (auto deadline = ::GetTickCount64() + 100; n < count && !done(); n++) {
+		if (match(*events[rowAt(n)]))
+			found.push_back(rowAt(n));
+		if (n % 256 == 255 && ::GetTickCount64() > deadline) {
+			n++;
+			break;
+		}
+	}
+
+	if (n < count && !done()) {
+		constexpr int Block = 4096;
+		std::vector<char> hits;
+		CProgressDlg dlg(L"Find", L"Searched", count, [&](auto const& report) {
+			for (; n < count; n += Block) {
+				if (!report(n))
+					return false;
+				hits.assign((std::min)(Block, count - n), 0);
+				std::for_each(std::execution::par, hits.begin(), hits.end(), [&](char& hit) {
+					hit = match(*events[rowAt(n + int(&hit - hits.data()))]);
+					});
+				for (int i = 0; i < (int)hits.size(); i++) {
+					if (hits[i]) {
+						found.push_back(rowAt(n + i));
+						if (!all)
+							return true;
+					}
+				}
+			}
+			return true;
+			});
+		// the progress dialog (modal to the frame) leaves the frame active: back to where the search came from
+		// (the Find dialog, the QuickFind box)
+		auto active = ::GetActiveWindow();
+		auto focus = ::GetFocus();
+		m_Searching = true;
+		auto result = dlg.Run(m_hWnd);
+		m_Searching = false;
+		if (::IsWindow(active))
+			::SetActiveWindow(active);
+		if (::IsWindow(focus))
+			::SetFocus(focus);
+		if (result == CProgressDlg::Result::Canceled)
+			return std::nullopt;
+	}
+	if (all)
+		std::ranges::sort(found);
+	return found;
+}
+
 std::wstring CLogView::Find(CFindDlg::Action action, CFindDlg::Options const& options) {
 	int count = (int)m_Events.size();
-	if (options.Text.empty() || count == 0)
+	if (options.Text.empty() || count == 0 || m_Searching)
 		return L"";
 
 	auto cm = GetColumnManager(m_List);
 	std::vector<ColumnType> columns;
 	for (int col = 0; col < m_List.GetHeader().GetItemCount(); col++)
 		columns.push_back(cm->GetColumnTag<ColumnType>(cm->GetRealColumn(col)));	// header index -> column manager's
+	auto matches = [&](EventData const& evt) { return EventMatches(const_cast<EventData*>(&evt), columns, options); };
 
-	CWaitCursor wait;
 	std::wstring result;
 	if (action == CFindDlg::Action::SelectAll) {
+		auto rows = SearchRows(0, true, true, matches);
+		if (!rows)
+			return L"Canceled";
 		m_List.SetItemState(-1, 0, LVIS_SELECTED);
-		int found = 0, first = -1;
-		for (int row = 0; row < count; row++) {
-			if (EventMatches(m_Events[row], columns, options)) {
-				m_List.SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
-				if (found++ == 0)
-					first = row;
-			}
+		for (auto row : *rows)
+			m_List.SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
+		if (!rows->empty()) {
+			m_List.SetItemState(rows->front(), LVIS_FOCUSED, LVIS_FOCUSED);
+			m_List.EnsureVisible(rows->front(), FALSE);
 		}
-		if (first >= 0) {
-			m_List.SetItemState(first, LVIS_FOCUSED, LVIS_FOCUSED);
-			m_List.EnsureVisible(first, FALSE);
-		}
-		result = found ? std::format(L"{} events selected", found) : L"Not found";
+		result = rows->empty() ? L"Not found" : std::format(L"{} events selected", rows->size());
 	}
 	else {
 		// from the event after (or before) the focused one, wrapping around
 		int current = m_List.GetNextItem(-1, LVNI_FOCUSED);
 		int start = current < 0 ? (options.Forward ? 0 : count - 1) : current + (options.Forward ? 1 : -1);
-		for (int n = 0; n < count && result.empty(); n++) {
-			int row = ((start + (options.Forward ? n : -n)) % count + count) % count;
-			if (EventMatches(m_Events[row], columns, options)) {
-				m_List.SetItemState(-1, 0, LVIS_SELECTED);
-				m_List.SelectItem(row);
-				bool wrapped = current >= 0 && (options.Forward ? row <= current : row >= current);
-				result = std::format(L"Found in event #{}{}", m_Events[row]->GetIndex(), wrapped ? L" (wrapped around)" : L"");
-			}
-		}
-		if (result.empty())
+		auto rows = SearchRows(start, options.Forward, false, matches);
+		if (!rows)
+			return L"Canceled";
+		if (rows->empty())
 			result = L"Not found";
+		else {
+			int row = rows->front();
+			m_List.SetItemState(-1, 0, LVIS_SELECTED);
+			m_List.SelectItem(row);
+			bool wrapped = current >= 0 && (options.Forward ? row <= current : row >= current);
+			result = std::format(L"Found in event #{}{}", m_Events[row]->GetIndex(), wrapped ? L" (wrapped around)" : L"");
+		}
 	}
 	if (result == L"Not found")
 		::MessageBeep(MB_ICONWARNING);
@@ -542,7 +611,8 @@ void CLogView::QuickFind(bool forward, bool includeCurrent) {
 		Frame()->SetStatusText(3, L"");
 		return;
 	}
-	std::wstring needle((PCWSTR)text.MakeLower());
+	auto lower = text;
+	std::wstring needle((PCWSTR)lower.MakeLower());
 
 	int current = m_List.GetNextItem(-1, LVNI_FOCUSED);
 	int start;
@@ -551,19 +621,23 @@ void CLogView::QuickFind(bool forward, bool includeCurrent) {
 	else
 		start = includeCurrent ? current : current + (forward ? 1 : -1);
 
-	CWaitCursor wait;
 	auto cm = GetColumnManager(m_List);
-	int columns = m_List.GetHeader().GetItemCount();
-	for (int n = 0; n < count; n++) {
-		int row = ((start + (forward ? n : -n)) % count + count) % count;
-		for (int col = 0; col < columns; col++) {
-			if (ContainsNoCase(GetColumnText(m_List, row, cm->GetRealColumn(col)), needle)) {
-				m_List.SetItemState(-1, 0, LVIS_SELECTED);
-				m_List.SelectItem(row);
-				Frame()->SetStatusText(3, std::format(L"Found in event #{}", m_Events[row]->GetIndex()).c_str());
-				return;
-			}
-		}
+	std::vector<ColumnType> columns;
+	for (int col = 0; col < m_List.GetHeader().GetItemCount(); col++)
+		columns.push_back(cm->GetColumnTag<ColumnType>(cm->GetRealColumn(col)));
+	auto rows = SearchRows(start, forward, false, [&](EventData const& evt) {
+		return std::ranges::any_of(columns, [&](auto type) { return ContainsNoCase(GetEventText(evt, type), needle); });
+		});
+	if (!rows) {
+		Frame()->SetStatusText(3, L"");
+		return;
+	}
+	if (!rows->empty()) {
+		int row = rows->front();
+		m_List.SetItemState(-1, 0, LVIS_SELECTED);
+		m_List.SelectItem(row);
+		Frame()->SetStatusText(3, std::format(L"Found in event #{}", m_Events[row]->GetIndex()).c_str());
+		return;
 	}
 	::MessageBeep(MB_ICONWARNING);
 	Frame()->SetStatusText(3, std::format(L"\"{}\" not found", (PCWSTR)text).c_str());
@@ -677,7 +751,7 @@ void CLogView::ApplyFilterToExisting() {
 		m_TempEvents.clear();
 		});
 
-	// events excluded while capturing were never stored, so loosening a filter can't bring them back
+	// the session stores the events a filter excluded while capturing too, so a looser filter brings them back
 	std::vector<char> keep(events.size());
 	std::for_each(std::execution::par, events.begin(), events.end(), [&](auto& evt) {
 		keep[&evt - events.data()] = IsShown(evt) && m_FilterMgr.Eval(evt) != FilterResult::Exclude;

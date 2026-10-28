@@ -210,7 +210,7 @@ void CSessionDlg::UpdateSettings() {
 	if (pi)
 		caption = (L"Settings: " + pi->Name + (pi->Kernel ? L" (Kernel)" : L"")).c_str();
 	else if (m_List.GetSelectedCount() > 1)
-		caption = L"Provider Settings (select a single provider)";
+		caption = std::format(L"Provider Settings ({} selected: only call stacks apply to all)", m_List.GetSelectedCount()).c_str();
 	SetDlgItemText(IDC_SETTINGS, caption);
 
 	m_LevelCB.EnableWindow(provider);
@@ -218,7 +218,8 @@ void CSessionDlg::UpdateSettings() {
 	GetDlgItem(IDC_MATCHALL).EnableWindow(provider);
 	CheckDlgButton(IDC_MATCHALL, provider && pi->MatchAll ? BST_CHECKED : BST_UNCHECKED);
 	GetDlgItem(IDC_EVENTIDS).EnableWindow(provider);
-	GetDlgItem(IDC_STACKS).EnableWindow(pi != nullptr);
+	auto rows = GetSelectedRows();
+	GetDlgItem(IDC_STACKS).EnableWindow(!rows.empty());
 
 	m_LevelCB.SetCurSel(-1);
 	if (provider) {
@@ -226,7 +227,9 @@ void CSessionDlg::UpdateSettings() {
 			if ((int)m_LevelCB.GetItemData(i) == pi->Config.Level)
 				m_LevelCB.SetCurSel(i);
 	}
-	CheckDlgButton(IDC_STACKS, pi && pi->Config.Stacks ? BST_CHECKED : BST_UNCHECKED);
+	// indeterminate when the selected rows differ
+	auto stacks = std::ranges::count_if(rows, [&](int row) { return m_Providers[row].Config.Stacks; });
+	CheckDlgButton(IDC_STACKS, stacks == 0 ? BST_UNCHECKED : stacks == (int)rows.size() ? BST_CHECKED : BST_INDETERMINATE);
 	SetDlgItemText(IDC_EVENTIDS, provider ? pi->EventIds.c_str() : L"");
 
 	static const std::vector<EtwFieldInfo> empty;
@@ -724,12 +727,24 @@ LRESULT CSessionDlg::OnLevelChanged(WORD, WORD, HWND, BOOL&) {
 }
 
 LRESULT CSessionDlg::OnStacksChanged(WORD, WORD, HWND, BOOL&) {
-	auto pi = GetSelectedProvider();
-	if (m_Updating || !pi)
+	auto rows = GetSelectedRows();
+	if (m_Updating || rows.empty())
 		return 0;
-	pi->Config.Stacks = IsDlgButtonChecked(IDC_STACKS) == BST_CHECKED;
-	RefreshSelectedRow();
+	// the box (3-state, not automatic) still shows the old state: a click turns them all on, unless they all were
+	bool stacks = IsDlgButtonChecked(IDC_STACKS) != BST_CHECKED;
+	CheckDlgButton(IDC_STACKS, stacks ? BST_CHECKED : BST_UNCHECKED);
+	for (auto row : rows) {
+		m_Providers[row].Config.Stacks = stacks;
+		m_List.RedrawItems(row, row);
+	}
 	return 0;
+}
+
+std::vector<int> CSessionDlg::GetSelectedRows() const {
+	std::vector<int> rows;
+	for (int index = -1; (index = m_List.GetNextItem(index, LVNI_SELECTED)) >= 0; )
+		rows.push_back(index);
+	return rows;
 }
 
 LRESULT CSessionDlg::OnMatchAllChanged(WORD, WORD, HWND, BOOL&) {

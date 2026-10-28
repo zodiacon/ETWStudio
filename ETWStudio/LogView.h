@@ -122,6 +122,10 @@ private:
 	// the Find dialog's search: returns the text it shows
 	std::wstring Find(CFindDlg::Action action, CFindDlg::Options const& options);
 	bool EventMatches(EventData* evt, std::span<ColumnType const> columns, CFindDlg::Options const& options) const;
+	// the rows whose events match, from start in the direction given, wrapping around: all of them (in row order),
+	// or the first. A search that takes a while goes on on a worker thread (the events a block at a time, in
+	// parallel) behind a progress dialog with Cancel. nullopt: canceled, or another search is under way
+	std::optional<std::vector<int>> SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match);
 
 	enum class SaveFormat { Csv, Json };
 	// exports on a worker thread, with a progress dialog; a failed or canceled export leaves no file
@@ -177,6 +181,7 @@ private:
 	std::atomic<bool> m_ShowImageEvents{ false };
 	bool IsShown(EventData const* evt) const;
 	bool m_ApplyFilterToExisting{ true };
+	bool m_Searching{ false };
 	bool m_Running{ false };
 	bool m_Active{ false };
 	bool m_Done{ false };

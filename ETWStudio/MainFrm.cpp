@@ -55,7 +55,8 @@ void CMainFrame::InitMenu(HMENU hMenu) {
 LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	CreateSimpleStatusBar();
 	m_StatusBar.SubclassWindow(m_hWndStatusBar);
-	int panes[] = { 100, 124, 350 };
+	// 0: ready, 1: run/stop icon, 2: event count, 3: messages (search results, exports), to the end
+	int panes[] = { 100, 124, 350, -1 };
 	m_StatusBar.SetParts(_countof(panes), panes);
 
 	ToolBarButtonInfo const buttons[] = {
