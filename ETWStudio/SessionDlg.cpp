@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <numeric>
 #include "SessionDlg.h"
 #include <WTLHelper.h>
 #include "ProvidersDlg.h"
@@ -152,8 +153,11 @@ CString CSessionDlg::GetColumnText(HWND h, int row, int col) const {
 ListViewRowCheck CSessionDlg::IsRowChecked(HWND h, int row) const {
 	if (h != m_KeywordList)
 		return ListViewRowCheck::None;
-	auto pi = const_cast<CSessionDlg*>(this)->GetSelectedProvider();
-	return pi && (pi->Config.MatchAnyKeyword & (*m_Keywords)[row].Value) ? ListViewRowCheck::Checked : ListViewRowCheck::Unchecked;
+	// checked when every selected provider that has the keyword has it checked
+	auto value = (*m_Keywords)[row].Value;
+	auto rows = m_Keywords == &m_SharedKeywords ? m_SharedKeywordRows[row] : GetSelectedProviderRows();
+	return !rows.empty() && std::ranges::all_of(rows, [&](int r) { return (m_Providers[r].Config.MatchAnyKeyword & value) == value; }) ?
+		ListViewRowCheck::Checked : ListViewRowCheck::Unchecked;
 }
 
 void CSessionDlg::OnStateChanged(HWND h, int from, int to, UINT oldState, UINT newState) {
@@ -204,57 +208,122 @@ std::vector<EtwFieldInfo> const& CSessionDlg::GetKeywords(GUID const& guid, std:
 void CSessionDlg::UpdateSettings() {
 	m_Updating = true;
 	auto pi = GetSelectedProvider();
-	bool provider = pi && !pi->Kernel;
+	auto rows = GetSelectedRows();
+	auto providers = GetSelectedProviderRows();
+	bool provider = !providers.empty();
+	// the value the selected providers share, if they all have the same one
+	auto common = [&](auto get) -> std::optional<decltype(get(m_Providers[0]))> {
+		if (!provider || std::ranges::any_of(providers, [&](int row) { return get(m_Providers[row]) != get(m_Providers[providers[0]]); }))
+			return std::nullopt;
+		return get(m_Providers[providers[0]]);
+	};
 
 	CString caption = L"Provider Settings";
 	if (pi)
 		caption = (L"Settings: " + pi->Name + (pi->Kernel ? L" (Kernel)" : L"")).c_str();
-	else if (m_List.GetSelectedCount() > 1)
-		caption = std::format(L"Provider Settings ({} selected: only call stacks apply to all)", m_List.GetSelectedCount()).c_str();
+	else if (rows.size() > 1)
+		caption = std::format(L"Provider Settings ({} selected{})", rows.size(),
+			providers.size() < rows.size() && provider ? L": kernel rows take only call stacks" : L"").c_str();
 	SetDlgItemText(IDC_SETTINGS, caption);
 
 	m_LevelCB.EnableWindow(provider);
 	m_KeywordList.EnableWindow(provider);
 	GetDlgItem(IDC_MATCHALL).EnableWindow(provider);
-	CheckDlgButton(IDC_MATCHALL, provider && pi->MatchAll ? BST_CHECKED : BST_UNCHECKED);
 	GetDlgItem(IDC_EVENTIDS).EnableWindow(provider);
-	auto rows = GetSelectedRows();
 	GetDlgItem(IDC_STACKS).EnableWindow(!rows.empty());
 
+	// blank (or indeterminate) when the selected rows differ
 	m_LevelCB.SetCurSel(-1);
-	if (provider) {
+	if (auto level = common([](auto& p) { return p.Config.Level; })) {
 		for (int i = 0; i < m_LevelCB.GetCount(); i++)
-			if ((int)m_LevelCB.GetItemData(i) == pi->Config.Level)
+			if ((int)m_LevelCB.GetItemData(i) == *level)
 				m_LevelCB.SetCurSel(i);
 	}
-	// indeterminate when the selected rows differ
 	auto stacks = std::ranges::count_if(rows, [&](int row) { return m_Providers[row].Config.Stacks; });
 	CheckDlgButton(IDC_STACKS, stacks == 0 ? BST_UNCHECKED : stacks == (int)rows.size() ? BST_CHECKED : BST_INDETERMINATE);
-	SetDlgItemText(IDC_EVENTIDS, provider ? pi->EventIds.c_str() : L"");
+	auto matchAll = std::ranges::count_if(providers, [&](int row) { return m_Providers[row].MatchAll; });
+	CheckDlgButton(IDC_MATCHALL, matchAll == 0 ? BST_UNCHECKED : matchAll == (int)providers.size() ? BST_CHECKED : BST_INDETERMINATE);
+	auto eventIds = common([](auto& p) { return p.EventIds; });
+	SetDlgItemText(IDC_EVENTIDS, eventIds ? eventIds->c_str() : L"");
+	((CEdit)GetDlgItem(IDC_EVENTIDS)).SetCueBannerText(provider && !eventIds ? L"Different for each provider" : L"");
 
 	static const std::vector<EtwFieldInfo> empty;
-	m_Keywords = provider ? &GetKeywords(pi->Guid, pi->Name) : &empty;
+	m_SharedKeywords.clear();
+	m_SharedKeywordRows.clear();
+	if (providers.size() == 1)
+		m_Keywords = &GetKeywords(m_Providers[providers[0]].Guid, m_Providers[providers[0]].Name);
+	else if (provider) {
+		// all their keywords; the same keyword is one row (Microsoft's providers share the high bits)
+		std::map<std::pair<ULONGLONG, std::wstring>, size_t> index;
+		for (auto row : providers) {
+			auto& p = m_Providers[row];
+			for (auto& kw : GetKeywords(p.Guid, p.Name)) {
+				auto [it, added] = index.insert({ { kw.Value, kw.Name }, m_SharedKeywords.size() });
+				if (added) {
+					m_SharedKeywords.push_back(kw);
+					m_SharedKeywordRows.emplace_back();
+				}
+				m_SharedKeywordRows[it->second].push_back(row);
+			}
+		}
+		// by value, as a single provider's
+		std::vector<size_t> order(m_SharedKeywords.size());
+		std::iota(order.begin(), order.end(), 0);
+		std::ranges::stable_sort(order, [&](auto a, auto b) { return m_SharedKeywords[a].Value < m_SharedKeywords[b].Value; });
+		std::vector<EtwFieldInfo> keywords;
+		std::vector<std::vector<int>> keywordRows;
+		for (auto i : order) {
+			auto& kw = keywords.emplace_back(std::move(m_SharedKeywords[i]));
+			auto& owners = keywordRows.emplace_back(std::move(m_SharedKeywordRows[i]));
+			if (owners.size() < providers.size()) {
+				// which providers: the keyword applies to them only
+				std::wstring names;
+				for (auto row : owners)
+					names += (names.empty() ? L"" : L", ") + m_Providers[row].Name;
+				kw.Desc = std::format(L"[{}] {}", names, kw.Desc);
+			}
+		}
+		m_SharedKeywords = std::move(keywords);
+		m_SharedKeywordRows = std::move(keywordRows);
+		m_Keywords = &m_SharedKeywords;
+	}
+	else
+		m_Keywords = &empty;
 	m_KeywordList.SetItemCount((int)m_Keywords->size());
 	m_KeywordList.RedrawItems(0, m_KeywordList.GetItemCount());
-	SetDlgItemText(IDC_KEYWORDMASK, provider ? std::format(L"0x{:016X}", pi->Config.MatchAnyKeyword).c_str() : L"");
+	ShowKeywordMask();
 	m_Updating = false;
 }
 
-void CSessionDlg::RefreshSelectedRow() {
-	int index = m_List.GetNextItem(-1, LVNI_SELECTED);
-	if (index >= 0)
-		m_List.RedrawItems(index, index);
+void CSessionDlg::ShowKeywordMask() {
+	auto providers = GetSelectedProviderRows();
+	bool same = !providers.empty() && std::ranges::all_of(providers, [&](int row) {
+		return m_Providers[row].Config.MatchAnyKeyword == m_Providers[providers[0]].Config.MatchAnyKeyword;
+		});
+	SetDlgItemText(IDC_KEYWORDMASK, same ? std::format(L"0x{:016X}", m_Providers[providers[0]].Config.MatchAnyKeyword).c_str() : L"");
+}
+
+void CSessionDlg::RefreshSelectedRows() {
+	for (auto row : GetSelectedRows())
+		m_List.RedrawItems(row, row);
 }
 
 void CSessionDlg::ToggleKeyword(int index) {
-	auto pi = GetSelectedProvider();
-	if (!pi || pi->Kernel)
+	auto providers = GetSelectedProviderRows();
+	if (providers.empty())
 		return;
-	pi->Config.MatchAnyKeyword ^= (*m_Keywords)[index].Value;
-	pi->Config.MatchAllKeyword = pi->MatchAll ? pi->Config.MatchAnyKeyword : 0;
+	// the providers that have the keyword: on for all of them, unless they all had it
+	auto& rows = m_Keywords == &m_SharedKeywords ? m_SharedKeywordRows[index] : providers;
+	auto value = (*m_Keywords)[index].Value;
+	bool on = !std::ranges::all_of(rows, [&](int row) { return (m_Providers[row].Config.MatchAnyKeyword & value) == value; });
+	for (auto row : rows) {
+		auto& p = m_Providers[row];
+		p.Config.MatchAnyKeyword = on ? p.Config.MatchAnyKeyword | value : p.Config.MatchAnyKeyword & ~value;
+		p.Config.MatchAllKeyword = p.MatchAll ? p.Config.MatchAnyKeyword : 0;
+	}
 	m_KeywordList.RedrawItems(0, m_KeywordList.GetItemCount());	// keywords may share bits
-	SetDlgItemText(IDC_KEYWORDMASK, std::format(L"0x{:016X}", pi->Config.MatchAnyKeyword).c_str());
-	RefreshSelectedRow();
+	ShowKeywordMask();
+	RefreshSelectedRows();
 }
 
 void CSessionDlg::UpdateFileLog() {
@@ -718,11 +787,11 @@ LRESULT CSessionDlg::OnRemoveProvider(WORD, WORD wID, HWND, BOOL&) {
 }
 
 LRESULT CSessionDlg::OnLevelChanged(WORD, WORD, HWND, BOOL&) {
-	auto pi = GetSelectedProvider();
-	if (m_Updating || !pi || pi->Kernel || m_LevelCB.GetCurSel() < 0)
+	if (m_Updating || m_LevelCB.GetCurSel() < 0)
 		return 0;
-	pi->Config.Level = (int)m_LevelCB.GetItemData(m_LevelCB.GetCurSel());
-	RefreshSelectedRow();
+	for (auto row : GetSelectedProviderRows())
+		m_Providers[row].Config.Level = (int)m_LevelCB.GetItemData(m_LevelCB.GetCurSel());
+	RefreshSelectedRows();
 	return 0;
 }
 
@@ -747,24 +816,37 @@ std::vector<int> CSessionDlg::GetSelectedRows() const {
 	return rows;
 }
 
+std::vector<int> CSessionDlg::GetSelectedProviderRows() const {
+	auto rows = GetSelectedRows();
+	std::erase_if(rows, [&](int row) { return m_Providers[row].Kernel; });
+	return rows;
+}
+
 LRESULT CSessionDlg::OnMatchAllChanged(WORD, WORD, HWND, BOOL&) {
-	auto pi = GetSelectedProvider();
-	if (m_Updating || !pi || pi->Kernel)
+	auto providers = GetSelectedProviderRows();
+	if (m_Updating || providers.empty())
 		return 0;
-	pi->MatchAll = IsDlgButtonChecked(IDC_MATCHALL) == BST_CHECKED;
-	pi->Config.MatchAllKeyword = pi->MatchAll ? pi->Config.MatchAnyKeyword : 0;
-	RefreshSelectedRow();
+	// as call stacks: the box (3-state, not automatic) still shows the old state
+	bool matchAll = IsDlgButtonChecked(IDC_MATCHALL) != BST_CHECKED;
+	CheckDlgButton(IDC_MATCHALL, matchAll ? BST_CHECKED : BST_UNCHECKED);
+	for (auto row : providers) {
+		auto& p = m_Providers[row];
+		p.MatchAll = matchAll;
+		p.Config.MatchAllKeyword = matchAll ? p.Config.MatchAnyKeyword : 0;
+	}
+	RefreshSelectedRows();
 	return 0;
 }
 
 LRESULT CSessionDlg::OnEventIdsChanged(WORD, WORD, HWND, BOOL&) {
-	auto pi = GetSelectedProvider();
-	if (m_Updating || !pi || pi->Kernel)
+	if (m_Updating)
 		return 0;
 	CString text;
 	GetDlgItemText(IDC_EVENTIDS, text);
-	pi->EventIds = (PCWSTR)text.Trim();
-	RefreshSelectedRow();
+	text.Trim();
+	for (auto row : GetSelectedProviderRows())
+		m_Providers[row].EventIds = (PCWSTR)text;
+	RefreshSelectedRows();
 	return 0;
 }
 

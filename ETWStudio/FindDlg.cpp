@@ -42,6 +42,7 @@ LRESULT CFindDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	CheckDlgButton(IDC_FIND_WHOLEWORD, m_Options.WholeWord);
 	CheckDlgButton(IDC_FIND_PROPERTIES, m_Options.Properties);
 	CheckRadioButton(IDC_FIND_UP, IDC_FIND_DOWN, m_Options.Forward ? IDC_FIND_DOWN : IDC_FIND_UP);
+	CheckDlgButton(IDC_FIND_WRAP, m_Options.Wrap);
 	BOOL handled;
 	OnTextChanged(0, 0, nullptr, handled);
 	_Module.GetMessageLoop()->AddMessageFilter(this);
@@ -62,6 +63,7 @@ void CFindDlg::ReadOptions() {
 	m_Options.WholeWord = IsDlgButtonChecked(IDC_FIND_WHOLEWORD) == BST_CHECKED;
 	m_Options.Properties = IsDlgButtonChecked(IDC_FIND_PROPERTIES) == BST_CHECKED;
 	m_Options.Forward = IsDlgButtonChecked(IDC_FIND_UP) != BST_CHECKED;
+	m_Options.Wrap = IsDlgButtonChecked(IDC_FIND_WRAP) == BST_CHECKED;
 }
 
 void CFindDlg::Run(Action action) {

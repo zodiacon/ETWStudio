@@ -282,8 +282,9 @@ std::wstring CLogView::GetDetails(EventData const& evt) {
 }
 
 LRESULT CLogView::OnCreate(UINT, WPARAM, LPARAM, BOOL&) {
-	// clip siblings: the quick find box sits on top of the list
-	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_REPORT | LVS_OWNERDATA);
+	// clip siblings: the quick find box sits on top of the list. The selection shows without the focus too:
+	// what Find and QuickFind found, while the focus stays in their boxes
+	m_hWndClient = m_List.Create(m_hWnd, rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS);
 	m_List.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP | LVS_EX_INFOTIP | LVS_EX_LABELTIP);
 
 	CImageList images;
@@ -503,14 +504,17 @@ bool CLogView::EventMatches(EventData* evt, std::span<ColumnType const> columns,
 	return false;
 }
 
-std::optional<std::vector<int>> CLogView::SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match) {
+std::optional<std::vector<int>> CLogView::SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match,
+	int limit) {
 	if (m_Searching)
 		return std::nullopt;
 	// the timer adds new events to m_Events meanwhile; the events themselves stay (the frame is disabled, so
 	// nothing clears them)
 	auto events = m_Events;
-	int count = (int)events.size();
-	auto rowAt = [&](int n) { return ((start + (forward ? n : -n)) % count + count) % count; };
+	int size = (int)events.size();
+	auto rowAt = [&](int n) { return ((start + (forward ? n : -n)) % size + size) % size; };
+	// the rows to look at
+	int count = limit < 0 ? size : (std::min)(limit, size);
 	std::vector<int> found;
 	auto done = [&] { return !all && !found.empty(); };
 
@@ -592,23 +596,23 @@ std::wstring CLogView::Find(CFindDlg::Action action, CFindDlg::Options const& op
 		result = rows->empty() ? L"Not found" : std::format(L"{} events selected", rows->size());
 	}
 	else {
-		// from the event after (or before) the focused one, wrapping around
+		// from the event after (or before) the focused one, wrapping around unless asked not to
 		int current = m_List.GetNextItem(-1, LVNI_FOCUSED);
 		int start = current < 0 ? (options.Forward ? 0 : count - 1) : current + (options.Forward ? 1 : -1);
-		auto rows = SearchRows(start, options.Forward, false, matches);
+		int limit = options.Wrap ? -1 : options.Forward ? count - start : start + 1;
+		auto rows = SearchRows(start, options.Forward, false, matches, limit);
 		if (!rows)
 			return L"Canceled";
 		if (rows->empty())
-			result = L"Not found";
+			result = options.Wrap ? L"Not found" : options.Forward ? L"Not found up to the last event" : L"Not found up to the first event";
 		else {
 			int row = rows->front();
-			m_List.SetItemState(-1, 0, LVIS_SELECTED);
-			m_List.SelectItem(row);
+			SelectFound(row);
 			bool wrapped = current >= 0 && (options.Forward ? row <= current : row >= current);
 			result = std::format(L"Found in event #{}{}", m_Events[row]->GetIndex(), wrapped ? L" (wrapped around)" : L"");
 		}
 	}
-	if (result == L"Not found")
+	if (result.starts_with(L"Not found"))
 		::MessageBeep(MB_ICONWARNING);
 	Frame()->SetStatusText(3, result.c_str());
 	return result;
@@ -667,8 +671,7 @@ void CLogView::QuickFind(bool forward, bool includeCurrent) {
 	}
 	if (!rows->empty()) {
 		int row = rows->front();
-		m_List.SetItemState(-1, 0, LVIS_SELECTED);
-		m_List.SelectItem(row);
+		SelectFound(row);
 		Frame()->SetStatusText(3, std::format(L"Found in event #{}", m_Events[row]->GetIndex()).c_str());
 		return;
 	}
@@ -684,8 +687,21 @@ COLORREF CLogView::GetHighlightColor(EventData* evt) const {
 	return CLR_INVALID;
 }
 
+void CLogView::SelectFound(int row) {
+	m_List.SetItemState(-1, 0, LVIS_SELECTED);
+	int top = m_List.GetTopIndex(), page = m_List.GetCountPerPage();
+	if (row < top || row >= top + page) {
+		m_List.EnsureVisible(row, FALSE);
+		CRect rc;
+		m_List.GetItemRect(row, &rc, LVIR_BOUNDS);
+		// a report list scrolls by pixels, rounded to whole rows
+		m_List.Scroll(CSize(0, (row - m_List.GetTopIndex() - page / 2) * rc.Height()));
+	}
+	m_List.SelectItem(row);
+}
+
 LRESULT CLogView::OnListCustomDraw(int, LPNMHDR hdr, BOOL& handled) {
-	if (hdr->hwndFrom != m_List || m_Highlights.GetFilterCount() == 0) {
+	if (hdr->hwndFrom != m_List) {
 		handled = FALSE;
 		return 0;
 	}
@@ -695,7 +711,15 @@ LRESULT CLogView::OnListCustomDraw(int, LPNMHDR hdr, BOOL& handled) {
 			return CDRF_NOTIFYITEMDRAW;
 
 		case CDDS_ITEMPREPAINT:
-			if (cd->nmcd.dwItemSpec < m_Events.size()) {
+			// selected rows look as selected without the focus too (the theme's inactive selection is faint,
+			// in dark mode almost invisible): what Find found while the focus stays in its dialog
+			if (::GetFocus() != m_List && m_List.GetItemState((int)cd->nmcd.dwItemSpec, LVIS_SELECTED)) {
+				cd->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS);
+				cd->clrTextBk = ::GetSysColor(COLOR_HIGHLIGHT);
+				cd->clrText = ::GetSysColor(COLOR_HIGHLIGHTTEXT);
+				return CDRF_NEWFONT;
+			}
+			if (m_Highlights.GetFilterCount() > 0 && cd->nmcd.dwItemSpec < m_Events.size()) {
 				if (auto color = GetHighlightColor(m_Events[cd->nmcd.dwItemSpec]); color != CLR_INVALID) {
 					cd->clrTextBk = color;
 					cd->clrText = RGB(0, 0, 0);

@@ -18,6 +18,7 @@ public:
 		bool WholeWord{ false };
 		bool Properties{ false };	// also property names and values, not only the displayed columns
 		bool Forward{ true };
+		bool Wrap{ true };		// past the last (or first) event, go on from the other end
 	};
 	enum class Action { FindNext, SelectAll };
 	// does the search; returns the result to show in the dialog

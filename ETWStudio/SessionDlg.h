@@ -98,7 +98,10 @@ private:
 	void UpdateSettings();
 	void UpdateFileLog();
 	void ToggleKeyword(int index);
-	void RefreshSelectedRow();
+	// redraws the selected rows
+	void RefreshSelectedRows();
+	// the keyword mask of the selected providers, if they all have the same one
+	void ShowKeywordMask();
 	std::vector<EtwFieldInfo> const& GetKeywords(GUID const& guid, std::wstring const& name);
 	bool ApplyToSession(std::wstring const& name);
 	// selects the first provider with invalid event IDs and tells the user
@@ -115,8 +118,14 @@ private:
 	std::vector<ProviderInfo> m_Providers;
 	// the selected rows' indices (call stacks apply to all of them)
 	std::vector<int> GetSelectedRows() const;
+	// the selected rows that are providers (not kernel rows): the other settings apply to these
+	std::vector<int> GetSelectedProviderRows() const;
 	std::unordered_map<GUID, std::vector<EtwFieldInfo>> m_KeywordCache;
-	std::vector<EtwFieldInfo> const* m_Keywords{ nullptr };	// of the selected provider
+	std::vector<EtwFieldInfo> const* m_Keywords{ nullptr };	// of the selected provider(s)
+	// with several providers selected: the keywords of all of them (by name and value), and for each the
+	// providers (rows) that have it
+	std::vector<EtwFieldInfo> m_SharedKeywords;
+	std::vector<std::vector<int>> m_SharedKeywordRows;
 	CListViewCtrl m_List, m_KeywordList;
 	CComboBox m_LevelCB;
 	std::optional<SessionPreset> m_Preset;

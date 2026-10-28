@@ -108,6 +108,8 @@ private:
 	void PositionQuickFind();
 	// the color of the first enabled highlight rule matching the event, or CLR_INVALID
 	COLORREF GetHighlightColor(EventData* evt) const;
+	// selects only this row (what Find or QuickFind found), scrolled to the middle of the list if it's not in view
+	void SelectFound(int row);
 	static std::wstring GetProperties(EventData const& evt);
 	static std::wstring GetDetails(EventData const& evt);
 
@@ -123,9 +125,11 @@ private:
 	std::wstring Find(CFindDlg::Action action, CFindDlg::Options const& options);
 	bool EventMatches(EventData* evt, std::span<ColumnType const> columns, CFindDlg::Options const& options) const;
 	// the rows whose events match, from start in the direction given, wrapping around: all of them (in row order),
-	// or the first. A search that takes a while goes on on a worker thread (the events a block at a time, in
-	// parallel) behind a progress dialog with Cancel. nullopt: canceled, or another search is under way
-	std::optional<std::vector<int>> SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match);
+	// or the first. limit: how many rows to look at (-1: all of them). A search that takes a while goes on on a
+	// worker thread (the events a block at a time, in parallel) behind a progress dialog with Cancel.
+	// nullopt: canceled, or another search is under way
+	std::optional<std::vector<int>> SearchRows(int start, bool forward, bool all, std::function<bool(EventData const&)> const& match,
+		int limit = -1);
 
 	enum class SaveFormat { Csv, Json };
 	struct SaveOptions {

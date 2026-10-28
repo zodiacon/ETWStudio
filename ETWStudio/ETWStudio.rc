@@ -261,7 +261,7 @@ BEGIN
     LTEXT           "Keyword mask:",IDC_STATIC,360,185,70,8
     EDITTEXT        IDC_KEYWORDMASK,360,195,72,14,ES_AUTOHSCROLL | ES_READONLY
     LTEXT           "None checked: all keywords",IDC_STATIC,360,213,72,18
-    CONTROL         "Re&quire all checked",IDC_MATCHALL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,360,234,76,10
+    CONTROL         "Re&quire all checked",IDC_MATCHALL,"Button",BS_3STATE | WS_TABSTOP,360,234,76,10
     LTEXT           "&Event IDs:",IDC_STATIC,15,252,34,8
     EDITTEXT        IDC_EVENTIDS,52,250,180,14,ES_AUTOHSCROLL
     LTEXT           "Empty: all events (e.g. 1, 5, 10-20)",IDC_STATIC,238,252,150,8
@@ -318,6 +318,7 @@ BEGIN
     LTEXT           "Direction:",IDC_STATIC,140,30,40,8
     CONTROL         "&Up",IDC_FIND_UP,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,140,43,35,10
     CONTROL         "&Down",IDC_FIND_DOWN,"Button",BS_AUTORADIOBUTTON,180,43,40,10
+    CONTROL         "W&rap around",IDC_FIND_WRAP,"Button",BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,140,56,85,10
     LTEXT           "",IDC_FIND_STATUS,7,74,223,8
     DEFPUSHBUTTON   "&Find Next",IDOK,237,7,56,14
     PUSHBUTTON      "&Select All",IDC_FIND_SELECTALL,237,25,56,14
