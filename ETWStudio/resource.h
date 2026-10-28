@@ -135,6 +135,7 @@
 #define ID_TRACING_REGISTEREDPROVIDERS  32779
 #define ID_HELP_ABOUTWINDOWS            32780
 #define ID_VIEW_AUTOSCROLL              32781
+#define ID_VIEW_IMAGEEVENTS             32807
 #define ID_SESSION_RUN                  32782
 #define ID_SESSION_STOP                 32783
 #define ID_SESSION_CLEAR                32784
@@ -164,7 +165,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        257
-#define _APS_NEXT_COMMAND_VALUE         32807
+#define _APS_NEXT_COMMAND_VALUE         32808
 #define _APS_NEXT_CONTROL_VALUE         1079
 #define _APS_NEXT_SYMED_VALUE           104
 #endif

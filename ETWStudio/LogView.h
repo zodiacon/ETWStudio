@@ -83,6 +83,7 @@ public:
 		COMMAND_ID_HANDLER(ID_SESSION_STOP, OnStop)
 		COMMAND_ID_HANDLER(ID_EDIT_CLEAR_ALL, OnClearAll)
 		COMMAND_ID_HANDLER(ID_VIEW_AUTOSCROLL, OnAutoScroll)
+		COMMAND_ID_HANDLER(ID_VIEW_IMAGEEVENTS, OnToggleImageEvents)
 		COMMAND_ID_HANDLER(ID_EDIT_FILTER, OnEditFilter)
 		COMMAND_ID_HANDLER(ID_EDIT_HIGHLIGHT, OnEditHighlight)
 		COMMAND_ID_HANDLER(ID_VIEW_QUICKFIND, OnQuickFind)
@@ -142,6 +143,7 @@ private:
 	LRESULT OnQuickFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnQuickFindNotify(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFind(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnToggleImageEvents(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnFindNext(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnEditHighlight(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
@@ -171,6 +173,9 @@ private:
 	// properties dialogs hold borrowed event pointers; close them before events are freed
 	mutable std::vector<HWND> m_PropertiesDialogs;
 	bool m_AutoScroll{ false };
+	// image load/unload events are stored by the session either way; read on the trace thread
+	std::atomic<bool> m_ShowImageEvents{ false };
+	bool IsShown(EventData const* evt) const;
 	bool m_ApplyFilterToExisting{ true };
 	bool m_Running{ false };
 	bool m_Active{ false };

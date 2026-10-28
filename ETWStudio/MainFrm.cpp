@@ -355,6 +355,8 @@ void CMainFrame::UpdateUI() {
 	UISetCheck(ID_SESSION_RUN, false);
 	UISetCheck(ID_SESSION_STOP, false);
 	UISetCheck(ID_VIEW_AUTOSCROLL, false);
+	UIEnable(ID_VIEW_IMAGEEVENTS, false);
+	UISetCheck(ID_VIEW_IMAGEEVENTS, false);
 	UIEnable(ID_EDIT_HIGHLIGHT, false);
 	UIEnable(ID_EDIT_FILTER, false);
 	UIEnable(ID_FILE_SAVE, false);

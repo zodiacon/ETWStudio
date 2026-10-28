@@ -121,6 +121,12 @@ public:
 	// the image holding the address in the process at that time, from the trace's image load/unload
 	// and rundown events (drivers are in process 0); nullopt if the trace has none for it
 	std::optional<ImageInfo> FindImage(DWORD pid, ULONG64 address, LONGLONG time) const;
+	// an image load/unload/rundown event (the kernel's or Microsoft-Windows-Kernel-Process's)
+	static bool IsImageEvent(EventData const& data) noexcept;
+	// a live session: image events were selected (not only enabled to symbolize stacks)
+	bool ImageEventsRequested() const noexcept {
+		return !m_HideImageEvents;
+	}
 
 private:
 	bool StartCommon(bool cont);
@@ -155,7 +161,7 @@ private:
 	// process ID -> its images, in the order seen (written on the trace thread, read by the UI)
 	std::unordered_map<DWORD, std::vector<ImageInfo>> m_Images;
 	mutable std::shared_mutex m_ImagesLock;
-	std::atomic<bool> m_HideImageEvents{ false };	// enabled only for symbols: parsed, not stored
+	std::atomic<bool> m_HideImageEvents{ false };	// image events enabled only for symbols (not selected)
 	bool m_ImageProviderAdded{ false };				// Kernel-Process enabled only for its image events
 
 	std::vector<std::unique_ptr<EventData>> m_Events;

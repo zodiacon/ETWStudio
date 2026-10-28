@@ -16,12 +16,20 @@
 #include <fstream>
 
 CLogView::CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session) : CFrameView(frame), m_Session(std::move(session)) {
+	// a live session shows the image events it was asked for (not those enabled only for stack symbols)
+	m_ShowImageEvents = m_Session && m_Session->ImageEventsRequested();
+}
+
+bool CLogView::IsShown(EventData const* evt) const {
+	return m_ShowImageEvents || !TraceSession::IsImageEvent(*evt);
 }
 
 bool CLogView::OpenLogFile(PCWSTR path) {
 	m_Session = std::make_unique<TraceSession>();
+	// a file can't tell whether its image events were asked for; mostly they're for stack symbols
+	m_ShowImageEvents = false;
 	m_Running = m_Session->OpenFile(path, [&](EventData* evt) {
-		if (!m_Session->IsRunning())
+		if (!m_Session->IsRunning() || !IsShown(evt))
 			return;
 		std::lock_guard locker(m_EventsLock);
 		m_TempEvents.push_back(evt);
@@ -148,11 +156,12 @@ void CLogView::UpdateUI() {
 	ui.UISetCheck(ID_SESSION_RUN, m_Running);
 	ui.UISetCheck(ID_SESSION_STOP, !m_Running);
 	ui.UISetCheck(ID_VIEW_AUTOSCROLL, m_AutoScroll);
+	ui.UISetCheck(ID_VIEW_IMAGEEVENTS, m_ShowImageEvents);
 	ui.UIEnable(ID_VIEW_PROPERTIES, m_List.GetSelectedCount() == 1);
 	ui.UIEnable(ID_EDIT_COPY, m_List.GetSelectedCount() > 0);
 	ui.UIEnable(ID_SESSION_PROPERTIES, !m_Running);
 	ui.UIEnable(ID_FILE_SAVE, !m_Running);		// export a stopped session only
-	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
+	Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, LR_SHARED, 16, 16));
 }
 
 CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveFormat format) const {
@@ -322,13 +331,15 @@ LRESULT CLogView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
 		ui.UIEnable(ID_SESSION_RUN, true);
 		ui.UIEnable(ID_SESSION_STOP, true);
 		ui.UIEnable(ID_VIEW_AUTOSCROLL, true);
+		ui.UIEnable(ID_VIEW_IMAGEEVENTS, true);
+		ui.UISetCheck(ID_VIEW_IMAGEEVENTS, m_ShowImageEvents);
 		ui.UIEnable(ID_EDIT_CLEAR_ALL, true);
 		ui.UIEnable(ID_EDIT_FIND, true);
 		ui.UIEnable(ID_EDIT_FIND_NEXT, true);
 		ui.UIEnable(ID_EDIT_FIND_PREVIOUS, true);
 		ui.UIEnable(ID_EDIT_HIGHLIGHT, true);
 		ui.UIEnable(ID_EDIT_FILTER, true);
-		Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, 0, 16, 16));
+		Frame()->SetStatusIcon(1, AtlLoadIconImage(m_Running ? IDI_RUN : IDI_STOP, LR_SHARED, 16, 16));
 		Frame()->SetStatusText(2, std::format(L"{} Events", m_Events.size()).c_str());
 
 		UpdateUI();
@@ -601,6 +612,8 @@ LRESULT CLogView::OnRun(WORD, WORD, HWND, BOOL&) {
 	else {
 		// a stopped log file continues where it stopped
 		auto ok = m_Session->Start([&](EventData* evt) {
+			if (!IsShown(evt))
+				return;
 			std::lock_guard locker(m_EventsLock);
 			m_TempEvents.push_back(evt);
 			}, !m_Session->IsRealTimeSession());
@@ -660,7 +673,7 @@ void CLogView::ApplyFilterToExisting() {
 	// events excluded while capturing were never stored, so loosening a filter can't bring them back
 	std::vector<char> keep(events.size());
 	std::for_each(std::execution::par, events.begin(), events.end(), [&](auto& evt) {
-		keep[&evt - events.data()] = m_FilterMgr.Eval(evt) != FilterResult::Exclude;
+		keep[&evt - events.data()] = IsShown(evt) && m_FilterMgr.Eval(evt) != FilterResult::Exclude;
 		});
 	m_Events.clear();
 	for (size_t i = 0; i < events.size(); i++)
@@ -752,6 +765,17 @@ LRESULT CLogView::OnCopy(WORD, WORD, HWND, BOOL&) const {
 LRESULT CLogView::OnEditSession(WORD, WORD, HWND, BOOL&) {
 	CSessionDlg dlg(Frame(), *m_Session, true);
 	if (IDOK == dlg.DoModal()) {
+		// image events may have been selected, or enabled only for stacks
+		if (bool show = m_Session->ImageEventsRequested(); show != m_ShowImageEvents) {
+			m_ShowImageEvents = show;
+			ApplyFilterToExisting();
+		}
 	}
+	return 0;
+}
+
+LRESULT CLogView::OnToggleImageEvents(WORD, WORD, HWND, BOOL&) {
+	m_ShowImageEvents = !m_ShowImageEvents;
+	ApplyFilterToExisting();
 	return 0;
 }

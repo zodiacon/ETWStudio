@@ -559,9 +559,28 @@ int TraceSession::UpdateEventConfig() {
 	return error;
 }
 
+bool TraceSession::IsImageEvent(EventData const& data) noexcept {
+	auto& provider = data.GetProviderId();
+	auto id = data.GetEventDescriptor().Id;
+	return provider == ImageLoadGuid || (provider == KernelProcessProviderGuid && (id == 5 || id == 6));
+}
+
 void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
-	if (m_Quit || m_Paused || m_Stopped)
+	if (m_Quit || m_Stopped)
 		return;
+	if (m_Paused) {
+		// images and processes still come and go: keep tracking them (a live session; a paused file stops),
+		// so stacks and process names of the events after the pause come out right
+		auto& provider = rec->EventHeader.ProviderId;
+		auto id = rec->EventHeader.EventDescriptor.Id;
+		if (IsRealTimeSession() && (provider == ImageLoadGuid || provider == ProcessGuid ||
+			(provider == KernelProcessProviderGuid && (id == 1 || id == 2 || id == 5 || id == 6)))) {
+			EventData data(rec, std::wstring(), 0);
+			if (::GetLastError() == ERROR_SUCCESS && !ParseImageEvent(&data))
+				ParseProcessStartStop(&data);
+		}
+		return;
+	}
 
 	if (!IsRealTimeSession()) {
 		auto time = rec->EventHeader.TimeStamp.QuadPart;
@@ -597,10 +616,7 @@ void TraceSession::OnEventRecord(PEVENT_RECORD rec) {
 
 	auto data = std::make_unique<EventData>(rec, GetProcessImageById(pid), ++m_Index);
 	if (::GetLastError() == ERROR_SUCCESS) {
-		if (ParseImageEvent(data.get()) && m_HideImageEvents && IsRealTimeSession()) {
-			--m_Index;		// enabled only for symbols
-			return;
-		}
+		ParseImageEvent(data.get());	// stored like any other; the view decides whether to show it
 		// process start/stop events update the process names, and are displayed like any other event
 		if (!ParseProcessStartStop(data.get()) && (data->GetProcessId() == 0 || data->GetProcessId() == (DWORD)-1)) {
 			HandleNoProcessId(data.get());

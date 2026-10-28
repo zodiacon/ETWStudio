@@ -80,6 +80,7 @@ BEGIN
     POPUP "&View"
     BEGIN
         MENUITEM "&Autoscroll",                 ID_VIEW_AUTOSCROLL
+        MENUITEM "&Image Events",               ID_VIEW_IMAGEEVENTS
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
         MENUITEM "&Quick Find...\tCtrl+Q",      ID_VIEW_QUICKFIND
         MENUITEM "&Refresh",                    ID_VIEW_REFRESH
@@ -802,6 +803,7 @@ BEGIN
     ID_NEW_SESSION          "\nNew Session"
     ID_TRACING_REGISTEREDPROVIDERS "\nRegistered Providers"
     ID_VIEW_AUTOSCROLL      "\nAutoscroll"
+    ID_VIEW_IMAGEEVENTS     "Show image load and unload events (traced for call stack symbols)\nImage Events"
     ID_SESSION_RUN          "\nRun"
     ID_SESSION_STOP         "\nStop"
 END
