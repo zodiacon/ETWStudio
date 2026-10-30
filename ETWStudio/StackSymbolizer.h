@@ -35,8 +35,9 @@ public:
 	// queues the frames' lookup; Cancel(owner) drops what's still to be done
 	void Request(void const* owner, TraceSession const* session, std::vector<Frame> frames, SymbolCallback callback);
 	void Cancel(void const* owner);
-	// looks the frames up and waits for them (not on the UI thread)
-	std::vector<std::wstring> GetSymbols(TraceSession const* session, std::vector<Frame> frames);
+	// looks the frames up and waits for them (not on the UI thread). cancel (optional): once set, stops waiting
+	// (the result is then empty) and stops the lookup, a download under way included
+	std::vector<std::wstring> GetSymbols(TraceSession const* session, std::vector<Frame> frames, std::atomic<bool> const* cancel = nullptr);
 
 	// drops the symbol contexts made for the session's images (when the session goes away)
 	void Forget(TraceSession const* session);
@@ -65,6 +66,9 @@ private:
 	static std::wstring DriverPathToDosPath(std::wstring path);
 	static std::wstring Lookup(HANDLE hContext, ULONG64 address);
 	void SetActivity(std::wstring text);
+	// the work under way was canceled (its owner's Cancel, Shutdown, a GetSymbols caller): what it found
+	// meanwhile may be incomplete, so it isn't kept
+	bool Canceling() const noexcept;
 	static BOOL CALLBACK OnSymbolEvent(HANDLE hContext, ULONG action, ULONG64 data, ULONG64 context);
 
 	// a process of a trace, with the images loaded into it as frames needed them
@@ -75,6 +79,8 @@ private:
 	};
 	// the image's text from the trace's own image list; nullopt: no file for it
 	std::optional<std::wstring> LookupTraceImage(TraceSession const* session, DWORD pid, ImageInfo const& image, ULONG64 address);
+	// unloads the frame's trace image (its symbols' load was canceled, so DbgHelp may not try again)
+	void ForgetImage(TraceSession const* session, Frame const& frame);
 	std::wstring FindImageFile(HANDLE hContext, ImageInfo const& image);
 
 	std::unordered_map<DWORD, HANDLE> m_Processes;
@@ -102,6 +108,8 @@ private:
 	std::deque<Task> m_Tasks;
 	void const* m_RunningOwner{ nullptr };
 	std::atomic<bool> m_CancelRunning{ false };
+	// the cancel flag of the GetSymbols lookup under way (its own copy: the caller may be gone)
+	std::atomic<std::atomic<bool> const*> m_JobCancel{ nullptr };
 	bool m_Quit{ false };
 	DWORD m_ThreadId{ 0 };
 	std::thread m_Thread;	// last: starts running when constructed

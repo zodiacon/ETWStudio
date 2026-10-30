@@ -96,18 +96,46 @@ void StackSymbolizer::Request(void const* owner, TraceSession const* session, st
 	});
 }
 
-std::vector<std::wstring> StackSymbolizer::GetSymbols(TraceSession const* session, std::vector<Frame> frames) {
+std::vector<std::wstring> StackSymbolizer::GetSymbols(TraceSession const* session, std::vector<Frame> frames, std::atomic<bool> const* cancel) {
 	ATLASSERT(::GetCurrentThreadId() != m_ThreadId);
-	std::promise<std::vector<std::wstring>> promise;
-	auto result = promise.get_future();
-	Post(nullptr, [&, this] {
+	// (an export asks for each event's frames until it sees the cancel itself)
+	if (cancel && *cancel)
+		return {};
+	// shared with the lookup: a canceled caller doesn't wait for it, and may be gone when it runs
+	struct Job {
+		std::vector<Frame> Frames;
+		std::promise<std::vector<std::wstring>> Result;
+		std::atomic<bool> Canceled{ false };
+	};
+	auto job = std::make_shared<Job>();
+	job->Frames = std::move(frames);
+	auto result = job->Result.get_future();
+	Post(nullptr, [=, this] {
 		std::vector<std::wstring> symbols;
-		symbols.reserve(frames.size());
-		for (auto& frame : frames)
+		symbols.reserve(job->Frames.size());
+		m_JobCancel = &job->Canceled;
+		for (auto& frame : job->Frames) {
+			if (job->Canceled)
+				break;
 			symbols.push_back(Resolve(session, frame));
-		promise.set_value(std::move(symbols));
+		}
+		m_JobCancel = nullptr;
+		job->Result.set_value(std::move(symbols));
 	});
+	if (!cancel)
+		return result.get();
+	while (result.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout) {
+		if (*cancel) {
+			job->Canceled = true;
+			return {};
+		}
+	}
 	return result.get();
+}
+
+bool StackSymbolizer::Canceling() const noexcept {
+	auto job = m_JobCancel.load();
+	return m_CancelRunning || (job && *job);
 }
 
 void StackSymbolizer::Reset() {
@@ -174,6 +202,9 @@ BOOL CALLBACK StackSymbolizer::OnSymbolEvent(HANDLE, ULONG action, ULONG64 data,
 		case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
 			self->SetActivity(L"");
 			break;
+		case CBA_DEFERRED_SYMBOL_LOAD_CANCEL:
+			// asked now and then while symbols load (downloads included): TRUE stops it
+			return self->Canceling();
 	}
 	// informational only (TRUE would mean handled: for a failure, retry with another file)
 	return FALSE;
@@ -263,12 +294,20 @@ std::wstring StackSymbolizer::Resolve(TraceSession const* session, Frame const& 
 		ImageCacheKey key(image->FileName, image->TimeDateStamp, image->Size, frame.Address - image->Base);
 		if (auto it = m_ImageCache.find(key); it != m_ImageCache.end())
 			return it->second;
-		return m_ImageCache[key] = DoResolve(session, frame);
+		auto text = DoResolve(session, frame);
+		if (Canceling())
+			ForgetImage(session, frame);	// loaded again (and its symbols looked for) next time
+		else
+			m_ImageCache[key] = text;
+		return text;
 	}
 	CacheKey key(session, IsKernelAddress(frame.Address) ? 0 : frame.Pid, frame.Address);
 	if (auto it = m_Cache.find(key); it != m_Cache.end())
 		return it->second;
-	return m_Cache[key] = DoResolve(session, frame);
+	auto text = DoResolve(session, frame);
+	if (!Canceling())
+		m_Cache[key] = text;
+	return text;
 }
 
 std::wstring StackSymbolizer::DoResolve(TraceSession const* session, Frame const& frame) {
@@ -313,7 +352,8 @@ std::optional<std::wstring> StackSymbolizer::LookupTraceImage(TraceSession const
 		}
 		auto file = FindImageFile(context.Handle, image);
 		if (file.empty() || !::SymLoadModuleExW(context.Handle, nullptr, file.c_str(), nullptr, image.Base, image.Size, nullptr, 0)) {
-			context.Failed.insert(key);
+			if (!Canceling())		// (not found because the search was stopped)
+				context.Failed.insert(key);
 			return {};
 		}
 		context.Loaded[image.Base] = key;
@@ -348,6 +388,15 @@ std::wstring StackSymbolizer::FindImageFile(HANDLE hContext, ImageInfo const& im
 			return found;
 	}
 	return L"";
+}
+
+void StackSymbolizer::ForgetImage(TraceSession const* session, Frame const& frame) {
+	auto pid = IsKernelAddress(frame.Address) ? 0 : frame.Pid;
+	if (auto it = m_TraceContexts.find({ session, pid }); it != m_TraceContexts.end()) {
+		auto& context = it->second;
+		if (context.Loaded.erase(frame.Image->Base))
+			::SymUnloadModule64(context.Handle, frame.Image->Base);
+	}
 }
 
 void StackSymbolizer::Forget(TraceSession const* session) {

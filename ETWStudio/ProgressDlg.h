@@ -24,6 +24,11 @@ public:
 	// a line under the bar saying what the work is busy with (polled on the UI thread; empty: nothing to say)
 	void SetDetail(std::function<std::wstring()> detail);
 
+	// set when the work is to stop (Cancel, the app closing): for work that waits on something else meanwhile
+	std::atomic<bool> const* CancelFlag() const noexcept {
+		return &m_Cancel;
+	}
+
 	// the dialog running now (on the UI thread), if any
 	static CProgressDlg* Running();
 	// the app is closing: stops the work, and once it has (the dialog gone, so its caller has returned),

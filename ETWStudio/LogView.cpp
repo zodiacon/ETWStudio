@@ -197,11 +197,12 @@ CProgressDlg::Result CLogView::DoSave(PCWSTR path, SaveOptions const& options) c
 		// the stacks' symbols as the Properties dialog shows them (looked up on the symbolizer's thread, this one waits)
 		EventExport::StackSymbols symbols;
 		if (options.StackSymbols) {
-			symbols = [this](EventData const& evt) {
+			// a canceled export doesn't wait for a symbol download under way (it stops too)
+			symbols = [this, cancel = dlg.CancelFlag()](EventData const& evt) {
 				std::vector<StackSymbolizer::Frame> frames;
 				for (auto address : evt.GetStackTrace())
 					frames.push_back(StackSymbolizer::MakeFrame(m_Session.get(), evt.GetProcessId(), address, (LONGLONG)evt.GetTimeStamp()));
-				return StackSymbolizer::Get().GetSymbols(m_Session.get(), std::move(frames));
+				return StackSymbolizer::Get().GetSymbols(m_Session.get(), std::move(frames), cancel);
 			};
 		}
 		if (format == SaveFormat::Json)
