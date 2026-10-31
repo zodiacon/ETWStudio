@@ -52,6 +52,10 @@ class CLogView :
 public:
 	CLogView(IMainFrame* frame, std::unique_ptr<TraceSession> session);
 	bool OpenLogFile(PCWSTR path);
+	// the .etl file this view opened (empty for a live session)
+	std::wstring const& OpenedFile() const noexcept {
+		return m_OpenedFile;
+	}
 
 	CString GetColumnText(HWND, int row, int col) const;
 	void DoSort(const SortInfo* si);
@@ -178,6 +182,7 @@ private:
 	CQuickFindBox m_QuickFind;
 	CFindDlg m_FindDlg{ [this](auto action, auto const& options) { return Find(action, options); } };
 	std::unique_ptr<TraceSession> m_Session;
+	std::wstring m_OpenedFile;
 	std::vector<EventData*> m_Events;
 	std::vector<EventData*> m_TempEvents;
 	std::mutex m_EventsLock;

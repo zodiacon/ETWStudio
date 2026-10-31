@@ -36,6 +36,8 @@ bool CLogView::OpenLogFile(PCWSTR path) {
 		std::lock_guard locker(m_EventsLock);
 		m_TempEvents.push_back(evt);
 	});
+	if (m_Running)
+		m_OpenedFile = path;
 	UpdateUI();
 	return m_Running;
 }

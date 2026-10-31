@@ -35,6 +35,7 @@ public:
 		COMMAND_ID_HANDLER(IDC_COPY, OnCopy)
 		COMMAND_ID_HANDLER(IDC_COPYALL, OnCopyAll)
 		NOTIFY_HANDLER(IDC_LIST, LVN_KEYDOWN, OnListKeyDown)
+		NOTIFY_HANDLER(IDC_LIST, NM_CUSTOMDRAW, OnListCustomDraw)
 		CHAIN_MSG_MAP(CVirtualListView<CPropertiesDlg>)
 		CHAIN_MSG_MAP(CDynamicDialogLayout<CPropertiesDlg>)
 	END_MSG_MAP()
@@ -59,6 +60,7 @@ private:
 	LRESULT OnCopy(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnCopyAll(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnListKeyDown(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
+	LRESULT OnListCustomDraw(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 
 	CListViewCtrl m_List;
 	TraceSession const* m_Session;

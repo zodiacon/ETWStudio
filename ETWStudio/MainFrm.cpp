@@ -552,7 +552,12 @@ bool CMainFrame::OpenFile(PCWSTR path) {
 }
 
 LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	if (SecurityHelper::RunElevated(nullptr, true)) {
+	// the elevated instance reopens the files open here (its command line), in tab order
+	std::wstring files;
+	for (int i = 0; i < m_view.GetPageCount(); i++)
+		if (auto view = dynamic_cast<CLogView*>((CMessageMap*)m_view.GetPageData(i)); view && !view->OpenedFile().empty())
+			files += L"\"" + view->OpenedFile() + L"\" ";
+	if (SecurityHelper::RunElevated(files.empty() ? nullptr : files.c_str(), true)) {
 		PostMessage(WM_CLOSE);
 	}
 	return 0;

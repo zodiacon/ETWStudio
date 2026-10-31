@@ -199,6 +199,26 @@ LRESULT CPropertiesDlg::OnListKeyDown(int, LPNMHDR hdr, BOOL& handled) {
     return 0;
 }
 
+LRESULT CPropertiesDlg::OnListCustomDraw(int, LPNMHDR hdr, BOOL&) {
+    auto cd = (NMLVCUSTOMDRAW*)hdr;
+    switch (cd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            // selected rows look as selected without the focus too (the theme's inactive selection is faint, in
+            // dark mode almost invisible): the rows Copy copies while a button has the focus
+            if (::GetFocus() != m_List && m_List.GetItemState((int)cd->nmcd.dwItemSpec, LVIS_SELECTED)) {
+                cd->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS);
+                cd->clrTextBk = ::GetSysColor(COLOR_HIGHLIGHT);
+                cd->clrText = ::GetSysColor(COLOR_HIGHLIGHTTEXT);
+                return CDRF_NEWFONT;
+            }
+            break;
+    }
+    return CDRF_DODEFAULT;
+}
+
 LRESULT CPropertiesDlg::OnPrevEvent(WORD, WORD wID, HWND, BOOL&) {
     if (m_Index == 0)
         return 0;
