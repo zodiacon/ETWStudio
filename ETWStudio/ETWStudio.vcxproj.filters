@@ -78,6 +78,9 @@
     <ClCompile Include="EventExport.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ProviderExport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FullFindDlg.cpp">
       <Filter>Dialogs</Filter>
     </ClCompile>
@@ -156,6 +159,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EventExport.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ProviderExport.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PropertyFilter.h">

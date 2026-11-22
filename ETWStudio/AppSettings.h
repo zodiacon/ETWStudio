@@ -21,6 +21,7 @@ public:
 		SETTING_STRING(RecentFiles, L"");			// opened data (.etl) files, the same way
 		SETTING(ExportCsvStacks, 0, SettingType::Bool);		// CSV exports get a Stack column
 		SETTING(ExportStackSymbols, 1, SettingType::Bool);	// exported stacks get their symbols (may download them)
+		SETTING(ExportProvidersScope, 1, SettingType::Int32);	// Registered Providers export: list, selected provider, everything
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
@@ -38,6 +39,7 @@ public:
 	DEF_SETTING_STRING(RecentFiles)
 	DEF_SETTING(ExportCsvStacks, bool)
 	DEF_SETTING(ExportStackSymbols, bool)
+	DEF_SETTING(ExportProvidersScope, int)
 
 	// the recently used files of each kind (File > Recent Files, Recent Sessions), most recent first
 	enum class Recent { Files, Sessions };

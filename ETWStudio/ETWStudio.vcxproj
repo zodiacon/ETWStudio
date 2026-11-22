@@ -511,6 +511,7 @@
     <ClCompile Include="EventExport.cpp" />
     <ClCompile Include="ProvidersDlg.cpp" />
     <ClCompile Include="ProvidersView.cpp" />
+    <ClCompile Include="ProviderExport.cpp" />
     <ClCompile Include="SecurityHelper.cpp" />
     <ClCompile Include="SessionDlg.cpp" />
     <ClCompile Include="SimpleDlg.cpp" />
@@ -538,6 +539,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ProvidersView.h" />
+    <ClInclude Include="ProviderExport.h" />
     <ClInclude Include="SecurityHelper.h" />
     <ClInclude Include="SessionDlg.h" />
     <ClInclude Include="SimpleDlg.h" />

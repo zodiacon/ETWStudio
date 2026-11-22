@@ -3,25 +3,27 @@
 #include "StringHelper.h"
 #include <EventData.h>
 
-namespace {
-	std::wstring JsonString(std::wstring_view text) {
-		std::wstring json(L"\"");
-		for (auto ch : text) {
-			switch (ch) {
-				case L'"': json += L"\\\""; break;
-				case L'\\': json += L"\\\\"; break;
-				case L'\n': json += L"\\n"; break;
-				case L'\r': json += L"\\r"; break;
-				case L'\t': json += L"\\t"; break;
-				default:
-					if (ch < 0x20)
-						json += std::format(L"\\u{:04x}", (unsigned)ch);
-					else
-						json += ch;
-			}
+std::wstring EventExport::JsonString(std::wstring_view text) {
+	std::wstring json(L"\"");
+	for (auto ch : text) {
+		switch (ch) {
+			case L'"': json += L"\\\""; break;
+			case L'\\': json += L"\\\\"; break;
+			case L'\n': json += L"\\n"; break;
+			case L'\r': json += L"\\r"; break;
+			case L'\t': json += L"\\t"; break;
+			default:
+				if (ch < 0x20)
+					json += std::format(L"\\u{:04x}", (unsigned)ch);
+				else
+					json += ch;
 		}
-		return json + L'"';
 	}
+	return json + L'"';
+}
+
+namespace {
+	using EventExport::JsonString;
 
 	// ISO 8601, UTC, 100 nsec precision
 	std::wstring IsoTime(ULONGLONG ts) {

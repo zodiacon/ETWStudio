@@ -43,6 +43,8 @@ private:
 namespace EventExport {
 	// quotes a CSV field if needed
 	std::wstring CsvField(std::wstring_view text);
+	// a quoted, escaped JSON string
+	std::wstring JsonString(std::wstring_view text);
 	// an event's stack frames' symbols, in order
 	using StackSymbols = std::function<std::vector<std::wstring>(EventData const&)>;
 	// all event data (header fields, properties, stack) as a JSON array.

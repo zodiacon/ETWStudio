@@ -8,6 +8,10 @@
 #include <ListViewhelper.h>
 #include <SortHelper.h>
 #include "StringHelper.h"
+#include <WTLHelper.h>
+#include "EventExport.h"
+#include "ProviderExport.h"
+#include "AppSettings.h"
 
 BOOL CProvidersView::PreTranslateMessage(MSG* pMsg) {
 	pMsg;
@@ -127,6 +131,125 @@ LRESULT CProvidersView::OnQuickFind(WORD, WORD, HWND, BOOL&) {
 		m_QuickFind.SetFocus();
 	}
 	return 0;
+}
+
+LRESULT CProvidersView::OnActivate(UINT, WPARAM active, LPARAM, BOOL&) {
+	// other tabs don't all set it, so this one clears it on the way out
+	Frame()->UI().UIEnable(ID_FILE_SAVE, active != 0);
+	return 0;
+}
+
+LRESULT CProvidersView::OnFileSave(WORD, WORD, HWND, BOOL&) {
+	COMDLG_FILTERSPEC types[] = {
+		{ L"CSV Files", L"*.csv" },
+		{ L"JSON Files", L"*.json" },
+	};
+	CShellFileSaveDialog dlg(nullptr, FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT, L"csv", types, _countof(types));
+
+	// what to export, under the file types
+	auto& settings = AppSettings::Get();
+	int selected = m_ProviderList.GetSelectedIndex();
+	auto scope = (ExportScope)settings.ExportProvidersScope();
+	if (scope < ExportScope::ProviderList || scope > ExportScope::Catalog || (scope == ExportScope::SelectedProvider && selected < 0))
+		scope = ExportScope::ProviderList;
+	enum { ScopeGroupId = 100, ScopeId };
+	CComQIPtr<IFileDialogCustomize> custom(dlg.GetPtr());
+	if (custom) {
+		custom->StartVisualGroup(ScopeGroupId, L"Export:");
+		custom->AddRadioButtonList(ScopeId);
+		custom->AddControlItem(ScopeId, (DWORD)ExportScope::ProviderList, L"Provider list");
+		if (selected >= 0)
+			custom->AddControlItem(ScopeId, (DWORD)ExportScope::SelectedProvider,
+				std::format(L"Events of {}", m_Providers[selected].Name()).c_str());
+		custom->AddControlItem(ScopeId, (DWORD)ExportScope::Catalog, L"All providers with their events (may take a while)");
+		custom->SetSelectedControlItem(ScopeId, (DWORD)scope);
+		custom->EndVisualGroup();
+	}
+	WTLHelper::SuspendHook();
+	auto ok = IDOK == dlg.DoModal(m_hWnd);
+	WTLHelper::ResumeHook();
+	CString path;
+	if (!ok || FAILED(dlg.GetFilePath(path)))
+		return 0;
+
+	DWORD item;
+	if (custom && SUCCEEDED(custom->GetSelectedControlItem(ScopeId, &item))) {
+		scope = (ExportScope)item;
+		settings.ExportProvidersScope((int)scope);
+	}
+	// the extension decides; otherwise the selected file type
+	auto dot = ::wcsrchr(path, L'.');
+	auto ext = dot ? dot : L"";
+	UINT type = 1;
+	dlg.GetPtr()->GetFileTypeIndex(&type);
+	bool json = ::_wcsicmp(ext, L".json") == 0 || (::_wcsicmp(ext, L".csv") != 0 && type == 2);
+
+	switch (DoSave(path, scope, json)) {
+		case CProgressDlg::Result::Failed:
+			AtlMessageBox(m_hWnd, L"Failed to save the file", IDS_TITLE, MB_ICONERROR);
+			break;
+		case CProgressDlg::Result::Canceled:
+			Frame()->SetStatusText(3, L"Export canceled");
+			break;
+		default:
+			Frame()->SetStatusText(3, (scope == ExportScope::SelectedProvider ?
+				std::format(L"Saved {} events of {} to {}", m_Events.size(), m_Providers[selected].Name(), (PCWSTR)path) :
+				std::format(L"Saved {} providers to {}", m_Providers.size(), (PCWSTR)path)).c_str());
+			break;
+	}
+	return 0;
+}
+
+CProgressDlg::Result CProvidersView::DoSave(PCWSTR path, ExportScope scope, bool json) const {
+	auto writer = std::make_unique<Utf8Writer>(path);
+	if (!writer->IsOpen())
+		return CProgressDlg::Result::Failed;
+
+	// the worker gets its own copies (in the displayed order): the providers cache their metadata as it's
+	// looked up, and the lists keep doing that on this thread while the dialog runs
+	std::vector<EtwProvider> providers;
+	std::vector<EVENT_DESCRIPTOR> events;
+	size_t total;
+	if (scope == ExportScope::SelectedProvider) {
+		providers.push_back(m_Providers[m_ProviderList.GetSelectedIndex()]);
+		events = m_Events;
+		total = events.size();
+	}
+	else {
+		providers = m_Providers;
+		total = providers.size();
+	}
+
+	CProgressDlg dlg(L"Export", scope == ExportScope::SelectedProvider ? L"Exported events:" : L"Exported providers:", total,
+		[&](auto const& report) {
+		// MOF providers' metadata comes from WMI
+		auto hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		bool ok = false;
+		switch (scope) {
+			case ExportScope::ProviderList:
+				EtwProvider::LoadEventCounts(providers);		// in parallel
+				ok = json ? ProviderExport::WriteProvidersJson(*writer, providers, false, report) :
+					ProviderExport::WriteProviderListCsv(*writer, providers, report);
+				break;
+			case ExportScope::SelectedProvider:
+				ok = json ? ProviderExport::WriteProviderJson(*writer, providers[0], events, report) :
+					ProviderExport::WriteEventsCsv(*writer, providers[0], events, report);
+				break;
+			case ExportScope::Catalog:
+				ok = json ? ProviderExport::WriteProvidersJson(*writer, providers, true, report) :
+					ProviderExport::WriteAllEventsCsv(*writer, providers, report);
+				break;
+		}
+		if (SUCCEEDED(hr))
+			::CoUninitialize();
+		return ok && writer->Flush();
+	});
+	auto result = dlg.Run(m_hWnd);
+	if (result != CProgressDlg::Result::Done) {
+		writer.reset();		// closes the file
+		::DeleteFile(path);
+	}
+	return result;
 }
 
 LRESULT CProvidersView::OnSize(UINT, WPARAM, LPARAM, BOOL& handled) {
