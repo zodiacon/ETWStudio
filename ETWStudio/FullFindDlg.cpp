@@ -63,12 +63,36 @@ LRESULT CFullFindDlg::OnInitDialog(UINT, WPARAM, LPARAM, BOOL&) {
 	return 0;
 }
 
+CFullFindDlg::~CFullFindDlg() {
+	StopSearch();
+}
+
 LRESULT CFullFindDlg::OnCloseCmd(WORD, WORD wID, HWND, BOOL&) {
+	StopSearch();
 	EndDialog(wID);
 	return 0;
 }
 
+void CFullFindDlg::StopSearch() {
+	if (m_SearchThread.joinable()) {
+		m_Cancel = true;
+		m_SearchThread.join();
+	}
+}
+
+void CFullFindDlg::EnableSearchControls(bool enable) {
+	for (auto id : { IDC_TEXT, IDC_PROVIDER, IDC_EVENTS, IDC_PROPS })
+		GetDlgItem(id).EnableWindow(enable);
+	SetDlgItemText(IDC_FIND, enable ? L"Find" : L"Stop");
+}
+
 LRESULT CFullFindDlg::OnFind(WORD, WORD wID, HWND, BOOL&) {
+	if (m_SearchThread.joinable()) {
+		// "Stop": the thread posts WM_FIND_DONE on its way out, which shows the partial results
+		m_Cancel = true;
+		return 0;
+	}
+
 	m_SearchProviders = IsDlgButtonChecked(IDC_PROVIDER) == BST_CHECKED;
 	m_SearchEvents = IsDlgButtonChecked(IDC_EVENTS) == BST_CHECKED;
 	m_SearchProperties = IsDlgButtonChecked(IDC_PROPS) == BST_CHECKED;
@@ -78,60 +102,115 @@ LRESULT CFullFindDlg::OnFind(WORD, WORD wID, HWND, BOOL&) {
 
 	m_Items.clear();
 	m_List.SetItemCount(0);
-	SetDlgItemText(IDC_STATS, L"");
-	CWaitCursor wait;
+	m_Found.clear();
+	SetDlgItemText(IDC_STATS, L"Searching...");
+	EnableSearchControls(false);
 
-	for (auto& provider : EtwProvider::EnumProviders()) {
-		if (m_SearchProviders) {
+	m_Cancel = false;
+	m_SearchThread = std::thread([=, this, providers = (bool)m_SearchProviders,
+		events = (bool)m_SearchEvents, props = (bool)m_SearchProperties] {
+		// MOF providers are decoded through WMI, which needs COM on this thread
+		auto hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		Search(text, providers, events, props);
+		if (SUCCEEDED(hr))
+			::CoUninitialize();
+		PostMessage(WM_FIND_DONE, m_Cancel ? 1 : 0);
+		});
+
+	return 0;
+}
+
+LRESULT CFullFindDlg::OnFindProgress(UINT, WPARAM done, LPARAM total, BOOL&) {
+	if (m_SearchThread.joinable())
+		SetDlgItemText(IDC_STATS, std::format(L"Searching... {}/{}", done, total).c_str());
+	return 0;
+}
+
+LRESULT CFullFindDlg::OnFindDone(UINT, WPARAM canceled, LPARAM, BOOL&) {
+	if (!m_SearchThread.joinable())
+		return 0;
+
+	m_SearchThread.join();		// it's exiting; after this m_Found is ours
+	m_Items = std::move(m_Found);
+	m_Found.clear();
+	m_List.SetItemCount((int)m_Items.size());
+	SetDlgItemText(IDC_STATS, std::format(L"Items found: {}{}", m_Items.size(), canceled ? L" (stopped)" : L"").c_str());
+	EnableSearchControls(true);
+	GetDlgItem(IDC_TEXT).SetFocus();
+
+	return 0;
+}
+
+//
+// runs on the search thread: touches only m_Found and m_Cancel, and talks to the UI with PostMessage
+//
+void CFullFindDlg::Search(CString text, bool searchProviders, bool searchEvents, bool searchProperties) {
+	auto providers = EtwProvider::EnumProviders();
+	size_t done = 0;
+	auto lastProgress = ::GetTickCount64();
+
+	for (auto& provider : providers) {
+		if (m_Cancel)
+			return;
+
+		if (auto now = ::GetTickCount64(); now - lastProgress > 200) {
+			lastProgress = now;
+			PostMessage(WM_FIND_PROGRESS, done, providers.size());
+		}
+		done++;
+
+		if (searchProviders) {
 			CString name(provider.Name().c_str());
 			name.MakeUpper();
 			if (name.Find(text) >= 0) {
 				FindItem item;
 				item.Provider = provider.Name();
-				m_Items.push_back(std::move(item));
+				m_Found.push_back(std::move(item));
 			}
 			else if (name = provider.GuidAsString().c_str(); name.Find(text) >= 0) {
 				FindItem item;
 				item.Provider = provider.GuidAsString();
-				m_Items.push_back(std::move(item));
+				m_Found.push_back(std::move(item));
 			}
 		}
-		if (m_SearchEvents || m_SearchProperties) {
+		if (searchEvents || searchProperties) {
 			for (auto const& desc : provider.GetProviderEvents()) {
+				if (m_Cancel)
+					return;
 				auto const& evt = provider.EventInfo(desc);
-				if (m_SearchEvents) {
+				if (searchEvents) {
 					if (Find(evt.EventName, text)) {
 						FindItem item;
 						item.Provider = provider.Name();
 						item.Event = L"Name: " + evt.EventName;
-						m_Items.push_back(std::move(item));
+						m_Found.push_back(std::move(item));
 					}
 					if (Find(evt.KeywordName, text)) {
 						FindItem item;
 						item.Provider = provider.Name();
 						item.Event = L"Keyword: " + evt.KeywordName;
-						m_Items.push_back(std::move(item));
+						m_Found.push_back(std::move(item));
 					}
 					if (Find(evt.EventMessage, text)) {
 						FindItem item;
 						item.Provider = provider.Name();
 						item.Event = L"Message: " + evt.EventMessage;
-						m_Items.push_back(std::move(item));
+						m_Found.push_back(std::move(item));
 					}
 					if (Find(evt.ChannelName, text)) {
 						FindItem item;
 						item.Provider = provider.Name();
 						item.Event = L"Channel: " + evt.ChannelName;
-						m_Items.push_back(std::move(item));
+						m_Found.push_back(std::move(item));
 					}
 					if (Find(evt.OpCodeName, text)) {
 						FindItem item;
 						item.Provider = provider.Name();
 						item.Event = L"Opcode: " + evt.OpCodeName;
-						m_Items.push_back(std::move(item));
+						m_Found.push_back(std::move(item));
 					}
 				}
-				if (m_SearchProperties) {
+				if (searchProperties) {
 					for (auto& prop : evt.Properties) {
 						if (Find(prop.Name, text)) {
 							FindItem item;
@@ -141,15 +220,11 @@ LRESULT CFullFindDlg::OnFind(WORD, WORD wID, HWND, BOOL&) {
 								+ (evt.TaskName.empty() ? L"" : (L"Task: " + evt.TaskName + L" "))
 								+ (evt.OpCodeName.empty() ? L"" : (L"Opcode: " + evt.OpCodeName + L" "));
 							item.Property = prop.Name;
-							m_Items.push_back(std::move(item));
+							m_Found.push_back(std::move(item));
 						}
 					}
 				}
 			}
 		}
 	}
-	m_List.SetItemCount((int)m_Items.size());
-	SetDlgItemText(IDC_STATS, std::format(L"Items found: {}", m_Items.size()).c_str());
-
-	return 0;
 }
