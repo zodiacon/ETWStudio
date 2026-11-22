@@ -119,6 +119,8 @@ BEGIN
         MENUITEM "&Reset Font",                 ID_OPTIONS_RESETFONT
         MENUITEM "&Dark Mode",                  ID_OPTIONS_DARKMODE
         MENUITEM "&Symbols...",                 ID_OPTIONS_SYMBOLPATH
+        MENUITEM SEPARATOR
+        MENUITEM "Single &Instance",            ID_OPTIONS_SINGLEINSTANCE
     END
     POPUP "&Window"
     BEGIN

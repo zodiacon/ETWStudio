@@ -147,6 +147,7 @@
 #define ID_FILE_RECENTFILE_FIRST        32817
 #define ID_FILE_RECENTFILE_LAST         32824
 #define ID_FILE_CLEARRECENTFILES        32825
+#define ID_OPTIONS_SINGLEINSTANCE       32826
 #define ID_SESSION_RUN                  32782
 #define ID_SESSION_STOP                 32783
 #define ID_SESSION_CLEAR                32784
@@ -176,7 +177,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        257
-#define _APS_NEXT_COMMAND_VALUE         32826
+#define _APS_NEXT_COMMAND_VALUE         32827
 #define _APS_NEXT_CONTROL_VALUE         1084
 #define _APS_NEXT_SYMED_VALUE           104
 #endif

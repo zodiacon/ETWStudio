@@ -138,6 +138,7 @@ LRESULT CMainFrame::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
 	UIAddMenu(GetMenu());
 	UISetCheck(ID_VIEW_STATUS_BAR, AppSettings::Get().ViewStatusBar());
 	UISetCheck(ID_OPTIONS_DARKMODE, WTLHelper::IsDarkMode());
+	UISetCheck(ID_OPTIONS_SINGLEINSTANCE, AppSettings::Get().SingleInstance());
 
 	UpdateUI();
 
@@ -517,6 +518,61 @@ LRESULT CMainFrame::OnDropFiles(UINT, WPARAM wParam, LPARAM, BOOL&) {
 	return 0;
 }
 
+bool CMainFrame::PassToRunning(std::vector<std::wstring> const& paths) {
+	auto hWnd = ::FindWindow(GetWndClassInfo().m_wc.lpszClassName, nullptr);
+	if (!hWnd)
+		return false;
+	// the paths, each ending with a null
+	std::wstring data;
+	for (auto& path : paths) {
+		data += path;
+		data.push_back(L'\0');
+	}
+	DWORD pid = 0;
+	::GetWindowThreadProcessId(hWnd, &pid);
+	::AllowSetForegroundWindow(pid);		// so it can come to the front
+	COPYDATASTRUCT cds{ CopyDataOpenFiles, DWORD(data.size() * sizeof(WCHAR)), data.data() };
+	DWORD_PTR result = 0;
+	return ::SendMessageTimeout(hWnd, WM_COPYDATA, 0, (LPARAM)&cds, SMTO_ABORTIFHUNG, 5000, &result) && result;
+}
+
+LRESULT CMainFrame::OnCopyData(UINT, WPARAM, LPARAM lParam, BOOL& handled) {
+	auto cds = (COPYDATASTRUCT const*)lParam;
+	if (cds->dwData != CopyDataOpenFiles) {
+		handled = FALSE;
+		return 0;
+	}
+	auto text = (PCWSTR)cds->lpData;
+	size_t count = cds->cbData / sizeof(WCHAR);
+	for (size_t start = 0; start < count; ) {
+		auto end = size_t(std::find(text + start, text + count, L'\0') - text);
+		if (end > start)
+			m_PassedFiles.emplace_back(text + start, end - start);
+		start = end + 1;
+	}
+	if (!m_PassedFiles.empty())
+		PostMessage(WM_OPEN_PASSED_FILES);
+	if (IsIconic())
+		ShowWindow(SW_RESTORE);
+	::SetForegroundWindow(::GetLastActivePopup(m_hWnd));		// a dialog up stays on top
+	return TRUE;
+}
+
+LRESULT CMainFrame::OnOpenPassedFiles(UINT, WPARAM, LPARAM, BOOL&) {
+	auto paths = std::move(m_PassedFiles);
+	m_PassedFiles.clear();
+	if (!paths.empty())
+		OpenFiles(paths);
+	return 0;
+}
+
+LRESULT CMainFrame::OnSingleInstance(WORD, WORD, HWND, BOOL&) {
+	auto single = !AppSettings::Get().SingleInstance();
+	AppSettings::Get().SingleInstance(single);
+	UISetCheck(ID_OPTIONS_SINGLEINSTANCE, single);
+	return 0;
+}
+
 void CMainFrame::OpenFiles(std::vector<std::wstring> const& paths) {
 	std::wstring failed;
 	for (auto& path : paths) {
@@ -552,12 +608,13 @@ bool CMainFrame::OpenFile(PCWSTR path) {
 }
 
 LRESULT CMainFrame::OnRunAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	// the elevated instance reopens the files open here (its command line), in tab order
-	std::wstring files;
+	// the elevated instance reopens the files open here (its command line), in tab order; a new instance even
+	// with Single Instance, as this one is still running
+	std::wstring files = std::wstring(NewInstanceSwitch) + L" ";
 	for (int i = 0; i < m_view.GetPageCount(); i++)
 		if (auto view = dynamic_cast<CLogView*>((CMessageMap*)m_view.GetPageData(i)); view && !view->OpenedFile().empty())
 			files += L"\"" + view->OpenedFile() + L"\" ";
-	if (SecurityHelper::RunElevated(files.empty() ? nullptr : files.c_str(), true)) {
+	if (SecurityHelper::RunElevated(files.c_str(), true)) {
 		PostMessage(WM_CLOSE);
 	}
 	return 0;

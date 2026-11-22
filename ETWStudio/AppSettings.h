@@ -22,6 +22,7 @@ public:
 		SETTING(ExportCsvStacks, 0, SettingType::Bool);		// CSV exports get a Stack column
 		SETTING(ExportStackSymbols, 1, SettingType::Bool);	// exported stacks get their symbols (may download them)
 		SETTING(ExportProvidersScope, 1, SettingType::Int32);	// Registered Providers export: list, selected provider, everything
+		SETTING(SingleInstance, 1, SettingType::Bool);		// files opened from Explorer go to the running window
 		END_SETTINGS
 
 	DEF_SETTING(DarkMode, bool)
@@ -40,6 +41,7 @@ public:
 	DEF_SETTING(ExportCsvStacks, bool)
 	DEF_SETTING(ExportStackSymbols, bool)
 	DEF_SETTING(ExportProvidersScope, int)
+	DEF_SETTING(SingleInstance, bool)
 
 	// the recently used files of each kind (File > Recent Files, Recent Sessions), most recent first
 	enum class Recent { Files, Sessions };

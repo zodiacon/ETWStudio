@@ -18,7 +18,14 @@ class CMainFrame :
 	public IMainFrame,
 	public CIdleHandler {
 public:
-	DECLARE_FRAME_WND_CLASS(nullptr, IDR_MAINFRAME)
+	// a fixed class name: a second instance finds the running one by it (Options > Single Instance)
+	DECLARE_FRAME_WND_CLASS(L"ETWStudioMainFrame", IDR_MAINFRAME)
+
+	// hands the files (none: just activates it) to an ETW Studio already running; false if there's none or it
+	// doesn't respond
+	static bool PassToRunning(std::vector<std::wstring> const& paths);
+	// on the command line: start a new instance even with Single Instance (Run as Administrator's relaunch)
+	static constexpr PCWSTR NewInstanceSwitch = L"/NewInstance";
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual BOOL OnIdle();
@@ -65,6 +72,9 @@ public:
 		COMMAND_ID_HANDLER(ID_OPTIONS_SYMBOLPATH, OnSymbolPath)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DROPFILES, OnDropFiles)
+		MESSAGE_HANDLER(WM_COPYDATA, OnCopyData)
+		MESSAGE_HANDLER(WM_OPEN_PASSED_FILES, OnOpenPassedFiles)
+		COMMAND_ID_HANDLER(ID_OPTIONS_SINGLEINSTANCE, OnSingleInstance)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
 		MESSAGE_HANDLER(WM_MENUSELECT, [](auto, auto, auto, auto) { return 0; })
@@ -94,6 +104,9 @@ private:
 
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnDropFiles(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnCopyData(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnOpenPassedFiles(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+	LRESULT OnSingleInstance(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled);
 	LRESULT OnPageActivated(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnFileExit(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
@@ -130,4 +143,8 @@ private:
 	CMenuHandle m_RecentSessionsMenu, m_RecentFilesMenu;
 	CFont m_Font;
 	int m_ActivePage{ -1 };
+	// files another instance passed (WM_COPYDATA), opened once its send returned (a session file's dialog is modal)
+	std::vector<std::wstring> m_PassedFiles;
+	static constexpr UINT WM_OPEN_PASSED_FILES = WM_APP + 201;
+	static constexpr ULONG_PTR CopyDataOpenFiles = 0x45545746;	// 'ETWF'
 };
