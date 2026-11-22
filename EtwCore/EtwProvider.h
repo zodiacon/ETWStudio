@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
+#include <span>
 
 enum class EtwSchemaSource {
 	Xml = 0,
@@ -88,11 +90,15 @@ public:
 	std::vector<EVENT_DESCRIPTOR> const& GetProviderEvents() const;
 	EtwEventInfo const& EventInfo(const EVENT_DESCRIPTOR& desc) const;
 	int32_t EventCount() const;
+	// computes and caches EventCount() for all providers, in parallel
+	static void LoadEventCounts(std::span<const EtwProvider> providers);
 
 	std::vector<EtwFieldInfo> FieldInfo(EtwFieldType type) const;
 
 private:
 	int32_t MofEventCount() const;
+	// returns a thread-local buffer holding the provider's events, or nullptr on failure
+	PROVIDER_EVENT_INFO const* EnumManifestEvents() const;
 
 	//
 	// MOF providers have no TDH enumeration API, so the schema is walked once out of

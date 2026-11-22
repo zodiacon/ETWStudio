@@ -168,7 +168,7 @@ CString CProvidersView::GetColumnText(HWND h, int row, int col) const {
 	else {
 		auto index = m_ProviderList.GetSelectedIndex();
 		if (index >= 0) {
-			auto event = m_Providers[index].EventInfo(m_Events[row]);
+			auto const& event = m_Providers[index].EventInfo(m_Events[row]);
 			switch (tag) {
 				case ColumnType::Name: return event.EventName.c_str();
 				case ColumnType::Keyword: return event.KeywordName.c_str();
@@ -209,11 +209,16 @@ void CProvidersView::DoSort(const SortInfo* si) {
 	auto tag = GetColumnManager(si->hWnd)->GetColumnTag<ColumnType>(si->SortColumn);
 
 	if (si->hWnd == m_ProviderList) {
+		if (tag == ColumnType::Count) {
+			// fill the count cache up front (in parallel), not lazily from inside the comparator
+			CWaitCursor wait;
+			EtwProvider::LoadEventCounts(m_Providers);
+		}
 		std::sort(m_Providers.begin(), m_Providers.end(), [&](const auto& a1, const auto& a2) {
 			switch (tag) {
 				case ColumnType::Name: return SortHelper::Sort(a1.Name(), a2.Name(), asc);
 				case ColumnType::Guid: return SortHelper::Sort(a1.GuidAsString(), a2.GuidAsString(), asc);
-				case ColumnType::Source: return SortHelper::Sort(a1.SchemaSource(), a2.SchemaSource(), asc);
+				case ColumnType::Type: return SortHelper::Sort(a1.SchemaSource(), a2.SchemaSource(), asc);
 				case ColumnType::Count: return SortHelper::Sort(a1.EventCount(), a2.EventCount(), asc);
 			}
 			return false;
@@ -222,8 +227,9 @@ void CProvidersView::DoSort(const SortInfo* si) {
 	else {
 		auto& provider = m_Providers[m_ProviderList.GetSelectedIndex()];
 		std::sort(m_Events.begin(), m_Events.end(), [&](const auto& ev1, const auto& ev2) {
-			auto e1 = provider.EventInfo(ev1);
-			auto e2 = provider.EventInfo(ev2);
+			// references are stable: m_EventInfo is an unordered_map (node-based)
+			auto const& e1 = provider.EventInfo(ev1);
+			auto const& e2 = provider.EventInfo(ev2);
 			switch (tag) {
 				case ColumnType::Name: return SortHelper::Sort(e1.EventName, e2.EventName, asc);
 				case ColumnType::Keyword: return SortHelper::Sort(e1.KeywordName, e2.KeywordName, asc);

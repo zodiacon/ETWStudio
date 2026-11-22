@@ -2,6 +2,7 @@
 #include "EtwProvider.h"
 #include <memory>
 #include <algorithm>
+#include <execution>
 #include <assert.h>
 #include "WMIHelper.h"
 #include <wil\com.h>
@@ -103,7 +104,6 @@ EtwSchemaSource EtwProvider::SchemaSource() const {
 }
 
 std::vector<EVENT_DESCRIPTOR> const& EtwProvider::GetProviderEvents() const {
-	std::vector<EVENT_DESCRIPTOR> events;
 	if (m_Source == EtwSchemaSource::Mof) {
 		BuildMofSchema();
 		return m_Events;
@@ -113,28 +113,50 @@ std::vector<EVENT_DESCRIPTOR> const& EtwProvider::GetProviderEvents() const {
 		return m_Events;
 
 	if (m_Events.empty()) {
-		ULONG size = 0;
-		auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, nullptr, &size);
-		if (error != ERROR_INSUFFICIENT_BUFFER)
+		auto data = EnumManifestEvents();
+		if (!data) {
+			m_EventCount = 0;	// cache the failure so we don't query again
 			return m_Events;
-
-		auto buffer = std::make_unique<BYTE[]>(size);
-		if (!buffer)
-			return m_Events;
-
-		auto data = reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.get());
-		error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, data, &size);
-		assert(error == ERROR_SUCCESS);
-		if (error != ERROR_SUCCESS)
-			return m_Events;
-
-		events.reserve(data->NumberOfEvents);
-		for (ULONG i = 0; i < data->NumberOfEvents; i++)
-			events.push_back(data->EventDescriptorsArray[i]);
-		m_Events = std::move(events);
+		}
+		m_Events.assign(data->EventDescriptorsArray, data->EventDescriptorsArray + data->NumberOfEvents);
 		m_EventCount = static_cast<int32_t>(m_Events.size());
 	}
 	return m_Events;
+}
+
+PROVIDER_EVENT_INFO const* EtwProvider::EnumManifestEvents() const {
+	//
+	// TdhEnumerateManifestProviderEvents loads and parses the provider's manifest on every call,
+	// including the size-probing call with a null buffer. Starting with a reasonably large,
+	// reused buffer means a single call suffices for nearly all providers (~2x faster).
+	//
+	thread_local std::vector<BYTE> buffer(1 << 16);
+	auto size = static_cast<ULONG>(buffer.size());
+	auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.data()), &size);
+	if (error == ERROR_INSUFFICIENT_BUFFER) {
+		buffer.resize(size);
+		error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.data()), &size);
+	}
+	return error == ERROR_SUCCESS ? reinterpret_cast<PROVIDER_EVENT_INFO const*>(buffer.data()) : nullptr;
+}
+
+void EtwProvider::LoadEventCounts(std::span<const EtwProvider> providers) {
+	//
+	// each provider only touches its own cached state, so this is safe to run in parallel.
+	// MOF providers go through WMI (BuildMofSchema), which needs COM on the worker thread.
+	//
+	std::for_each(std::execution::par, providers.begin(), providers.end(), [](auto const& p) {
+		if (p.SchemaSource() == EtwSchemaSource::Mof) {
+			// RPC_E_CHANGED_MODE means COM is already initialized on this thread - fine to use
+			auto hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+			p.EventCount();
+			if (SUCCEEDED(hr))
+				::CoUninitialize();
+		}
+		else {
+			p.EventCount();
+		}
+		});
 }
 
 EtwEventInfo const& EtwProvider::EventInfo(const EVENT_DESCRIPTOR& desc) const {
@@ -222,20 +244,9 @@ int32_t EtwProvider::EventCount() const {
 	if (m_Source == EtwSchemaSource::Mof)
 		return MofEventCount();
 
-	ULONG size = 0;
-	auto error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, nullptr, &size);
-	if (error != ERROR_INSUFFICIENT_BUFFER)
-		return 0;
-
-	auto buffer = std::make_unique<BYTE[]>(size);
-	if (!buffer)
-		return 0;
-
-	auto data = reinterpret_cast<PROVIDER_EVENT_INFO*>(buffer.get());
-	error = ::TdhEnumerateManifestProviderEvents((LPGUID)&m_Guid, data, &size);
-	if (error != ERROR_SUCCESS)
-		return 0;
-	return m_EventCount = data->NumberOfEvents;
+	// failures are cached as 0 so they aren't retried on every paint
+	auto data = EnumManifestEvents();
+	return m_EventCount = data ? static_cast<int32_t>(data->NumberOfEvents) : 0;
 }
 
 std::vector<EtwFieldInfo> EtwProvider::FieldInfo(EtwFieldType type) const {
